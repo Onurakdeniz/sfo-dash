@@ -5,6 +5,9 @@ import { session } from "./tables/session";
 import { workspace, workspaceCompany, workspaceMember } from "./tables/workspace";
 import { company, department, unit } from "./tables/company";
 import { invitation, invitationTemplate } from "./tables/invitation";
+import { policies, policyAssignments } from "./tables/policies";
+import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
+import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog } from "./tables/system";
 
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -15,6 +18,11 @@ export const userRelations = relations(user, ({ many, one }) => ({
   ledUnits: many(unit),
   sentInvitations: many(invitation, { relationName: "invitedBy" }),
   acceptedInvitations: many(invitation, { relationName: "acceptedBy" }),
+  // New relations
+  createdPolicies: many(policies),
+  assignedPolicies: many(policyAssignments),
+  grantedPermissions: many(roleModulePermissions),
+  accessLogs: many(moduleAccessLog),
 }));
 
 export const workspaceRelations = relations(workspace, ({ one, many }) => ({
@@ -26,6 +34,12 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   companies: many(workspaceCompany),
   invitations: many(invitation),
   invitationTemplates: many(invitationTemplate),
+  // New relations
+  settings: one(workspaceSettings),
+  policyAssignments: many(policyAssignments),
+  featureFlags: many(featureFlags),
+  roles: many(roles),
+  rolePermissions: many(roleModulePermissions),
 }));
 
 export const companyRelations = relations(company, ({ many, one }) => ({
@@ -41,6 +55,11 @@ export const companyRelations = relations(company, ({ many, one }) => ({
   childCompanies: many(company, {
     relationName: "companyHierarchy",
   }),
+  // New relations
+  settings: one(companySettings),
+  policyAssignments: many(policyAssignments),
+  featureFlags: many(featureFlags),
+  roles: many(roles),
 }));
 
 export const workspaceCompanyRelations = relations(workspaceCompany, ({ one }) => ({
@@ -147,5 +166,133 @@ export const invitationTemplateRelations = relations(invitationTemplate, ({ one 
   company: one(company, {
     fields: [invitationTemplate.companyId],
     references: [company.id],
+  }),
+}));
+
+// ===== NEW TABLE RELATIONS =====
+
+// Policies Relations
+export const policiesRelations = relations(policies, ({ one, many }) => ({
+  createdByUser: one(user, {
+    fields: [policies.createdBy],
+    references: [user.id],
+  }),
+  assignments: many(policyAssignments),
+}));
+
+export const policyAssignmentsRelations = relations(policyAssignments, ({ one }) => ({
+  policy: one(policies, {
+    fields: [policyAssignments.policyId],
+    references: [policies.id],
+  }),
+  workspace: one(workspace, {
+    fields: [policyAssignments.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [policyAssignments.companyId],
+    references: [company.id],
+  }),
+  assignedByUser: one(user, {
+    fields: [policyAssignments.assignedBy],
+    references: [user.id],
+  }),
+}));
+
+// Settings Relations
+export const workspaceSettingsRelations = relations(workspaceSettings, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [workspaceSettings.workspaceId],
+    references: [workspace.id],
+  }),
+}));
+
+export const companySettingsRelations = relations(companySettings, ({ one }) => ({
+  company: one(company, {
+    fields: [companySettings.companyId],
+    references: [company.id],
+  }),
+}));
+
+export const featureFlagsRelations = relations(featureFlags, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [featureFlags.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [featureFlags.companyId],
+    references: [company.id],
+  }),
+}));
+
+// System Relations
+export const rolesRelations = relations(roles, ({ one, many }) => ({
+  workspace: one(workspace, {
+    fields: [roles.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [roles.companyId],
+    references: [company.id],
+  }),
+  permissions: many(roleModulePermissions),
+}));
+
+export const modulesRelations = relations(modules, ({ many }) => ({
+  resources: many(moduleResources),
+}));
+
+export const moduleResourcesRelations = relations(moduleResources, ({ one, many }) => ({
+  module: one(modules, {
+    fields: [moduleResources.moduleId],
+    references: [modules.id],
+  }),
+  parentResource: one(moduleResources, {
+    fields: [moduleResources.parentResourceId],
+    references: [moduleResources.id],
+    relationName: "resourceHierarchy",
+  }),
+  childResources: many(moduleResources, {
+    relationName: "resourceHierarchy",
+  }),
+  permissions: many(modulePermissions),
+  accessLogs: many(moduleAccessLog),
+}));
+
+export const modulePermissionsRelations = relations(modulePermissions, ({ one, many }) => ({
+  resource: one(moduleResources, {
+    fields: [modulePermissions.resourceId],
+    references: [moduleResources.id],
+  }),
+  rolePermissions: many(roleModulePermissions),
+}));
+
+export const roleModulePermissionsRelations = relations(roleModulePermissions, ({ one }) => ({
+  role: one(roles, {
+    fields: [roleModulePermissions.roleId],
+    references: [roles.id],
+  }),
+  permission: one(modulePermissions, {
+    fields: [roleModulePermissions.permissionId],
+    references: [modulePermissions.id],
+  }),
+  workspace: one(workspace, {
+    fields: [roleModulePermissions.workspaceId],
+    references: [workspace.id],
+  }),
+  grantedByUser: one(user, {
+    fields: [roleModulePermissions.grantedBy],
+    references: [user.id],
+  }),
+}));
+
+export const moduleAccessLogRelations = relations(moduleAccessLog, ({ one }) => ({
+  user: one(user, {
+    fields: [moduleAccessLog.userId],
+    references: [user.id],
+  }),
+  resource: one(moduleResources, {
+    fields: [moduleAccessLog.resourceId],
+    references: [moduleResources.id],
   }),
 }));

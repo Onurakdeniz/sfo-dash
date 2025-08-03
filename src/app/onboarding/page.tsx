@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
 import { Building2, Briefcase, Check, Loader2, Users, Shield, Zap } from "lucide-react";
 import { useSession } from "@/lib/auth/client";
 
-// Using direct fetch instead of typed client for more reliability
-const API_BASE_URL = 'http://localhost:3002';
+// Using current app's base URL
+const API_BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
 
 interface OnboardingStatus {
   isComplete: boolean;

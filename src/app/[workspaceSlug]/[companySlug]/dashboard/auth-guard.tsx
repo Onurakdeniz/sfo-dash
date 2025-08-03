@@ -29,8 +29,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
         // Check onboarding status
         try {
-          const client = (await import('@luna/api/client')).createClient('http://localhost:3002') as any;
-          const response = await client.api.onboarding.status.$get();
+          const response = await fetch('/api/onboarding/status', {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
           
           if (response.ok) {
             const status = await response.json();
