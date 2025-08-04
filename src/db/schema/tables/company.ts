@@ -1,6 +1,6 @@
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { companyStatusEnum } from "..";
+import { companyStatusEnum, companyTypeEnum } from "..";
 import { user } from "./user";
 
 // Main companies table - stores organization profiles with Turkish business identifiers and lifecycle data 
@@ -12,6 +12,7 @@ export const company = pgTable('companies', {
   name: varchar('name', { length: 255 }).notNull(),
   fullName: text('full_name'),
   companyLogoUrl: text('company_logo_url'),
+  companyType: companyTypeEnum('company_type'),
 
   /* ERP status & categorisation */
   status: companyStatusEnum('status').default('active').notNull(),
@@ -68,8 +69,7 @@ export const department = pgTable('departments', {
   companyId: text('company_id').references(() => company.id, { onDelete: 'cascade' }).notNull(), 
 
   // Hierarchical structure: allows nested departments
-  // @ts-expect-error – self-referencing relation
-  parentDepartmentId: text('parent_department_id').references(() => department.id),
+  parentDepartmentId: text('parent_department_id'),
 
   // Optional short code for integrations and reporting
   code: varchar('code', { length: 20 }),

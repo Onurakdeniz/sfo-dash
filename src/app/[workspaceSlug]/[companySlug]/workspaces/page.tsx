@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Input, Label, toast } from "@luna/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import { Plus, Search, Users, Calendar, Settings, Trash2 } from "lucide-react";
-import { createClient } from "@luna/api/client";
-
-const client = createClient('http://localhost:3002') as any;
+// API calls will be made using fetch to local endpoints
 
 interface Workspace {
   id: string;
@@ -15,7 +16,7 @@ interface Workspace {
   ownerId: string;
   createdAt: string;
   updatedAt: string;
-  settings?: any;
+  settings?: Record<string, unknown>;
 }
 
 export default function WorkspacesPage() {
@@ -28,7 +29,9 @@ export default function WorkspacesPage() {
     queryKey: ['workspaces'],
     queryFn: async () => {
       try {
-        const res = await client.api.workspaces.$get();
+        const res = await fetch('/api/workspaces', {
+          credentials: 'include'
+        });
         if (!res.ok) {
           throw new Error('Failed to fetch workspaces');
         }
@@ -43,7 +46,14 @@ export default function WorkspacesPage() {
   // Create workspace mutation
   const createWorkspace = useMutation({
     mutationFn: async (data: { name: string; description?: string }) => {
-      const res = await client.api.workspaces.$post({ json: data });
+      const res = await fetch('/api/onboarding/workspace', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
       if (!res.ok) {
         throw new Error('Failed to create workspace');
       }

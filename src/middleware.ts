@@ -36,6 +36,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/signin", request.url));
   }
 
+  // Note: Complex redirection logic is handled client-side to avoid middleware limitations
+
   return NextResponse.next();
 }
 

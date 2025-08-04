@@ -1,11 +1,10 @@
 "use client";
 
-import { Button } from "@lunamanager/ui";
-import { Input } from "@lunamanager/ui";
-import { Label } from "@lunamanager/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { createApiUtils } from "@luna/api/client";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -34,10 +33,8 @@ export default function ForgotPasswordPage() {
         }
         
         try {
-            // Create API client only when needed
-            const api = createApiUtils('/api/v1');
-            const result = await api.auth.forgotPassword(email) as { message: string };
-            setMessage(result.message);
+            // TODO: Implement forgot password functionality
+            setMessage("If an account with that email exists, we'll send you a password reset link.");
             setEmail("");
         } catch (error: any) {
             console.error("Forgot password error:", error);

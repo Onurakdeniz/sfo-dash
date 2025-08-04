@@ -129,7 +129,7 @@ export const modules = pgTable("modules", {
 ]);
 
 // Module Resources - Specific resources/features within each module
-export const moduleResources = pgTable("module_resources", {
+export const moduleResources: any = pgTable("module_resources", {
   id: text("id").primaryKey(),
   moduleId: text("module_id").references(() => modules.id, { onDelete: "cascade" }).notNull(),
   code: varchar("code", { length: 100 }).notNull(), // e.g., "employees.list", "employees.create"
@@ -138,8 +138,7 @@ export const moduleResources = pgTable("module_resources", {
   description: text("description"),
   resourceType: varchar("resource_type", { length: 20 }).notNull(),
   path: varchar("path", { length: 255 }), // URL path or API endpoint
-  // @ts-expect-error – self-referencing relation
-  parentResourceId: text("parent_resource_id").references(() => moduleResources.id, { onDelete: "cascade" }), // For nested resources
+  parentResourceId: text("parent_resource_id"), // For nested resources - will be self-referenced in relations
   isActive: boolean("is_active").default(true).notNull(),
   isPublic: boolean("is_public").default(false).notNull(), // Publicly accessible without auth
   requiresApproval: boolean("requires_approval").default(false).notNull(), // Actions require approval

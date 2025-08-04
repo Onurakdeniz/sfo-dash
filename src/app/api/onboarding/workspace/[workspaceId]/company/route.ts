@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
+import { db } from "@/db";
+import { company, workspace, workspaceCompany } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export async function POST(
   request: NextRequest,
@@ -16,7 +19,23 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { name, domain, industry, size } = body;
+    const { 
+      name, 
+      fullName, 
+      companyType,
+      industry, 
+      phone, 
+      email, 
+      website, 
+      address, 
+      district, 
+      city, 
+      postalCode, 
+      taxOffice, 
+      taxNumber, 
+      mersisNumber, 
+      notes 
+    } = body;
 
     if (!name || name.trim() === "") {
       return NextResponse.json(
@@ -27,20 +46,79 @@ export async function POST(
 
     const { workspaceId } = await params;
 
-    // For now, return a mock company
-    // This can be enhanced later with actual database integration
-    const company = {
-      id: `company_${Date.now()}`,
-      workspaceId,
-      name: name.trim(),
-      domain: domain?.trim() || null,
-      industry: industry || null,
-      size: size || null,
-      slug: name.trim().toLowerCase().replace(/\s+/g, '-'),
-      createdAt: new Date().toISOString(),
-    };
+    // Check if workspace exists and user has access
+    const workspaceExists = await db.select()
+      .from(workspace)
+      .where(eq(workspace.id, workspaceId))
+      .limit(1);
 
-    return NextResponse.json(company);
+    if (workspaceExists.length === 0) {
+      return NextResponse.json(
+        { error: "Workspace not found" },
+        { status: 404 }
+      );
+    }
+
+    if (workspaceExists[0].ownerId !== session.user.id) {
+      return NextResponse.json(
+        { error: "Unauthorized to add company to this workspace" },
+        { status: 403 }
+      );
+    }
+
+    // Generate company ID
+    const companyId = `company_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    // Create company in database
+    const [newCompany] = await db.insert(company).values({
+      id: companyId,
+      name: name.trim(),
+      fullName: fullName?.trim() || null,
+      companyType: companyType || null,
+      industry: industry || null,
+      phone: phone?.trim() || null,
+      email: email?.trim() || null,
+      website: website?.trim() || null,
+      address: address?.trim() || null,
+      district: district?.trim() || null,
+      city: city || null,
+      postalCode: postalCode?.trim() || null,
+      taxOffice: taxOffice?.trim() || null,
+      taxNumber: taxNumber?.trim() || null,
+      mersisNumber: mersisNumber?.trim() || null,
+      notes: notes?.trim() || null,
+    }).returning();
+
+    // Link company to workspace
+    await db.insert(workspaceCompany).values({
+      workspaceId: workspaceId,
+      companyId: companyId,
+      addedBy: session.user.id,
+    });
+
+    // Generate slug from name (consistent with GET endpoint)
+    const slug = newCompany.name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .trim();
+
+    return NextResponse.json({
+      id: newCompany.id,
+      name: newCompany.fullName || newCompany.name, // Use fullName as display name, fallback to name
+      slug: slug, // Generated slug for URL and display
+      domain: newCompany.website,
+      logoUrl: newCompany.companyLogoUrl,
+      industry: newCompany.industry,
+      size: null, // Not available in current schema
+      isActive: newCompany.status === 'active', // Map status to boolean
+      createdAt: newCompany.createdAt,
+      updatedAt: newCompany.updatedAt,
+      taxNumber: newCompany.taxNumber,
+      taxOffice: newCompany.taxOffice,
+      employeeCount: null, // Not available in current schema
+    });
   } catch (error) {
     console.error("Error creating company:", error);
     return NextResponse.json(

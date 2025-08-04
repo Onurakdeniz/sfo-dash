@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
+import { db } from "@/db";
+import { workspace, workspaceCompany, workspaceMember } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,13 +15,50 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // For now, return a simple status that indicates onboarding is not complete
-    // This can be enhanced later with actual workspace/company checks
+    // Check if user has any workspaces where they are the owner
+    const userWorkspaces = await db.select({
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+    })
+    .from(workspace)
+    .where(eq(workspace.ownerId, session.user.id))
+    .limit(1);
+
+    const hasWorkspace = userWorkspaces.length > 0;
+    let hasCompany = false;
+    let workspaceId: string | undefined;
+
+    if (hasWorkspace) {
+      workspaceId = userWorkspaces[0].id;
+      
+      // Check if the workspace has any companies
+      const workspaceCompanies = await db.select()
+        .from(workspaceCompany)
+        .where(eq(workspaceCompany.workspaceId, workspaceId))
+        .limit(1);
+      
+      hasCompany = workspaceCompanies.length > 0;
+    }
+
+    const isComplete = hasWorkspace && hasCompany;
+
+    // Determine current step
+    let currentStep: 'workspace' | 'workspace-settings' | 'company' | 'complete';
+    if (isComplete) {
+      currentStep = 'complete';
+    } else if (hasWorkspace) {
+      currentStep = 'company';
+    } else {
+      currentStep = 'workspace';
+    }
+
     const status = {
-      isComplete: false,
-      hasWorkspace: false,
-      hasCompany: false,
-      currentStep: 'workspace' as const,
+      isComplete,
+      hasWorkspace,
+      hasCompany,
+      currentStep,
+      workspaceId: hasWorkspace ? workspaceId : undefined,
     };
 
     return NextResponse.json(status);

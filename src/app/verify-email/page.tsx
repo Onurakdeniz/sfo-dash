@@ -15,10 +15,44 @@ export default function VerifyEmailPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [verificationCode, setVerificationCode] = useState("");
-    const [email, setEmail] = useState("");
+    const [email, setEmail] = useState<string>(() => {
+        const paramEmail = searchParams.get("email");
+        return paramEmail ? paramEmail : "";
+    });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
+    const [resendLoading, setResendLoading] = useState(false);
+    const [resendMessage, setResendMessage] = useState<string | null>(null);
+
+    const handleResend = async () => {
+        if (!email) {
+            setResendMessage("Please enter your email first");
+            return;
+        }
+        setResendLoading(true);
+        setResendMessage(null);
+        try {
+            const response = await fetch('/api/auth/email-verification/resend', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                setResendMessage('Verification code sent. Please check your email.');
+            } else {
+                setResendMessage(data.message || 'Failed to resend code.');
+            }
+        } catch (error:any) {
+            console.error('Resend error:', error);
+            setResendMessage('An error occurred. Please try again.');
+        } finally {
+            setResendLoading(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -140,11 +174,12 @@ export default function VerifyEmailPage() {
                         </Button>
                     </form>
                     
-                    <div className="text-center text-sm text-gray-600">
+                    <div className="text-center text-sm text-gray-600 space-y-2">
                         <p>Didn't receive the code?</p>
-                        <Link href="/sign-up" className="text-blue-500 hover:underline">
-                            Try signing up again
-                        </Link>
+                        <Button type="button" variant="outline" onClick={handleResend} disabled={resendLoading}>
+                            {resendLoading ? 'Sending...' : 'Resend Code'}
+                        </Button>
+                        {resendMessage && <p className="text-xs text-gray-600">{resendMessage}</p>}
                     </div>
                 </div>
             </div>

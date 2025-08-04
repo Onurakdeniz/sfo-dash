@@ -2,55 +2,24 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Building2, Globe, Users, Trash2, Edit, Eye, MoreHorizontal } from "lucide-react";
-import { createClient } from "@luna/api/client";
-import { 
-  Button,
-  Input,
-  Label,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Badge,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  Skeleton,
-  toast
-} from "@luna/ui";
+import { Plus, Building2, Globe, Users, Trash2, Eye, MoreHorizontal } from "lucide-react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+// API calls will be made using fetch to local endpoints
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 
-const client = createClient('http://localhost:3002') as any;
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+
+// API calls will be made using fetch to local endpoints
 
 interface Company {
   id: string;
@@ -63,11 +32,15 @@ interface Company {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  taxNumber?: string;
+  taxOffice?: string;
+  employeeCount?: number;
 }
 
 interface Workspace {
   id: string;
   name: string;
+  slug: string;
 }
 
 interface CreateCompanyData {
@@ -78,44 +51,43 @@ interface CreateCompanyData {
 }
 
 export default function CompaniesPage() {
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const params = useParams();
+  const workspaceSlug = params.workspaceSlug as string;
+  const companySlug = params.companySlug as string;
+  
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const queryClient = useQueryClient();
 
-  // Fetch workspaces
-  const { data: workspacesResponse, isLoading: isLoadingWorkspaces } = useQuery({
-    queryKey: ['workspaces'],
+  // Fetch all workspaces and find by slug (already filtered to owner only)
+  const { data: workspacesData, isLoading: isLoadingWorkspaces } = useQuery({
+    queryKey: ['workspaces', workspaceSlug],
     queryFn: async () => {
       try {
-        const res = await client.api.workspaces.$get();
-        if (!res.ok) return { workspaces: [], total: 0 };
+        const res = await fetch('/api/workspaces', {
+          credentials: 'include'
+        });
+        if (!res.ok) return null;
         return res.json();
       } catch {
-        return { workspaces: [], total: 0 };
+        return null;
       }
     },
+    enabled: !!workspaceSlug,
   });
 
-  const workspaces = workspacesResponse?.workspaces || [];
+  // Find current workspace by slug
+  const workspace = workspacesData?.workspaces?.find((w: Workspace) => w.slug === workspaceSlug) || null;
 
-  // Set default workspace when workspaces load
-  if (workspaces.length > 0 && !selectedWorkspace) {
-    setSelectedWorkspace(workspaces[0].id);
-  }
-
-  // Fetch companies for selected workspace
+  // Fetch companies for the current workspace
   const { data: companies = [], isLoading: isLoadingCompanies } = useQuery({
-    queryKey: ['companies', selectedWorkspace],
+    queryKey: ['companies', workspace?.id],
     queryFn: async () => {
-      if (!selectedWorkspace) return [];
+      if (!workspace?.id) return [];
       try {
-        const res = await client.api.workspaces[':workspaceId'].companies.$get({
-          param: { workspaceId: selectedWorkspace },
+        const res = await fetch(`/api/workspaces/${workspace.id}/companies`, {
+          credentials: 'include'
         });
         if (!res.ok) return [];
         return res.json();
@@ -124,69 +96,27 @@ export default function CompaniesPage() {
         return [];
       }
     },
-    enabled: !!selectedWorkspace,
+    enabled: !!workspace?.id,
   });
 
-  // Create company mutation
-  const createCompany = useMutation({
-    mutationFn: async (data: CreateCompanyData) => {
-      const res = await client.api.workspaces[':workspaceId'].companies.$post({
-        param: { workspaceId: selectedWorkspace },
-        json: data,
-      });
-      if (!res.ok) {
-        throw new Error('Failed to create company');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['companies', selectedWorkspace] });
-      setShowCreateModal(false);
-      toast.success('Şirket başarıyla oluşturuldu');
-    },
-    onError: (error) => {
-      toast.error('Şirket oluşturma başarısız');
-      console.error('Create company error:', error);
-    },
-  });
 
-  // Update company mutation
-  const updateCompany = useMutation({
-    mutationFn: async (data: CreateCompanyData & { id: string }) => {
-      const { id, ...updateData } = data;
-      const res = await client.api.workspaces[':workspaceId'].companies[':companyId'].$patch({
-        param: { workspaceId: selectedWorkspace, companyId: id },
-        json: updateData,
-      });
-      if (!res.ok) {
-        throw new Error('Failed to update company');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['companies', selectedWorkspace] });
-      setShowEditModal(false);
-      setSelectedCompany(null);
-      toast.success('Şirket başarıyla güncellendi');
-    },
-    onError: (error) => {
-      toast.error('Şirket güncelleme başarısız');
-      console.error('Update company error:', error);
-    },
-  });
+
+
 
   // Delete company mutation
   const deleteCompany = useMutation({
     mutationFn: async (companyId: string) => {
-      const res = await client.api.workspaces[':workspaceId'].companies[':companyId'].$delete({
-        param: { workspaceId: selectedWorkspace, companyId },
+      if (!workspace?.id) throw new Error('Workspace not found');
+      const res = await fetch(`/api/workspaces/${workspace.id}/companies/${companyId}`, {
+        method: 'DELETE',
+        credentials: 'include'
       });
       if (!res.ok) {
         throw new Error('Failed to delete company');
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['companies', selectedWorkspace] });
+      queryClient.invalidateQueries({ queryKey: ['companies', workspace?.id] });
       setShowDeleteDialog(false);
       setSelectedCompany(null);
       toast.success('Şirket başarıyla silindi');
@@ -197,176 +127,63 @@ export default function CompaniesPage() {
     },
   });
 
-  // Filter companies based on search
-  const filteredCompanies = companies.filter((company: Company) =>
-    company.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.domain?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    company.industry?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Show loading state if workspace is still loading
+  if (isLoadingWorkspaces) {
+    return (
+      <div className="p-6">
+        <div className="space-y-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-96" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget as HTMLFormElement);
-    createCompany.mutate({
-      name: formData.get('name') as string,
-      domain: (formData.get('domain') as string) || undefined,
-      industry: (formData.get('industry') as string) || undefined,
-      size: (formData.get('size') as string) || undefined,
-    });
-  };
+  // Show error if workspace not found (user doesn't own this workspace)
+  if (!workspace) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">
+            Bu çalışma alanına erişim izniniz yok veya çalışma alanı bulunamadı.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCompany) return;
-    const formData = new FormData(e.currentTarget as HTMLFormElement);
-    updateCompany.mutate({
-      id: selectedCompany.id,
-      name: formData.get('name') as string,
-      domain: (formData.get('domain') as string) || undefined,
-      industry: (formData.get('industry') as string) || undefined,
-      size: (formData.get('size') as string) || undefined,
-    });
-  };
 
-  const companySizeOptions = [
-    { value: '1-10', label: '1-10 çalışan' },
-    { value: '11-50', label: '11-50 çalışan' },
-    { value: '51-200', label: '51-200 çalışan' },
-    { value: '201-500', label: '201-500 çalışan' },
-    { value: '500+', label: '500+ çalışan' },
-  ];
+
+
+
+
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="p-6">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Şirketler</h1>
           <p className="mt-2 text-muted-foreground">
-            Çalışma alanlarınızdaki şirketleri yönetin
+            {workspace.name} çalışma alanındaki şirketleri yönetin
           </p>
         </div>
-        <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
-          <DialogTrigger asChild>
-                        <Button disabled={!selectedWorkspace}>
-              <Plus className="mr-2 h-4 w-4" />
-              Şirket Ekle
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Yeni Şirket Ekle</DialogTitle>
-              <DialogDescription>
-                Çalışma alanınızda yeni bir şirket oluşturun
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateSubmit}>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Şirket Adı *</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    placeholder="Acme Corporation"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="domain">Domain</Label>
-                  <Input
-                    id="domain"
-                    name="domain"
-                    placeholder="acme.com"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="industry">Sektör</Label>
-                  <Input
-                    id="industry"
-                    name="industry"
-                    placeholder="Teknoloji"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="size">Şirket Büyüklüğü</Label>
-                  <Select name="size">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Şirket büyüklüğünü seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companySizeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowCreateModal(false)}
-                >
-                  İptal
-                </Button>
-                <Button type="submit" disabled={createCompany.isPending}>
-                  {createCompany.isPending ? 'Ekleniyor...' : 'Şirket Ekle'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Şirket Ekle
+          </Button>
+        </Link>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex gap-4 items-end">
-            <div className="flex-1 max-w-xs">
-              <Label htmlFor="workspace">Çalışma Alanı</Label>
-              {isLoadingWorkspaces ? (
-                <Skeleton className="h-10 w-full mt-1" />
-              ) : (
-                <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Çalışma alanı seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {workspaces.map((workspace: Workspace) => (
-                      <SelectItem key={workspace.id} value={workspace.id}>
-                        {workspace.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            
-            <div className="flex-1">
-              <Label htmlFor="search">Arama</Label>
-              <div className="relative mt-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Şirket ara..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Companies Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Şirketler</CardTitle>
+      <Card className="shadow-sm border-border/60">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold">Şirket Listesi</CardTitle>
           <CardDescription>
-            Seçilen çalışma alanındaki tüm şirketlerin listesi
+            {companies.length > 0 ? `${companies.length} şirket bulundu` : 'Henüz şirket eklenmemiş'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -376,194 +193,167 @@ export default function CompaniesPage() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : filteredCompanies.length === 0 ? (
+          ) : companies.length === 0 ? (
             <div className="text-center py-12">
               <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">
-                {searchQuery ? 'Aramanızla eşleşen şirket bulunamadı' : 'Bu çalışma alanında şirket yok'}
+                Bu çalışma alanında şirket yok
               </p>
-              {!searchQuery && (
-                <Button onClick={() => setShowCreateModal(true)} className="mt-4">
+              <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
+                <Button className="mt-4">
                   <Plus className="mr-2 h-4 w-4" />
                   İlk şirketinizi ekleyin
                 </Button>
-              )}
+              </Link>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Şirket</TableHead>
-                  <TableHead>Domain</TableHead>
-                  <TableHead>Sektör</TableHead>
-                  <TableHead>Büyüklük</TableHead>
-                  <TableHead>Durum</TableHead>
-                  <TableHead className="text-right">İşlemler</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCompanies.map((company: Company) => (
-                  <TableRow key={company.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-full">
-                          <Building2 className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{company.name}</div>
-                          <div className="text-sm text-muted-foreground">{company.slug}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {company.domain ? (
-                        <div className="flex items-center gap-2">
-                          <Globe className="h-4 w-4 text-muted-foreground" />
-                          {company.domain}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {company.industry || <span className="text-muted-foreground">-</span>}
-                    </TableCell>
-                    <TableCell>
-                      {company.size ? (
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-muted-foreground" />
-                          {company.size} çalışan
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={company.isActive ? "default" : "secondary"}>
-                        {company.isActive ? 'Aktif' : 'Pasif'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>İşlemler</DropdownMenuLabel>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedCompany(company);
-                              setShowDetailModal(true);
-                            }}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            Detayları Görüntüle
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setSelectedCompany(company);
-                              setShowEditModal(true);
-                            }}
-                          >
-                            <Edit className="mr-2 h-4 w-4" />
-                            Düzenle
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedCompany(company);
-                              setShowDeleteDialog(true);
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Sil
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="w-full table-fixed min-w-[1240px]">
+                <TableHeader>
+                  <TableRow className="border-b border-border/60">
+                    <TableHead className="min-w-[300px] w-[300px] font-semibold text-foreground/80 py-4">Şirket Bilgileri</TableHead>
+                    <TableHead className="min-w-[280px] w-[280px] font-semibold text-foreground/80 py-4">Vergi Bilgileri</TableHead>
+                    <TableHead className="min-w-[180px] w-[180px] font-semibold text-foreground/80 py-4">Sektör</TableHead>
+                    <TableHead className="min-w-[200px] w-[200px] font-semibold text-foreground/80 py-4">Şirket Büyüklüğü</TableHead>
+                    <TableHead className="min-w-[120px] w-[120px] font-semibold text-foreground/80 py-4">Durum</TableHead>
+                    <TableHead className="min-w-[160px] w-[160px] text-right font-semibold text-foreground/80 py-4">Oluşturma Tarihi</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {companies.map((company: Company) => (
+                    <TableRow key={company.id} className="hover:bg-muted/20 transition-colors duration-200 border-b border-border/40">
+                      <TableCell className="py-6 w-[300px]">
+                        <Link href={`/${workspaceSlug}/${companySlug}/companies/${company.id}`}>
+                          <div className="flex items-center gap-4 hover:bg-muted/30 rounded-lg p-4 transition-all duration-200 cursor-pointer border border-transparent hover:border-border/60 group">
+                            <div className="p-3 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl group-hover:from-primary/30 group-hover:to-primary/20 transition-all duration-200">
+                              <Building2 className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-foreground mb-1 break-words">{company.slug}</div>
+                              <div className="text-sm text-muted-foreground break-words">{company.name}</div>
+                            </div>
+                          </div>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="py-6 w-[280px]">
+                        <div className="space-y-2.5">
+                          {company.taxNumber ? (
+                            <div className="flex items-center gap-2 p-2.5 bg-orange-50 text-orange-700 rounded-lg border border-orange-200/60 shadow-sm">
+                              <span className="text-xs font-semibold bg-orange-100 px-1.5 py-0.5 rounded">VN</span>
+                              <span className="text-sm font-medium">{company.taxNumber}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 p-2.5 bg-muted/30 rounded-lg border border-muted">
+                              <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded text-muted-foreground">VN</span>
+                              <span className="text-sm text-muted-foreground">Belirtilmemiş</span>
+                            </div>
+                          )}
+                          {company.taxOffice ? (
+                            <div className="flex items-center gap-2 p-2.5 bg-purple-50 text-purple-700 rounded-lg border border-purple-200/60 shadow-sm">
+                              <span className="text-xs font-semibold bg-purple-100 px-1.5 py-0.5 rounded">VD</span>
+                              <span className="text-sm font-medium break-words">{company.taxOffice}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 p-2.5 bg-muted/30 rounded-lg border border-muted">
+                              <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded text-muted-foreground">VD</span>
+                              <span className="text-sm text-muted-foreground">Belirtilmemiş</span>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-6 w-[180px]">
+                        {company.industry ? (
+                          <div className="inline-flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold border border-blue-200/60 shadow-sm">
+                            <span className="break-words">{company.industry}</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center px-4 py-2 bg-muted/30 text-muted-foreground rounded-full text-sm border border-muted">
+                            Belirtilmemiş
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-6 w-[200px]">
+                        {company.employeeCount ? (
+                          <div className="flex items-center gap-2.5 p-2.5 bg-green-50 text-green-700 rounded-lg border border-green-200/60 shadow-sm">
+                            <div className="p-1 bg-green-100 rounded">
+                              <Users className="h-3.5 w-3.5" />
+                            </div>
+                            <span className="text-sm font-semibold">{company.employeeCount} çalışan</span>
+                          </div>
+                        ) : company.size ? (
+                          <div className="flex items-center gap-2.5 p-2.5 bg-green-50 text-green-700 rounded-lg border border-green-200/60 shadow-sm">
+                            <div className="p-1 bg-green-100 rounded">
+                              <Users className="h-3.5 w-3.5" />
+                            </div>
+                            <span className="text-sm font-semibold">{company.size} çalışan</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2.5 p-2.5 bg-muted/30 rounded-lg border border-muted">
+                            <div className="p-1 bg-muted rounded">
+                              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                            <span className="text-sm text-muted-foreground">Belirsiz</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="py-6 w-[120px]">
+                        <Badge 
+                          variant={company.isActive ? "default" : "secondary"}
+                          className={company.isActive 
+                            ? "bg-emerald-100 text-emerald-800 border-emerald-300 px-3 py-1.5 font-semibold shadow-sm" 
+                            : "bg-gray-100 text-gray-700 border-gray-300 px-3 py-1.5 font-semibold shadow-sm"
+                          }
+                        >
+                          {company.isActive ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right py-6 w-[160px]">
+                        <div className="flex items-center justify-end gap-3">
+                          <div className="text-right">
+                            <div className="text-xs font-medium text-muted-foreground mb-0.5">Oluşturma Tarihi</div>
+                            <div className="text-sm font-semibold text-foreground">
+                              {new Date(company.createdAt).toLocaleDateString('tr-TR')}
+                            </div>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-9 w-9 p-0 hover:bg-muted/60 rounded-lg">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuLabel>İşlemler</DropdownMenuLabel>
+                              <Link href={`/${workspaceSlug}/${companySlug}/companies/${company.id}`}>
+                                <DropdownMenuItem className="cursor-pointer">
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Detayları Görüntüle
+                                </DropdownMenuItem>
+                              </Link>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                onClick={() => {
+                                  setSelectedCompany(company);
+                                  setShowDeleteDialog(true);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Sil
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Edit Company Modal */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Şirketi Düzenle</DialogTitle>
-            <DialogDescription>
-              Şirket bilgilerini güncelleyin
-            </DialogDescription>
-          </DialogHeader>
-          {selectedCompany && (
-            <form onSubmit={handleEditSubmit}>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="edit-name">Şirket Adı *</Label>
-                  <Input
-                    id="edit-name"
-                    name="name"
-                    defaultValue={selectedCompany.name}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-domain">Domain</Label>
-                  <Input
-                    id="edit-domain"
-                    name="domain"
-                    defaultValue={selectedCompany.domain || ''}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-industry">Sektör</Label>
-                  <Input
-                    id="edit-industry"
-                    name="industry"
-                    defaultValue={selectedCompany.industry || ''}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="edit-size">Şirket Büyüklüğü</Label>
-                  <Select name="size" defaultValue={selectedCompany.size || ''}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Şirket büyüklüğünü seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companySizeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter className="mt-6">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setSelectedCompany(null);
-                  }}
-                >
-                  İptal
-                </Button>
-                <Button type="submit" disabled={updateCompany.isPending}>
-                  {updateCompany.isPending ? 'Güncelleniyor...' : 'Şirketi Güncelle'}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+
 
       {/* Company Detail Modal */}
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
@@ -578,8 +368,8 @@ export default function CompaniesPage() {
                   <Building2 className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold">{selectedCompany.name}</h3>
-                  <p className="text-muted-foreground">{selectedCompany.slug}</p>
+                  <h3 className="text-lg font-semibold">{selectedCompany.slug}</h3>
+                  <p className="text-muted-foreground">{selectedCompany.name}</p>
                 </div>
                 <div className="ml-auto">
                   <Badge variant={selectedCompany.isActive ? "default" : "secondary"}>
@@ -635,7 +425,7 @@ export default function CompaniesPage() {
                 }
               }}
               disabled={deleteCompany.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90 hover:text-white focus:text-white"
             >
               {deleteCompany.isPending ? 'Siliniyor...' : 'Sil'}
             </AlertDialogAction>

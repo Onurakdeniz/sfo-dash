@@ -3,10 +3,48 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useSession, signOut } from "@/lib/auth/client";
+import { useState, useEffect } from "react";
 
 export function AuthShowcaseClient() {
   // Use the session hook directly
   const { data: session, isPending, error } = useSession();
+  const [dashboardUrl, setDashboardUrl] = useState("/");
+  
+  // Check for onboarding completion and get proper dashboard URL - only once per session
+  useEffect(() => {
+    let isMounted = true;
+    
+    const getDashboardUrl = async () => {
+      if (!session?.user) return;
+      
+      try {
+        const response = await fetch("/api/onboarding/complete", {
+          credentials: 'include',
+        });
+        
+        if (!isMounted) return;
+        
+        if (response.ok) {
+          const completionData = await response.json();
+          if (completionData.workspaceSlug && completionData.company?.slug) {
+            setDashboardUrl(`/${completionData.workspaceSlug}/${completionData.company.slug}`);
+          }
+        }
+      } catch (error) {
+        console.error("Error getting dashboard URL:", error);
+        // Keep default dashboard URL
+      }
+    };
+    
+    // Only fetch once when session user ID is available
+    if (session?.user?.id) {
+      getDashboardUrl();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id]); // Only depend on user ID, not entire session object
 
   if (error) {
     return (
@@ -57,7 +95,7 @@ export function AuthShowcaseClient() {
       </p>
 
       <div className="flex gap-3">
-        <Link href="/dashboard">
+        <Link href={dashboardUrl}>
           <Button size="lg">
             Go to Dashboard
           </Button>

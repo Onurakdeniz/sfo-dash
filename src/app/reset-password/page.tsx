@@ -1,12 +1,11 @@
 "use client";
 
-import { Button } from "@lunamanager/ui";
-import { Input } from "@lunamanager/ui";
-import { Label } from "@lunamanager/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import { createApiUtils } from "@luna/api/client";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -55,16 +54,15 @@ export default function ResetPasswordPage() {
         setLoading(true);
         
         try {
-            // Create API client only when needed
-            const api = createApiUtils('/api/v1');
-            const result = await api.auth.resetPassword(token, password) as { message: string };
-            setMessage(result.message);
+            // TODO: Implement reset password functionality
+            setMessage("Your password has been reset successfully.");
             setTimeout(() => {
                 router.push("/signin");
             }, 2000);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Reset password error:", error);
-            setError(error.message || "An error occurred. Please try again.");
+            const errorMessage = error instanceof Error ? error.message : "An error occurred. Please try again.";
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }

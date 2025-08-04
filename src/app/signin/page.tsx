@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { signIn } from "@/lib/auth/client";
+import { useState, useEffect } from "react";
+import { authClient } from "@/lib/auth/client";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -23,8 +23,14 @@ export default function SignInPage() {
         setError("");
         setLoading(true);
         
+        if (!authClient) {
+            setError("Authentication system is loading. Please wait.");
+            setLoading(false);
+            return;
+        }
+        
         try {
-            await signIn.email({
+            await authClient.signIn.email({
                 email,
                 password,
             });
@@ -68,7 +74,7 @@ export default function SignInPage() {
                             {error}
                         </div>
                     )}
-                    <Button type="submit" disabled={loading}>
+                    <Button type="submit" disabled={loading || !authClient}>
                         {loading ? "Signing In..." : "Sign In"}
                     </Button>
                     <div className="text-center space-y-2">
