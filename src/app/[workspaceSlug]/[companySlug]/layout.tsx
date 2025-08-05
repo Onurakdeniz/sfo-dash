@@ -1,52 +1,26 @@
 "use client";
 
-import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { 
   Building2, 
   Home, 
   Users, 
-  LogOut,
   Settings,
   Server,
-  ChevronDown,
-  User,
-  Plus,
-  Check,
-  Shield,
-  Dot,
-  MoreHorizontal
 } from "lucide-react";
 import { useSession } from "@/lib/auth/client";
 import { AuthGuard } from "./auth-guard";
-import { useState } from "react";
+import { WorkspaceSidebar } from "@/components/layouts/workspace-sidebar";
 import React from "react";
 
 import { useQuery } from "@tanstack/react-query";
-// import { UserProfileModal } from "../../../../components/user-profile-modal";
 
 // API calls will be made using fetch to local endpoints
 
@@ -216,13 +190,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     router.push(`/${workspaceSlug}/${companySlug}/companies/add`);
   };
 
-
-
   return (
     <AuthGuard>
       <SidebarProvider defaultOpen={true}>
         <div className="flex h-screen w-full overflow-hidden">
-          <AppSidebar 
+          <WorkspaceSidebar 
             workspace={workspace}
             company={company}
             companies={companies}
@@ -238,355 +210,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             router={router}
           />
           <SidebarInset className="flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-auto ">
+            <div className="flex-1 overflow-auto p-4">
               {children}
             </div>
           </SidebarInset>
         </div>
       </SidebarProvider>
     </AuthGuard>
-  );
-}
-
-// Separate AppSidebar component for better organization
-function AppSidebar({ 
-  workspace, 
-  company, 
-  companies, 
-  navigation, 
-  user, 
-  workspaceSlug, 
-  companySlug, 
-  pathname,
-  onCompanySelect,
-  onAddCompany,
-  onSignOut,
-  getUserInitials,
-  router
-}: {
-  workspace: Workspace | null;
-  company: Company | null;
-  companies: Company[];
-  navigation: Array<{ name: string; href: string; icon: any }>;
-  user: any;
-  workspaceSlug: string;
-  companySlug: string;
-  pathname: string;
-  onCompanySelect: (company: Company) => void;
-  onAddCompany: () => void;
-  onSignOut: () => void;
-  getUserInitials: (name: string | null | undefined, email: string) => string;
-  router: any;
-}) {
-  return (
-    <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader>
-        {/* Logo - Always at top center when collapsed */}
-        <div className="flex justify-center group-data-[collapsible=icon]:block group-data-[state=expanded]:hidden px-2 py-1">
-          {workspace?.logo ? (
-            <img 
-              src={workspace.logo} 
-              alt={workspace.name} 
-              className="h-8 w-8 rounded-lg object-cover"
-            />
-          ) : (
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
-            </div>
-          )}
-        </div>
-        
-        {/* Sidebar Trigger - Centered when collapsed */}
-        <div className="flex justify-center group-data-[collapsible=icon]:block group-data-[state=expanded]:hidden px-2 pb-1">
-          <SidebarTrigger className="h-8 w-8" />
-        </div>
-        
-        {/* Logo and Title - Only when expanded */}
-        <div className="flex items-center justify-between px-2 py-1 group-data-[collapsible=icon]:hidden">
-          <div className="flex items-center gap-2">
-            {workspace?.logo ? (
-              <img 
-                src={workspace.logo} 
-                alt={workspace.name} 
-                className="h-8 w-8 rounded-lg object-cover"
-              />
-            ) : (
-              <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-primary-foreground" />
-              </div>
-            )}
-            <span className="font-semibold text-sidebar-foreground">Luna Manager</span>
-          </div>
-          <SidebarTrigger className="h-8 w-8" />
-        </div>
-
-            {/* Company Selector */}
-            <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                <Tooltip>
-                  <DropdownMenu>
-                    <TooltipTrigger asChild>
-                      <DropdownMenuTrigger asChild>
-            <Button 
-              variant="outline" 
-              className="w-full justify-between h-auto p-2 border-dashed hover:border-solid transition-all group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:border-none group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:hover:bg-sidebar-accent"
-            >
-                                      <div className="flex items-center gap-3 group-data-[collapsible=icon]:gap-0">
-                <div className="h-6 w-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-md flex items-center justify-center shadow-sm group-data-[collapsible=icon]:h-4 group-data-[collapsible=icon]:w-4">
-                            <Building2 className="h-3.5 w-3.5 text-white group-data-[collapsible=icon]:h-3 group-data-[collapsible=icon]:w-3" />
-                </div>
-                <div className="text-left overflow-hidden group-data-[collapsible=icon]:hidden">
-                  <p className="text-sm font-medium truncate">
-                              {company?.name || "Şirket Seçin"}
-                            </p>
-                  <p className="text-xs text-muted-foreground">
-                    {workspace?.name || `${companies?.length || 0} şirket`}
-                            </p>
-                          </div>
-                        </div>
-              <ChevronDown className="h-4 w-4 opacity-50 group-data-[collapsible=icon]:hidden" />
-                      </Button>
-                      </DropdownMenuTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{company?.name || "Şirket Seçin"}</p>
-                    </TooltipContent>
-          <DropdownMenuContent 
-            align="start" 
-            className="w-64 z-50 group-data-[collapsible=icon]:ml-2" 
-            side="bottom" 
-            sideOffset={4}
-          >
-            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wider">
-                      Şirketler ({companies?.length || 0})
-                    </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-                    {companies && companies.length > 0 ? (
-              companies.map((comp: Company) => (
-                <DropdownMenuItem
-                          key={comp.id}
-                  onClick={() => onCompanySelect(comp)}
-                  className="flex items-center gap-3 p-3"
-                >
-                  <div className="h-4 w-4 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-sm flex items-center justify-center">
-                    <Building2 className="h-2.5 w-2.5 text-white" />
-                              </div>
-                  <span className="text-sm font-medium">{comp.name}</span>
-                              {comp.slug === companySlug && (
-                    <Check className="h-4 w-4 text-primary ml-auto" />
-                  )}
-                          </DropdownMenuItem>
-                      ))
-                    ) : (
-              <DropdownMenuItem disabled>
-                        Şirket bulunamadı
-                      </DropdownMenuItem>
-                    )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onAddCompany} className="flex items-center gap-3 p-3">
-              <div className="h-4 w-4 bg-gradient-to-br from-green-600 to-emerald-600 rounded-sm flex items-center justify-center">
-                <Plus className="h-2.5 w-2.5 text-white" />
-                          </div>
-              <span className="text-sm font-medium">Şirket Ekle</span>
-                      </DropdownMenuItem>
-                  </DropdownMenuContent>
-                  </DropdownMenu>
-                </Tooltip>
-            </div>
-      </SidebarHeader>
-
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Yönetici Paneli
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-              {navigation.map((item) => {
-                            const isActive = pathname === item.href;
-                            return (
-                  <SidebarMenuItem key={item.name} className={cn(
-                    // Only center inactive items when collapsed
-                    !isActive && "group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
-                  )}>
-                    <SidebarMenuButton 
-                      asChild 
-                      isActive={isActive}
-                      tooltip={item.name}
-                                  className={cn(
-                        "group relative transition-all duration-200",
-                        isActive && "bg-gradient-to-r from-primary/10 to-primary/5 shadow-sm",
-                        // For inactive items: center and make small when collapsed
-                        !isActive && "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10",
-                        !isActive && "group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:hover:bg-sidebar-accent",
-                        // For active items: keep full width when collapsed to show text
-                        isActive && "group-data-[collapsible=icon]:justify-start group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:h-auto",
-                        isActive && "group-data-[collapsible=icon]:bg-primary group-data-[collapsible=icon]:text-primary-foreground group-data-[collapsible=icon]:shadow-md"
-                      )}
-                    >
-                      <Link href={item.href} className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0",
-                          isActive 
-                            ? "bg-primary/20     text-black group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:text-black" 
-                            : "text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
-                        )}>
-                          <item.icon className="h-4 w-4" />
-                        </div>
-                        <span className={cn(
-                          "font-medium transition-colors duration-200",
-                          isActive ? "text-primary" : "text-foreground",
-                          // Show text for active items even when collapsed, hide for inactive items
-                          isActive ? "" : "group-data-[collapsible=icon]:hidden"
-                        )}>
-                          {item.name}
-                        </span>
-                        {isActive && (
-                          <div className="ml-auto flex items-center">
-                            <div className="h-2 w-2 bg-primary rounded-full animate-pulse"></div>
-                          </div>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Modüller
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <div className="px-2 py-4 text-sm text-muted-foreground italic group-data-[collapsible=icon]:hidden">
-              Henüz modül yok
-              </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarFooter>
-        <div className="p-2 border-t border-border/50 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start h-auto p-3 hover:bg-gradient-to-r hover:from-primary/5 hover:to-primary/10 hover:border-primary/20 border border-transparent transition-all duration-200 group rounded-lg group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none group-data-[collapsible=icon]:hover:bg-sidebar-accent"
-              >
-                                        <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
-                  <div className="relative">
-                    <Avatar className="h-10 w-10 ring-2 ring-primary/10 group-hover:ring-primary/30 transition-all duration-200 shadow-sm group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
-                      <AvatarImage 
-                        src={user?.image || ""} 
-                        alt={user?.name || user?.email || ""} 
-                      />
-                      <AvatarFallback className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 text-white font-semibold text-sm">
-                        {user ? getUserInitials(user.name, user.email) : "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-background rounded-full shadow-sm group-data-[collapsible=icon]:h-2.5 group-data-[collapsible=icon]:w-2.5">
-                      <div className="h-full w-full bg-green-400 rounded-full animate-pulse"></div>
-                    </div>
-                  </div>
-                  <div className="text-left overflow-hidden flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
-                      {user?.name || "User"}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <Badge variant="success" size="sm" className="text-xs px-1.5 py-0.5">
-                        Çevrimiçi
-                      </Badge>
-                      <span className="text-xs text-muted-foreground truncate max-w-20">
-                        {user?.email || "Unknown"}
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronDown className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:text-primary transition-all duration-200 flex-shrink-0 group-data-[collapsible=icon]:hidden" />
-                </div>
-                      </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        <p>{user?.name || "User"}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent 
-                      align="end" 
-              className="w-64 mb-2 shadow-lg border-0 bg-white/95 backdrop-blur-sm"
-              side="top"
-            >
-              <DropdownMenuLabel className="pb-3 pt-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                      <AvatarImage src={user?.image || ""} />
-                      <AvatarFallback className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 text-white font-semibold">
-                        {user ? getUserInitials(user.name, user.email) : "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{user?.name || "User"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <div className="h-1.5 w-1.5 bg-green-500 rounded-full"></div>
-                      <span className="text-xs text-green-600 font-medium">Aktif</span>
-                    </div>
-                  </div>
-                </div>
-                      </DropdownMenuLabel>
-              <DropdownMenuSeparator className="my-2" />
-                      
-                      <DropdownMenuItem 
-                onClick={() => router.push(`/${workspaceSlug}/${companySlug}/profile`)}
-                className="flex items-center gap-3 p-3 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 rounded-md mx-1 transition-all duration-200"
-              >
-                <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-md flex items-center justify-center">
-                  <User className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Profil Ayarları</p>
-                  <p className="text-xs text-muted-foreground">Hesap bilgilerini düzenle</p>
-                </div>
-                      </DropdownMenuItem>
-                      
-                      <DropdownMenuItem 
-                onClick={() => router.push(`/${workspaceSlug}/${companySlug}/settings`)}
-                className="flex items-center gap-3 p-3 hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 rounded-md mx-1 transition-all duration-200"
-              >
-                <div className="h-8 w-8 bg-gradient-to-br from-gray-500 to-slate-600 rounded-md flex items-center justify-center">
-                  <Settings className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Ayarlar</p>
-                  <p className="text-xs text-muted-foreground">Uygulama tercihlerini yönet</p>
-              </div>
-              </DropdownMenuItem>
-              
-              <DropdownMenuSeparator className="my-2" />
-              
-              <DropdownMenuItem 
-                onClick={onSignOut}
-                className="flex items-center gap-3 p-3 text-destructive hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 focus:text-destructive rounded-md mx-1 transition-all duration-200"
-              >
-                <div className="h-8 w-8 bg-gradient-to-br from-red-500 to-rose-600 rounded-md flex items-center justify-center">
-                  <LogOut className="h-4 w-4 text-white" />
-            </div>
-                <div>
-                  <p className="text-sm font-medium">Çıkış Yap</p>
-                  <p className="text-xs text-muted-foreground">Hesabından güvenli çıkış</p>
-          </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-      </div>
-      </SidebarFooter>
-    </Sidebar>
   );
 }
