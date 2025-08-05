@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company } from "@/db/schema";
+import { workspace, workspaceCompany, company, workspaceMember } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
@@ -15,8 +15,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if user has completed onboarding
-    const userWorkspaces = await db.select({
+    // Check if user has completed onboarding - check both owned and member workspaces
+    
+    // Check owned workspaces
+    const ownedWorkspaces = await db.select({
       workspace: workspace,
       companies: workspaceCompany,
     })
@@ -24,8 +26,44 @@ export async function POST(request: NextRequest) {
     .leftJoin(workspaceCompany, eq(workspace.id, workspaceCompany.workspaceId))
     .where(eq(workspace.ownerId, session.user.id));
 
-    const hasCompletedOnboarding = userWorkspaces.length > 0 && 
-                                   userWorkspaces.some(w => w.companies !== null);
+    // Check member workspaces
+    const memberWorkspaces = await db.select({
+      workspace: workspace,
+      companies: workspaceCompany,
+      permissions: workspaceMember.permissions,
+    })
+    .from(workspaceMember)
+    .innerJoin(workspace, eq(workspaceMember.workspaceId, workspace.id))
+    .leftJoin(workspaceCompany, eq(workspace.id, workspaceCompany.workspaceId))
+    .where(eq(workspaceMember.userId, session.user.id));
+
+    // Combine all workspaces
+    const allWorkspaces = [...ownedWorkspaces, ...memberWorkspaces];
+    
+    // Check if user has any workspace with company (either through workspaceCompany or permissions)
+    const hasCompletedOnboarding = allWorkspaces.length > 0 && 
+      allWorkspaces.some(w => {
+        // Has company through workspaceCompany
+        if (w.companies !== null) return true;
+        
+        // Has company through permissions (invited user)
+        if (w.permissions) {
+          try {
+            let permissions;
+            // Check if permissions is already an object or needs parsing
+            if (typeof w.permissions === 'string') {
+              permissions = JSON.parse(w.permissions);
+            } else {
+              permissions = w.permissions;
+            }
+            
+            return permissions && permissions.restrictedToCompany;
+          } catch (e) {
+            return false;
+          }
+        }
+        return false;
+      });
 
     if (!hasCompletedOnboarding) {
       return NextResponse.json(
@@ -35,15 +73,58 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the first workspace with a company
-    const completedWorkspace = userWorkspaces.find(w => w.companies !== null);
+    const completedWorkspace = allWorkspaces.find(w => {
+      // Has company through workspaceCompany
+      if (w.companies !== null) return true;
+      
+      // Has company through permissions (invited user)
+      if (w.permissions) {
+        try {
+          let permissions;
+          // Check if permissions is already an object or needs parsing
+          if (typeof w.permissions === 'string') {
+            permissions = JSON.parse(w.permissions);
+          } else {
+            permissions = w.permissions;
+          }
+          
+          return permissions && permissions.restrictedToCompany;
+        } catch (e) {
+          return false;
+        }
+      }
+      return false;
+    });
     
     // Get company details
     let companyDetails = null;
-    if (completedWorkspace?.companies?.companyId) {
-      const [companyData] = await db.select()
+    let companyId = completedWorkspace?.companies?.companyId;
+    
+    // For invited users, try to get company from permissions
+    if (!companyId && completedWorkspace?.permissions) {
+      try {
+        let permissions;
+        // Check if permissions is already an object or needs parsing
+        if (typeof completedWorkspace.permissions === 'string') {
+          permissions = JSON.parse(completedWorkspace.permissions);
+        } else {
+          permissions = completedWorkspace.permissions;
+        }
+        
+        if (permissions && permissions.restrictedToCompany) {
+          companyId = permissions.restrictedToCompany;
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+    }
+    
+    if (companyId) {
+      const [companyRecord] = await db.select()
         .from(company)
-        .where(eq(company.id, completedWorkspace.companies.companyId))
+        .where(eq(company.id, companyId))
         .limit(1);
+      const companyData = companyRecord;
       
       if (companyData) {
         // Create company slug from name
@@ -91,8 +172,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get detailed onboarding status
-    const userWorkspaces = await db.select({
+    // Get detailed onboarding status - check both owned and member workspaces
+    
+    // First check owned workspaces
+    const ownedWorkspaces = await db.select({
       workspaceId: workspace.id,
       workspaceName: workspace.name,
       workspaceSlug: workspace.slug,
@@ -102,14 +185,55 @@ export async function GET(request: NextRequest) {
     .leftJoin(workspaceCompany, eq(workspace.id, workspaceCompany.workspaceId))
     .where(eq(workspace.ownerId, session.user.id));
 
+    // Then check member workspaces
+    const memberWorkspaces = await db.select({
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+      workspaceSlug: workspace.slug,
+      companyId: workspaceCompany.companyId,
+      permissions: workspaceMember.permissions,
+    })
+    .from(workspaceMember)
+    .innerJoin(workspace, eq(workspaceMember.workspaceId, workspace.id))
+    .leftJoin(workspaceCompany, eq(workspace.id, workspaceCompany.workspaceId))
+    .where(eq(workspaceMember.userId, session.user.id));
+
+    // Combine owned and member workspaces
+    const allUserWorkspaces = [...ownedWorkspaces, ...memberWorkspaces];
+
     const workspacesWithCompanies = await Promise.all(
-      userWorkspaces
-        .filter(w => w.companyId !== null)
+      allUserWorkspaces
+        .filter(w => w.companyId !== null || w.permissions)
         .map(async (w) => {
-          const [companyData] = await db.select()
-            .from(company)
-            .where(eq(company.id, w.companyId!))
-            .limit(1);
+          let companyData = null;
+          let companyId = w.companyId;
+
+          // For invited users, try to get company from permissions
+          if (!companyId && w.permissions) {
+            try {
+              let permissions;
+              // Check if permissions is already an object or needs parsing
+              if (typeof w.permissions === 'string') {
+                permissions = JSON.parse(w.permissions);
+              } else {
+                permissions = w.permissions;
+              }
+              
+              if (permissions && permissions.restrictedToCompany) {
+                companyId = permissions.restrictedToCompany;
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+          }
+
+          if (companyId) {
+            const [companyRecord] = await db.select()
+              .from(company)
+              .where(eq(company.id, companyId))
+              .limit(1);
+            companyData = companyRecord;
+          }
           
           return {
             workspace: {
@@ -124,7 +248,7 @@ export async function GET(request: NextRequest) {
               slug: companyData.name
                 .toLowerCase()
                 .replace(/[^\w\s-]/g, '') // Remove special characters
-                .replace(/\s+/g, '-') // Replace spaces with hyphens
+                .replace(/\s+/g, '-') // Replace spaces with hyphens  
                 .replace(/-+/g, '-') // Replace multiple hyphens with single
                 .trim(),
             } : null,
@@ -137,7 +261,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       isComplete,
       workspaces: workspacesWithCompanies,
-      totalWorkspaces: userWorkspaces.length,
+      totalWorkspaces: allUserWorkspaces.length,
       workspacesWithCompanies: workspacesWithCompanies.length,
     });
   } catch (error) {

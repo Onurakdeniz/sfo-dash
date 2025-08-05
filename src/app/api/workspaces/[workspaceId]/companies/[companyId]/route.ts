@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company } from "@/db/schema";
+import { workspace, workspaceCompany, company, workspaceMember } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 // GET individual company
@@ -34,11 +34,61 @@ export async function GET(
       );
     }
 
-    if (workspaceExists[0].ownerId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Unauthorized to access this workspace" },
-        { status: 403 }
-      );
+    const isOwner = workspaceExists[0].ownerId === session.user.id;
+    let userRole = 'owner';
+    let userPermissions = null;
+    let restrictedCompanyId = null;
+
+    if (!isOwner) {
+      // Check if user is a member of this workspace
+      const membershipCheck = await db.select({
+        role: workspaceMember.role,
+        permissions: workspaceMember.permissions,
+      })
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workspaceId),
+            eq(workspaceMember.userId, session.user.id)
+          )
+        )
+        .limit(1);
+
+      if (membershipCheck.length === 0) {
+        return NextResponse.json(
+          { error: "Unauthorized to access this workspace" },
+          { status: 403 }
+        );
+      }
+
+      userRole = membershipCheck[0].role;
+      userPermissions = membershipCheck[0].permissions;
+
+      // Check if user has company restrictions
+      if (userPermissions) {
+        try {
+          let permissions;
+          if (typeof userPermissions === 'string') {
+            permissions = JSON.parse(userPermissions);
+          } else {
+            permissions = userPermissions;
+          }
+          
+          if (permissions && permissions.restrictedToCompany) {
+            restrictedCompanyId = permissions.restrictedToCompany;
+            
+            // If user is restricted to a specific company, they can only access that company
+            if (restrictedCompanyId !== companyId) {
+              return NextResponse.json(
+                { error: "Access denied - you can only access your assigned company" },
+                { status: 403 }
+              );
+            }
+          }
+        } catch (e) {
+          console.error("Error parsing user permissions:", e);
+        }
+      }
     }
 
     // Get company and verify it belongs to the workspace

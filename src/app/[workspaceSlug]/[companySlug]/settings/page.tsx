@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
 import Link from "next/link";
+import { RoleGuard } from "@/components/layouts/role-guard";
 
 interface WorkspaceSettings {
   id: string;
@@ -83,7 +84,7 @@ const DATE_FORMATS = [
   { value: "YYYY-MM-DD", label: "YYYY-MM-DD" }
 ];
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const params = useParams();
   const queryClient = useQueryClient();
   const workspaceSlug = params.workspaceSlug as string;
@@ -550,5 +551,16 @@ export default function SettingsPage() {
         </div>
       </PageWrapper>
     </TooltipProvider>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <RoleGuard 
+      requiredRoles={['owner', 'admin']}
+      fallbackMessage="Ayarlar sayfasına erişmek için yönetici yetkisi gereklidir."
+    >
+      <SettingsPageContent />
+    </RoleGuard>
   );
 }

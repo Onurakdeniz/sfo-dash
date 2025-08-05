@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Plus, Search, Mail, Calendar, Shield, UserCheck, UserX, Edit, Trash2, MoreHorizontal, UserPlus, Settings, Eye, MapPin, Clock, Users, Send, RefreshCw, AlertTriangle, CheckCircle2, XCircle, Clock3 } from "lucide-react";
 import { toast } from "sonner";
 import { PageWrapper } from "@/components/page-wrapper";
+import { RoleGuard } from "@/components/layouts/role-guard";
 
 interface WorkspaceMember {
   workspaceId: string;
@@ -58,9 +59,12 @@ interface InvitationData {
   respondedAt?: string;
   inviterName?: string;
   inviterEmail?: string;
+  type?: 'workspace' | 'company';
+  companyId?: string;
+  companyName?: string;
 }
 
-export default function UsersPage() {
+function UsersPageContent() {
   const params = useParams();
   const router = useRouter();
   const workspaceSlug = params.workspaceSlug as string;
@@ -69,6 +73,7 @@ export default function UsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("members");
+  const [selectedInvitationType, setSelectedInvitationType] = useState<'workspace' | 'company'>('workspace');
   const queryClient = useQueryClient();
 
   // Fetch all workspaces and find by slug
@@ -90,6 +95,34 @@ export default function UsersPage() {
 
   // Find current workspace by slug
   const workspace = workspacesData?.workspaces?.find((w: Workspace) => w.slug === workspaceSlug) || null;
+
+  // Fetch companies in the workspace for invitation selection
+  const { data: companiesData = [], isLoading: isLoadingCompanies } = useQuery({
+    queryKey: ['workspace-companies', workspace?.id],
+    queryFn: async () => {
+      if (!workspace?.id) return [];
+      try {
+        const res = await fetch(`/api/workspaces/${workspace.id}/companies`, {
+          credentials: 'include'
+        });
+        if (!res.ok) {
+          console.error('Companies API error:', res.status, res.statusText);
+          return [];
+        }
+        const data = await res.json();
+        console.log('Companies API response:', data); // Debug log
+        // The API returns companies array directly, not wrapped in an object
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error('Error fetching companies:', error);
+        return [];
+      }
+    },
+    enabled: !!workspace?.id,
+  });
+
+  // Find current company by slug
+  const currentCompany = companiesData.find((c: any) => c.slug === companySlug);
 
   // Fetch workspace members
   const { data: members = [], isLoading: isLoadingMembers } = useQuery({
@@ -152,15 +185,27 @@ export default function UsersPage() {
       email: string; 
       role: string;
       message?: string;
+      invitationType: 'workspace' | 'company';
+      companyId?: string;
     }) => {
       if (!workspace?.id) throw new Error('Workspace not found');
-      const res = await fetch(`/api/workspaces/${workspace.id}/members`, {
+      
+      // Choose endpoint based on invitation type
+      const endpoint = data.invitationType === 'company' && data.companyId
+        ? `/api/workspaces/${workspace.id}/companies/${data.companyId}/members`
+        : `/api/workspaces/${workspace.id}/members`;
+      
+      const res = await fetch(endpoint, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          email: data.email,
+          role: data.role,
+          message: data.message
+        })
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -680,6 +725,12 @@ export default function UsersPage() {
                               {invitation.inviterName} tarafından davet edildi
                             </div>
                           )}
+                          {invitation.type === 'company' && invitation.companyName && (
+                            <div className="text-sm text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                              <Shield className="h-3 w-3" />
+                              {invitation.companyName} şirketi için
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -768,8 +819,13 @@ export default function UsersPage() {
             <DialogHeader>
               <DialogTitle>Takım Üyesi Davet Et</DialogTitle>
               <DialogDescription>
-                {workspace.name} çalışma alanına katılmak için davetiye gönder.
+                {workspace?.name} çalışma alanına katılmak için davetiye gönder.
               </DialogDescription>
+              {selectedInvitationType === 'company' && companiesData.length > 0 && (
+                <div className="text-sm text-blue-600 dark:text-blue-400 -mt-2 mb-4">
+                  Kullanıcı sadece seçilen şirkete erişim sahibi olacak.
+                </div>
+              )}
             </DialogHeader>
             <form
               onSubmit={(e) => {
@@ -778,6 +834,8 @@ export default function UsersPage() {
                 inviteUser.mutate({
                   email: formData.get('email') as string,
                   role: formData.get('role') as string,
+                  invitationType: selectedInvitationType,
+                  companyId: selectedInvitationType === 'company' ? (formData.get('companyId') as string) : undefined,
                 });
               }}
             >
@@ -795,6 +853,50 @@ export default function UsersPage() {
                     required
                   />
                 </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="invitationType" className="text-right">
+                    Davet Türü
+                  </Label>
+                  <select
+                    id="invitationType"
+                    value={selectedInvitationType}
+                    onChange={(e) => setSelectedInvitationType(e.target.value as 'workspace' | 'company')}
+                    className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="workspace">Çalışma Alanı (Tüm şirketlere erişim)</option>
+                    <option value="company">Belirli Şirket</option>
+                  </select>
+                </div>
+                {selectedInvitationType === 'company' && (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="companyId" className="text-right">
+                      Şirket
+                    </Label>
+                    <select
+                      id="companyId"
+                      name="companyId"
+                      className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      required={selectedInvitationType === 'company'}
+                      defaultValue={currentCompany?.id || ''}
+                      disabled={isLoadingCompanies}
+                    >
+                      {isLoadingCompanies ? (
+                        <option value="">Şirketler yükleniyor...</option>
+                      ) : companiesData.length === 0 ? (
+                        <option value="">Bu çalışma alanında şirket bulunamadı</option>
+                      ) : (
+                        <>
+                          <option value="">Şirket seçin...</option>
+                          {companiesData.map((company: any) => (
+                            <option key={company.id} value={company.id}>
+                              {company.name}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </div>
+                )}
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="role" className="text-right">
                     Rol
@@ -824,5 +926,16 @@ export default function UsersPage() {
         </Dialog>
       </div>
     </PageWrapper>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <RoleGuard 
+      requiredRoles={['owner', 'admin']}
+      fallbackMessage="Kullanıcı yönetimi sayfasına erişmek için yönetici yetkisi gereklidir."
+    >
+      <UsersPageContent />
+    </RoleGuard>
   );
 }

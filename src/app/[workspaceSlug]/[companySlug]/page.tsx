@@ -28,17 +28,15 @@ interface Workspace {
   slug: string;
 }
 
-// Unused interface - commented out
-// interface WorkspaceMember {
-//   workspaceId: string;
-//   userId: string;
-//   role: string;
-//   user?: {
-//     id: string;
-//     name?: string;
-//     email: string;
-//   };
-// }
+interface WorkspaceContextData {
+  user: {
+    role: string;
+    permissions: any;
+    isOwner: boolean;
+  };
+}
+
+
 
 function StatCard({ title, value, description, icon: Icon, trend }: StatCard) {
   return (
@@ -99,7 +97,22 @@ export default function DashboardPage() {
   const params = useParams();
   const workspaceSlug = params.workspaceSlug as string;
   const companySlug = params.companySlug as string;
-  // const companySlug = params.companySlug as string; // Unused in this component
+
+  // Fetch workspace context to get user role
+  const { data: contextData, isLoading: contextLoading } = useQuery<WorkspaceContextData>({
+    queryKey: ['workspace-context', workspaceSlug, companySlug],
+    queryFn: async () => {
+      const res = await fetch(`/api/workspace-context/${workspaceSlug}/${companySlug}`, {
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        throw new Error('Failed to fetch workspace context');
+      }
+      return res.json();
+    },
+    enabled: !!(workspaceSlug && companySlug),
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
 
   // Fetch all workspaces and find by slug
   const { data: workspacesData, isLoading: workspaceLoading } = useQuery({
@@ -157,7 +170,12 @@ export default function DashboardPage() {
     enabled: !!workspace?.id,
   });
 
-  const isLoading = workspaceLoading || companiesLoading || membersLoading;
+  const isLoading = workspaceLoading || companiesLoading || membersLoading || contextLoading;
+
+  // Get user role information
+  const userRole = contextData?.user?.role;
+  const isOwner = contextData?.user?.isOwner;
+  const isAdminOrOwner = isOwner || userRole === 'admin';
 
   const stats = [
     {
@@ -178,104 +196,123 @@ export default function DashboardPage() {
 
   return (
     <PageWrapper
-      title="Kontrol Paneli"
-      description={`${workspace?.name} çalışma alanı için genel bakış`}
+      title={isAdminOrOwner ? "Kontrol Paneli" : "Etkinlikler"}
+      description={isAdminOrOwner 
+        ? `${workspace?.name} çalışma alanı için genel bakış`
+        : `${workspace?.name} çalışma alanı etkinlikleri`
+      }
     >
       <div className="space-y-8">
-        {/* Overview Section with Statistics and Quick Actions */}
-        <div>
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-foreground">Genel Bakış</h2>
-            <p className="text-sm text-muted-foreground">
-              {workspace?.name} çalışma alanı için temel istatistikler
-            </p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Statistics Grid */}
-            <div className="lg:col-span-2">
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {isLoading ? (
-                  Array.from({ length: 2 }).map((_, i) => (
-                    <StatCardSkeleton key={i} />
-                  ))
-                ) : (
-                  stats.map((stat) => (
-                    <StatCard key={stat.title} {...stat} />
-                  ))
-                )}
-              </div>
+        {/* Overview Section with Statistics and Quick Actions - Only for Admin/Owner */}
+        {isAdminOrOwner && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-foreground">Genel Bakış</h2>
+              <p className="text-sm text-muted-foreground">
+                {workspace?.name} çalışma alanı için temel istatistikler
+              </p>
             </div>
-            
-            {/* Quick Actions */}
-            <div className="lg:col-span-1">
-           
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 h-full">
-                <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
-                  <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full" variant="elevated">
-                    <CardHeader className="h-full">
-                      <div className="flex flex-col items-center justify-center text-center gap-3 h-full">
-                        <div className="p-3 bg-success/10 rounded-xl group-hover:bg-success/20 transition-colors">
-                          <Building2 className="h-6 w-6 text-success" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Statistics Grid */}
+              <div className="lg:col-span-2">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                  {isLoading ? (
+                    Array.from({ length: 2 }).map((_, i) => (
+                      <StatCardSkeleton key={i} />
+                    ))
+                  ) : (
+                    stats.map((stat) => (
+                      <StatCard key={stat.title} {...stat} />
+                    ))
+                  )}
+                </div>
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="lg:col-span-1">
+             
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 h-full">
+                  <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
+                    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full" variant="elevated">
+                      <CardHeader className="h-full">
+                        <div className="flex flex-col items-center justify-center text-center gap-3 h-full">
+                          <div className="p-3 bg-success/10 rounded-xl group-hover:bg-success/20 transition-colors">
+                            <Building2 className="h-6 w-6 text-success" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm font-semibold group-hover:text-success transition-colors">
+                              Şirket Ekle
+                            </CardTitle>
+                            <CardDescription className="text-xs mt-1">
+                              Yeni şirket ekleyin
+                            </CardDescription>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-sm font-semibold group-hover:text-success transition-colors">
-                            Şirket Ekle
-                          </CardTitle>
-                          <CardDescription className="text-xs mt-1">
-                            Yeni şirket ekleyin
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                </Link>
+                      </CardHeader>
+                    </Card>
+                  </Link>
 
-                <Link href={`/${workspaceSlug}/${companySlug}/users`}>
-                  <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full" variant="elevated">
-                    <CardHeader className="h-full">
-                      <div className="flex flex-col items-center justify-center text-center gap-3 h-full">
-                        <div className="p-3 bg-info/10 rounded-xl group-hover:bg-info/20 transition-colors">
-                          <Users className="h-6 w-6 text-info" />
+                  <Link href={`/${workspaceSlug}/${companySlug}/users`}>
+                    <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full" variant="elevated">
+                      <CardHeader className="h-full">
+                        <div className="flex flex-col items-center justify-center text-center gap-3 h-full">
+                          <div className="p-3 bg-info/10 rounded-xl group-hover:bg-info/20 transition-colors">
+                            <Users className="h-6 w-6 text-info" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm font-semibold group-hover:text-info transition-colors">
+                              Üye Davet Et
+                            </CardTitle>
+                            <CardDescription className="text-xs mt-1">
+                              Yeni üyeler ekleyin
+                            </CardDescription>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-sm font-semibold group-hover:text-info transition-colors">
-                            Üye Davet Et
-                          </CardTitle>
-                          <CardDescription className="text-xs mt-1">
-                            Yeni üyeler ekleyin
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                </Link>
+                      </CardHeader>
+                    </Card>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Recent Activity */}
         <div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Son Etkinlikler</h2>
-              <p className="text-sm text-muted-foreground">Sistem etkinliklerini ve güncellemeleri takip edin</p>
+              <h2 className="text-lg font-semibold text-foreground">
+                {isAdminOrOwner ? "Son Etkinlikler" : "Etkinlikler"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {isAdminOrOwner 
+                  ? "Sistem etkinliklerini ve güncellemeleri takip edin"
+                  : "Çalışma alanındaki etkinlikleri takip edin"
+                }
+              </p>
             </div>
-            <Button variant="outline" size="sm">
-              Tümünü Görüntüle
-            </Button>
+            {isAdminOrOwner && (
+              <Button variant="outline" size="sm">
+                Tümünü Görüntüle
+              </Button>
+            )}
           </div>
           <Card variant="subdued">
             <CardContent className="flex flex-col items-center justify-center py-16">
               <div className="p-4 bg-muted/50 rounded-full mb-4">
                 <Activity className="h-8 w-8 text-muted-foreground" />
               </div>
-              <CardTitle className="text-lg mb-2">Etkinlik takibi yakında geliyor</CardTitle>
+              <CardTitle className="text-lg mb-2">
+                {isAdminOrOwner ? "Etkinlik takibi yakında geliyor" : "Henüz etkinlik bulunmuyor"}
+              </CardTitle>
               <CardDescription className="text-center max-w-md">
-                Kullanıcı etkileşimini ve sistem performansını takip etmenize yardımcı olacak güçlü analitikler geliştiriyoruz.
+                {isAdminOrOwner 
+                  ? "Kullanıcı etkileşimini ve sistem performansını takip etmenize yardımcı olacak güçlü analitikler geliştiriyoruz."
+                  : "Çalışma alanında etkinlik gerçekleştikçe burada görüntülenecek. Bildirimler ve güncellemeler için bu alanı takip edebilirsiniz."
+                }
               </CardDescription>
               <Badge variant="info" className="mt-4">
-                Geliştirme Aşamasında
+                {isAdminOrOwner ? "Geliştirme Aşamasında" : "Etkinlik Bekleniyor"}
               </Badge>
             </CardContent>
           </Card>

@@ -35,9 +35,14 @@ export async function GET(
 
     // Check if user is the owner or a member of this workspace
     const isOwner = workspaceData.ownerId === session.user.id;
+    let userRole = 'owner';
+    let userPermissions = null;
     
     if (!isOwner) {
-      const membershipCheck = await db.select()
+      const membershipCheck = await db.select({
+        role: workspaceMember.role,
+        permissions: workspaceMember.permissions,
+      })
         .from(workspaceMember)
         .where(
           and(
@@ -53,16 +58,57 @@ export async function GET(
           { status: 403 }
         );
       }
+      
+      userRole = membershipCheck[0].role;
+      userPermissions = membershipCheck[0].permissions;
     }
 
-    // Get all companies for this workspace
-    const companiesData = await db.select({
-      company: company,
-      workspaceCompany: workspaceCompany,
-    })
-    .from(company)
-    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
-    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+    // Get companies based on user permissions
+    let companiesData;
+    let restrictedCompanyId = null;
+
+    // Check if user has restrictedToCompany permission
+    if (!isOwner && userPermissions) {
+      try {
+        let permissions;
+        if (typeof userPermissions === 'string') {
+          permissions = JSON.parse(userPermissions);
+        } else {
+          permissions = userPermissions;
+        }
+        
+        if (permissions && permissions.restrictedToCompany) {
+          restrictedCompanyId = permissions.restrictedToCompany;
+        }
+      } catch (e) {
+        console.error("Error parsing user permissions:", e);
+      }
+    }
+
+    if (restrictedCompanyId) {
+      // User is restricted to a specific company - only fetch that company
+      companiesData = await db.select({
+        company: company,
+        workspaceCompany: workspaceCompany,
+      })
+      .from(company)
+      .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+      .where(
+        and(
+          eq(workspaceCompany.workspaceId, workspaceData.id),
+          eq(company.id, restrictedCompanyId)
+        )
+      );
+    } else {
+      // Owner or admin - fetch all companies in workspace
+      companiesData = await db.select({
+        company: company,
+        workspaceCompany: workspaceCompany,
+      })
+      .from(company)
+      .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+      .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+    }
 
     // Add slug to companies and find the current company
     const companies = companiesData.map((c) => ({
@@ -89,6 +135,11 @@ export async function GET(
       },
       currentCompany,
       companies,
+      user: {
+        role: userRole,
+        permissions: userPermissions,
+        isOwner: isOwner,
+      },
     });
 
     // Add cache headers for better performance (5 minutes cache)

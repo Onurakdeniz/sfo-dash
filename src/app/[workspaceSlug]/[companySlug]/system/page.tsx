@@ -16,6 +16,7 @@ import {
   Puzzle
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import { RoleGuard } from "@/components/layouts/role-guard";
 
 const systemModules = [
   {
@@ -82,7 +83,7 @@ const additionalFeatures = [
   }
 ];
 
-export default function SystemPage() {
+function SystemPageContent() {
   const router = useRouter();
 
   return (
@@ -178,5 +179,16 @@ export default function SystemPage() {
       </Card>
       </div>
     </PageWrapper>
+  );
+}
+
+export default function SystemPage() {
+  return (
+    <RoleGuard 
+      requiredRoles={['owner', 'admin']}
+      fallbackMessage="Sistem yönetimi sayfasına erişmek için yönetici yetkisi gereklidir."
+    >
+      <SystemPageContent />
+    </RoleGuard>
   );
 }
