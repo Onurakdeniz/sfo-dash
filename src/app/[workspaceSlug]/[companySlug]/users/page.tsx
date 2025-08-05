@@ -207,21 +207,39 @@ function UsersPageContent() {
           message: data.message
         })
       });
-      if (!res.ok) {
+      
+      // Handle both success (200) and partial success (207) as successful responses
+      if (!res.ok && res.status !== 207) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to invite user');
       }
+      
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['workspace-members', workspace?.id] });
       queryClient.invalidateQueries({ queryKey: ['workspace-invitations', workspace?.id] });
       setShowCreateModal(false);
       setActiveTab('invitations'); // Switch to invitations tab to show the new invitation
-      toast.success('Davetiye başarıyla gönderildi');
+      
+      // Handle different response scenarios
+      if (response.emailSent) {
+        toast.success('Davetiye başarıyla gönderildi');
+      } else {
+        toast.warning('Davetiye oluşturuldu ancak e-posta gönderilemedi. Davetiyeyi üyeler listesinden yeniden gönderebilirsiniz.');
+      }
     },
     onError: (error) => {
-      toast.error(error.message || 'Kullanıcı davet edilemedi');
+      // Handle 207 status (partial success) as a special case
+      if (error.message.includes('Invitation created but email could not be sent')) {
+        queryClient.invalidateQueries({ queryKey: ['workspace-members', workspace?.id] });
+        queryClient.invalidateQueries({ queryKey: ['workspace-invitations', workspace?.id] });
+        setShowCreateModal(false);
+        setActiveTab('invitations');
+        toast.warning('Davetiye oluşturuldu ancak e-posta gönderilemedi. Davetiyeyi üyeler listesinden yeniden gönderebilirsiniz.');
+      } else {
+        toast.error(error.message || 'Kullanıcı davet edilemedi');
+      }
       console.error('Invite user error:', error);
     },
   });

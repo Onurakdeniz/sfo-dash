@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Send verification email
     await resend.emails.send({
-      from: "onboarding@resend.dev", // replace with your verified domain
+      from: "noreply@transactions.weddingneonsign.com", // Use verified domain
       to: email,
       subject: "Verify your email address",
       html: `

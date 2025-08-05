@@ -120,7 +120,28 @@ export async function GET(
 
     const currentCompany = companies.find(c => c.slug === companySlug);
 
+    // If user is restricted to a specific company and the requested slug doesn't match,
+    // return a redirect hint instead of an error
     if (!currentCompany) {
+      if (restrictedCompanyId && companies.length === 1) {
+        const correctCompany = companies[0];
+        return NextResponse.json({
+          redirectTo: correctCompany.slug,
+          workspace: {
+            id: workspaceData.id,
+            name: workspaceData.name,
+            slug: workspaceData.slug,
+          },
+          currentCompany: correctCompany,
+          companies,
+          user: {
+            role: userRole,
+            permissions: userPermissions,
+            isOwner: isOwner,
+          },
+        });
+      }
+
       return NextResponse.json(
         { error: "Company not found in workspace" },
         { status: 404 }

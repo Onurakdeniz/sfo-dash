@@ -208,6 +208,9 @@ export async function POST(
     });
 
     // Send invitation email
+    let emailSent = false;
+    let emailError = null;
+    
     try {
       const workspaceData = workspaceResult[0];
       const inviteUrl = `http://localhost:3000/invite/${token}`; // Force localhost:3000 for development
@@ -258,25 +261,37 @@ export async function POST(
       
       console.log("✅ Email sent successfully! Resend response:", emailResult);
       console.log(`Invitation email sent to ${email} for workspace ${workspaceData.name}`);
-    } catch (emailError) {
+      emailSent = true;
+    } catch (error) {
       console.error("❌ Failed to send invitation email - FULL ERROR DETAILS:");
-      console.error("Error message:", emailError.message);
-      console.error("Error stack:", emailError.stack);
-      console.error("Full error object:", emailError);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      console.error("Full error object:", error);
       
       // Check if it's a Resend-specific error
-      if (emailError.name === 'ResendError') {
+      if (error.name === 'ResendError') {
         console.error("This is a Resend API error. Check your API key and domain verification.");
       }
       
-      // Don't fail the invitation creation if email sending fails
-      // The invitation is still created and can be used
+      emailError = error.message;
+      emailSent = false;
     }
     
-    return NextResponse.json({
-      message: "Invitation sent successfully",
-      invitationId,
-    });
+    // Return appropriate response based on email sending result
+    if (emailSent) {
+      return NextResponse.json({
+        message: "Invitation sent successfully",
+        invitationId,
+        emailSent: true,
+      });
+    } else {
+      return NextResponse.json({
+        message: "Invitation created but email could not be sent. You can resend the invitation from the members list.",
+        invitationId,
+        emailSent: false,
+        emailError,
+      }, { status: 207 }); // 207 Multi-Status: partial success
+    }
 
   } catch (error) {
     console.error("Error inviting member:", error);
