@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company, department } from "@/db/schema";
-import { eq, count, inArray } from "drizzle-orm";
+import { workspace, workspaceCompany, company, department, workspaceMember } from "@/db/schema";
+import { eq, count, inArray, and } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
@@ -33,20 +33,80 @@ export async function GET(
       );
     }
 
-    if (workspaceExists[0].ownerId !== session.user.id) {
-      return NextResponse.json(
-        { error: "Unauthorized to access this workspace" },
-        { status: 403 }
-      );
+    const isOwner = workspaceExists[0].ownerId === session.user.id;
+    let userRole = 'owner';
+    let userPermissions = null;
+    let restrictedCompanyId = null;
+
+    if (!isOwner) {
+      // Check if user is a member of this workspace
+      const membershipCheck = await db.select({
+        role: workspaceMember.role,
+        permissions: workspaceMember.permissions,
+      })
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workspaceId),
+            eq(workspaceMember.userId, session.user.id)
+          )
+        )
+        .limit(1);
+
+      if (membershipCheck.length === 0) {
+        return NextResponse.json(
+          { error: "Unauthorized to access this workspace" },
+          { status: 403 }
+        );
+      }
+
+      userRole = membershipCheck[0].role;
+      userPermissions = membershipCheck[0].permissions;
+
+      // Check if user has company restrictions
+      if (userPermissions) {
+        try {
+          let permissions;
+          if (typeof userPermissions === 'string') {
+            permissions = JSON.parse(userPermissions);
+          } else {
+            permissions = userPermissions;
+          }
+          
+          if (permissions && permissions.restrictedToCompany) {
+            restrictedCompanyId = permissions.restrictedToCompany;
+          }
+        } catch (e) {
+          console.error("Error parsing user permissions:", e);
+        }
+      }
     }
 
-    // Get all companies in this workspace
-    const companiesInWorkspace = await db.select({
-      company: company,
-    })
-    .from(workspaceCompany)
-    .leftJoin(company, eq(workspaceCompany.companyId, company.id))
-    .where(eq(workspaceCompany.workspaceId, workspaceId));
+    // Get companies based on user permissions
+    let companiesInWorkspace;
+    
+    if (restrictedCompanyId) {
+      // User is restricted to a specific company - only fetch that company
+      companiesInWorkspace = await db.select({
+        company: company,
+      })
+      .from(workspaceCompany)
+      .leftJoin(company, eq(workspaceCompany.companyId, company.id))
+      .where(
+        and(
+          eq(workspaceCompany.workspaceId, workspaceId),
+          eq(workspaceCompany.companyId, restrictedCompanyId)
+        )
+      );
+    } else {
+      // Owner or unrestricted admin/member - fetch all companies in workspace
+      companiesInWorkspace = await db.select({
+        company: company,
+      })
+      .from(workspaceCompany)
+      .leftJoin(company, eq(workspaceCompany.companyId, company.id))
+      .where(eq(workspaceCompany.workspaceId, workspaceId));
+    }
 
     // Get department counts for each company
     const companyIds = companiesInWorkspace

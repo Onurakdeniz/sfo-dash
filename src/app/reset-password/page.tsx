@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { authClient } from "@/lib/auth/client";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -42,27 +43,47 @@ export default function ResetPasswordPage() {
         }
 
         if (password !== confirmPassword) {
-            setError("Passwords do not match");
+            setError("Şifreler eşleşmiyor");
             return;
         }
 
         if (password.length < 8) {
-            setError("Password must be at least 8 characters long");
+            setError("Şifre en az 8 karakter olmalıdır");
+            return;
+        }
+
+        if (!token) {
+            setError("Geçersiz sıfırlama bağlantısı. Yeni bir şifre sıfırlama isteği gönderin.");
             return;
         }
 
         setLoading(true);
         
         try {
-            // TODO: Implement reset password functionality
-            setMessage("Your password has been reset successfully.");
+            await authClient.resetPassword({
+                newPassword: password,
+                token: token,
+            });
+            
+            setMessage("Şifreniz başarıyla sıfırlandı. Giriş sayfasına yönlendiriliyorsunuz...");
             setTimeout(() => {
                 router.push("/signin");
             }, 2000);
-        } catch (error: unknown) {
-            console.error("Reset password error:", error);
-            const errorMessage = error instanceof Error ? error.message : "An error occurred. Please try again.";
-            setError(errorMessage);
+        } catch (error: any) {
+            // Only log detailed errors in development
+            if (process.env.NODE_ENV === 'development') {
+                console.error("Reset password error:", error);
+            }
+            
+            const message = error?.message?.toLowerCase() || "";
+            
+            if (message.includes("token") || message.includes("invalid") || message.includes("expired")) {
+                setError("Sıfırlama bağlantısı geçersiz veya süresi dolmuş. Yeni bir sıfırlama isteği gönderin.");
+            } else if (message.includes("password")) {
+                setError("Şifre gereksinimlerini karşılamıyor. Lütfen daha güçlü bir şifre seçin.");
+            } else {
+                setError("Şifre sıfırlanırken bir hata oluştu. Lütfen tekrar deneyin.");
+            }
         } finally {
             setLoading(false);
         }

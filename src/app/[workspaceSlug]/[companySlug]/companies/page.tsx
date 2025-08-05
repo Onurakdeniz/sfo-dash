@@ -18,6 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageWrapper } from "@/components/page-wrapper";
 import { toast } from "sonner";
+import { RoleGuard } from "@/components/layouts/role-guard";
 
 // API calls will be made using fetch to local endpoints
 
@@ -51,7 +52,7 @@ interface CreateCompanyData {
   size?: string;
 }
 
-export default function CompaniesPage() {
+function CompaniesPageContent() {
   const params = useParams();
   const workspaceSlug = params.workspaceSlug as string;
   const companySlug = params.companySlug as string;
@@ -419,5 +420,16 @@ export default function CompaniesPage() {
       </AlertDialog>
       </div>
     </PageWrapper>
+  );
+}
+
+export default function CompaniesPage() {
+  return (
+    <RoleGuard 
+      requiredRoles={['owner', 'admin']}
+      fallbackMessage="Şirket yönetimi sayfasına erişmek için yönetici yetkisi gereklidir."
+    >
+      <CompaniesPageContent />
+    </RoleGuard>
   );
 } 

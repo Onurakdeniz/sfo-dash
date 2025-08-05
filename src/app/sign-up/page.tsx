@@ -4,45 +4,178 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { authClient } from "@/lib/auth/client";
+import { CheckCircle2, AlertCircle, Info } from "lucide-react";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
+
+interface FormErrors {
+    email?: string;
+    password?: string;
+    general?: string;
+}
+
+interface PasswordRequirement {
+    regex: RegExp;
+    message: string;
+    met: boolean;
+}
 
 export default function SignUpPage() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+    const [errors, setErrors] = useState<FormErrors>({});
     const [loading, setLoading] = useState(false);
+    const [showPasswordRequirements, setShowPasswordRequirements] = useState(false);
+    const [successMessage, setSuccessMessage] = useState("");
+
+    const passwordRequirements: PasswordRequirement[] = [
+        { regex: /.{8,}/, message: "En az 8 karakter", met: false },
+        { regex: /[A-Z]/, message: "En az 1 büyük harf", met: false },
+        { regex: /[a-z]/, message: "En az 1 küçük harf", met: false },
+        { regex: /\d/, message: "En az 1 rakam", met: false },
+        { regex: /[!@#$%^&*(),.?":{}|<>]/, message: "En az 1 özel karakter", met: false },
+    ];
+
+    // Update password requirements when password changes
+    useEffect(() => {
+        passwordRequirements.forEach((req) => {
+            req.met = req.regex.test(password);
+        });
+    }, [password]);
+
+    // Validation functions
+    const validateEmail = (email: string): string | undefined => {
+        if (!email) return "E-posta adresi gereklidir";
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) return "Geçerli bir e-posta adresi girin";
+        return undefined;
+    };
+
+    const validatePassword = (password: string): string | undefined => {
+        if (!password) return "Şifre gereklidir";
+        
+        const unmetRequirements = passwordRequirements.filter(req => !req.regex.test(password));
+        if (unmetRequirements.length > 0) {
+            return "Şifre güvenlik gereksinimlerini karşılamıyor";
+        }
+        
+        return undefined;
+    };
+
+    const validateForm = (): boolean => {
+        const newErrors: FormErrors = {};
+        
+        const emailError = validateEmail(email);
+        if (emailError) newErrors.email = emailError;
+        
+        const passwordError = validatePassword(password);
+        if (passwordError) newErrors.password = passwordError;
+        
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const getErrorMessage = (error: any): string => {
+        const message = error?.message?.toLowerCase() || "";
+        
+        if (message.includes("user already exists") || message.includes("already registered")) {
+            return "Bu e-posta adresi zaten kayıtlı. Giriş yapmayı deneyin.";
+        }
+        
+        if (message.includes("invalid email")) {
+            return "Geçersiz e-posta adresi. Lütfen doğru formatta girin.";
+        }
+        
+        if (message.includes("weak password") || message.includes("password")) {
+            return "Şifre güvenlik gereksinimlerini karşılamıyor.";
+        }
+        
+        if (message.includes("network") || message.includes("connection")) {
+            return "Bağlantı hatası. İnternet bağlantınızı kontrol edin.";
+        }
+        
+        if (message.includes("rate limit") || message.includes("too many")) {
+            return "Çok fazla deneme. Lütfen birkaç dakika bekleyin.";
+        }
+        
+        return "Hesap oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.";
+    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setError("");
+        setErrors({});
+        setSuccessMessage("");
+        
+        if (!validateForm()) {
+            return;
+        }
+        
         setLoading(true);
         
         if (!authClient) {
-            setError("Authentication system is loading. Please wait.");
+            setErrors({ general: "Kimlik doğrulama sistemi yükleniyor. Lütfen bekleyin." });
             setLoading(false);
             return;
         }
         
         try {
             await authClient.signUp.email({
-                email,
+                email: email.trim(),
                 password,
-                name: email, // Use email as name for now
+                name: email.split('@')[0], // Use email prefix as name
             });
-            router.push("/");
+            
+            setSuccessMessage("Hesabınız başarıyla oluşturuldu! Yönlendiriliyorsunuz...");
+            
+            // Redirect after a short delay to show success message
+            setTimeout(() => {
+                router.push("/");
+            }, 1500);
+            
         } catch (error: any) {
-            console.error("Sign up error:", error);
-            setError(error.message || "An error occurred during sign up. Please try again.");
+            // Only log detailed errors in development, not in production
+            if (process.env.NODE_ENV === 'development') {
+                console.error("Sign up error:", error);
+            } else {
+                // In production, only log essential information
+                console.error("Sign up failed for user:", email.split('@')[0] + '@***');
+            }
+            
+            const errorMessage = getErrorMessage(error);
+            setErrors({ general: errorMessage });
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setEmail(value);
+        
+        // Clear email error on change
+        if (errors.email) {
+            setErrors(prev => ({ ...prev, email: undefined }));
+        }
+    };
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setPassword(value);
+        
+        // Clear password error on change
+        if (errors.password) {
+            setErrors(prev => ({ ...prev, password: undefined }));
+        }
+        
+        // Show requirements when user starts typing
+        setShowPasswordRequirements(value.length > 0);
     };
 
     return (
@@ -71,6 +204,26 @@ export default function SignUpPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
+                        {/* Success Message */}
+                        {successMessage && (
+                            <Alert className="mb-4 border-green-200 bg-green-50">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                <AlertDescription className="text-green-700">
+                                    {successMessage}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {/* General Error Message */}
+                        {errors.general && (
+                            <Alert className="mb-4 border-red-200 bg-red-50">
+                                <AlertCircle className="h-4 w-4 text-red-600" />
+                                <AlertDescription className="text-red-700">
+                                    {errors.general}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="email">E-posta Adresi</Label>
@@ -80,11 +233,17 @@ export default function SignUpPage() {
                                     name="email"
                                     placeholder="ornek@akdeniz.com"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    className="h-11"
+                                    onChange={handleEmailChange}
+                                    className={`h-11 ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                                 />
+                                {errors.email && (
+                                    <p className="text-sm text-red-600 flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {errors.email}
+                                    </p>
+                                )}
                             </div>
+                            
                             <div className="space-y-2">
                                 <Label htmlFor="password">Şifre</Label>
                                 <Input
@@ -93,22 +252,56 @@ export default function SignUpPage() {
                                     name="password"
                                     placeholder="••••••••••"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    className="h-11"
+                                    onChange={handlePasswordChange}
+                                    className={`h-11 ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                                 />
+                                {errors.password && (
+                                    <p className="text-sm text-red-600 flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {errors.password}
+                                    </p>
+                                )}
+
+                                {/* Password Requirements */}
+                                {showPasswordRequirements && (
+                                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Info className="h-4 w-4 text-blue-600" />
+                                            <span className="text-sm font-medium text-blue-700">Şifre Gereksinimleri:</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            {passwordRequirements.map((req, index) => (
+                                                <div key={index} className="flex items-center gap-2 text-sm">
+                                                    {req.regex.test(password) ? (
+                                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                                    ) : (
+                                                        <div className="h-3 w-3 rounded-full border border-gray-300" />
+                                                    )}
+                                                    <span className={req.regex.test(password) ? "text-green-700" : "text-gray-600"}>
+                                                        {req.message}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            {error && (
-                                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
-                                    {error}
-                                </div>
-                            )}
+
                             <Button 
                                 type="submit" 
-                                disabled={loading || !authClient}
-                                className="w-full h-11 bg-blue-600 hover:bg-blue-700"
+                                disabled={loading || !authClient || !!successMessage}
+                                className="w-full h-11 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
                             >
-                                {loading ? "Hesap Oluşturuluyor..." : "Hesap Oluştur"}
+                                {loading ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Hesap Oluşturuluyor...
+                                    </div>
+                                ) : successMessage ? (
+                                    "Yönlendiriliyor..."
+                                ) : (
+                                    "Hesap Oluştur"
+                                )}
                             </Button>
                         </form>
                         

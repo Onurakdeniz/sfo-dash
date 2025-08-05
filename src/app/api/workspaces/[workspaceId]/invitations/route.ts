@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceMember, user, invitation } from "@/db/schema";
+import { workspace, workspaceMember, user, invitation, company } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 export async function GET(
@@ -54,28 +54,27 @@ export async function GET(
       );
     }
 
-    // Fetch invitations for this workspace
+    // Fetch invitations for this workspace (both workspace and company invitations)
     const invitations = await db
       .select({
         id: invitation.id,
         email: invitation.email,
         role: invitation.role,
         status: invitation.status,
+        type: invitation.type,
         message: invitation.message,
         invitedAt: invitation.invitedAt,
         expiresAt: invitation.expiresAt,
         respondedAt: invitation.respondedAt,
         inviterName: user.name,
         inviterEmail: user.email,
+        companyId: invitation.companyId,
+        companyName: company.name,
       })
       .from(invitation)
       .leftJoin(user, eq(invitation.invitedBy, user.id))
-      .where(
-        and(
-          eq(invitation.workspaceId, workspaceId),
-          eq(invitation.type, 'workspace')
-        )
-      )
+      .leftJoin(company, eq(invitation.companyId, company.id))
+      .where(eq(invitation.workspaceId, workspaceId))
       .orderBy(desc(invitation.invitedAt));
 
     return NextResponse.json({ invitations });

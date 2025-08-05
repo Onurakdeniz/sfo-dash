@@ -14,6 +14,7 @@ import {
   Users, 
   Settings,
   Server,
+  UserCircle,
 } from "lucide-react";
 import { useSession } from "@/lib/auth/client";
 import { AuthGuard } from "./auth-guard";
@@ -45,6 +46,11 @@ interface WorkspaceContextData {
   workspace: Workspace;
   currentCompany: Company;
   companies: Company[];
+  user: {
+    role: string;
+    permissions: any;
+    isOwner: boolean;
+  };
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -90,6 +96,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const workspace = contextData?.workspace || null;
   const company = contextData?.currentCompany || null;
   const companies = contextData?.companies || [];
+  const userWorkspaceRole = contextData?.user || null;
   
   // Debug logging (after all variables are initialized)
   console.log('Dashboard Layout Debug:', {
@@ -155,13 +162,35 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  const navigation = [
-    { name: "Kontrol Paneli", href: `/${workspaceSlug}/${companySlug}`, icon: Home },
-    { name: "Şirketler", href: `/${workspaceSlug}/${companySlug}/companies`, icon: Building2 },
-    { name: "Kullanıcılar", href: `/${workspaceSlug}/${companySlug}/users`, icon: Users },
-    { name: "Sistem", href: `/${workspaceSlug}/${companySlug}/system`, icon: Server },
-    { name: "Ayarlar", href: `/${workspaceSlug}/${companySlug}/settings`, icon: Settings },
-  ];
+  // Define navigation based on user role
+  const getNavigationItems = (userRole: string | undefined, isOwner: boolean) => {
+    const baseNavigation = [
+      { name: "Kontrol Paneli", href: `/${workspaceSlug}/${companySlug}`, icon: Home },
+    ];
+
+    // Add profile for all users
+    const profileNavigation = [
+      { name: "Profil", href: `/${workspaceSlug}/${companySlug}/profile`, icon: UserCircle },
+    ];
+
+    // Admin/Owner only navigation
+    const adminNavigation = [
+      { name: "Şirketler", href: `/${workspaceSlug}/${companySlug}/companies`, icon: Building2 },
+      { name: "Kullanıcılar", href: `/${workspaceSlug}/${companySlug}/users`, icon: Users },
+      { name: "Sistem", href: `/${workspaceSlug}/${companySlug}/system`, icon: Server },
+      { name: "Ayarlar", href: `/${workspaceSlug}/${companySlug}/settings`, icon: Settings },
+    ];
+
+    // Return navigation based on role
+    if (isOwner || userRole === 'admin') {
+      return [...baseNavigation, ...adminNavigation];
+    } else {
+      // Members and viewers get limited access
+      return [...baseNavigation, ...profileNavigation];
+    }
+  };
+
+  const navigation = getNavigationItems(userWorkspaceRole?.role, userWorkspaceRole?.isOwner || false);
 
   const handleSignOut = async () => {
     const { signOut } = await import('@/lib/auth/client');
@@ -200,6 +229,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             companies={companies}
             navigation={navigation}
             user={user}
+            userWorkspaceRole={userWorkspaceRole}
             workspaceSlug={workspaceSlug}
             companySlug={companySlug}
             pathname={pathname}

@@ -50,6 +50,11 @@ interface WorkspaceSidebarProps {
   companies: Company[];
   navigation: Array<{ name: string; href: string; icon: any }>;
   user: any;
+  userWorkspaceRole: {
+    role: string;
+    permissions: any;
+    isOwner: boolean;
+  } | null;
   workspaceSlug: string;
   companySlug: string;
   pathname: string;
@@ -66,6 +71,7 @@ export function WorkspaceSidebar({
   companies, 
   navigation, 
   user, 
+  userWorkspaceRole,
   workspaceSlug, 
   companySlug, 
   pathname,
@@ -189,12 +195,14 @@ export function WorkspaceSidebar({
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onAddCompany} className="flex items-center gap-3 p-3">
-                  <div className="h-4 w-4 bg-gradient-to-br from-green-600 to-emerald-600 rounded-sm flex items-center justify-center">
-                    <Plus className="h-2.5 w-2.5 text-white" />
-                  </div>
-                  <span className="text-sm font-medium">Şirket Ekle</span>
-                </DropdownMenuItem>
+                {(userWorkspaceRole?.isOwner || userWorkspaceRole?.role === 'admin') && (
+                  <DropdownMenuItem onClick={onAddCompany} className="flex items-center gap-3 p-3">
+                    <div className="h-4 w-4 bg-gradient-to-br from-green-600 to-emerald-600 rounded-sm flex items-center justify-center">
+                      <Plus className="h-2.5 w-2.5 text-white" />
+                    </div>
+                    <span className="text-sm font-medium">Şirket Ekle</span>
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
         </div>
@@ -204,7 +212,10 @@ export function WorkspaceSidebar({
         <SidebarGroup>
           <SidebarGroupLabel className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
-            Yönetici Paneli
+            {userWorkspaceRole?.isOwner || userWorkspaceRole?.role === 'admin' 
+              ? 'Yönetici Paneli' 
+              : 'Üye Paneli'
+            }
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="group-data-[collapsible=icon]:items-center">

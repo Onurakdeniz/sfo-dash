@@ -4,43 +4,198 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { authClient } from "@/lib/auth/client";
+import { CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
+
+interface FormErrors {
+    email?: string;
+    password?: string;
+    general?: string;
+}
 
 export default function SignInPage() {
     const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [errors, setErrors] = useState<FormErrors>({});
     const [loading, setLoading] = useState(false);
+    const [successMessage, setSuccessMessage] = useState("");
+    const [attemptCount, setAttemptCount] = useState(0);
+
+    // Validation functions
+    const validateEmail = (email: string): string | undefined => {
+        if (!email) return "E-posta adresi gereklidir";
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) return "Geçerli bir e-posta adresi girin";
+        return undefined;
+    };
+
+    const validatePassword = (password: string): string | undefined => {
+        if (!password) return "Şifre gereklidir";
+        if (password.length < 1) return "Şifre gereklidir";
+        return undefined;
+    };
+
+    const validateForm = (): boolean => {
+        const newErrors: FormErrors = {};
+        
+        const emailError = validateEmail(email);
+        if (emailError) newErrors.email = emailError;
+        
+        const passwordError = validatePassword(password);
+        if (passwordError) newErrors.password = passwordError;
+        
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const getErrorMessage = (error: any, attemptCount: number): string => {
+        const message = error?.message?.toLowerCase() || "";
+        const statusCode = error?.status || error?.response?.status || 0;
+        
+        // Handle 401 Unauthorized specifically (which includes invalid password)
+        if (statusCode === 401 || message.includes("invalid password") || message.includes("wrong password") || message.includes("unauthorized")) {
+            if (attemptCount >= 3) {
+                return "Çok fazla hatalı deneme. Şifrenizi unuttuysanız sıfırlama linkini kullanın.";
+            }
+            return `Yanlış şifre. ${Math.max(0, 3 - attemptCount)} deneme hakkınız kaldı.`;
+        }
+        
+        // Handle 404 Not Found (user doesn't exist)
+        if (statusCode === 404 || message.includes("user not found") || message.includes("invalid email") || message.includes("email not found")) {
+            return "Bu e-posta adresi ile kayıtlı hesap bulunamadı. Kayıt olmayı deneyin.";
+        }
+        
+        // Handle 403 Forbidden (account issues)
+        if (statusCode === 403) {
+            if (message.includes("not verified") || message.includes("email not verified")) {
+                return "E-posta adresiniz doğrulanmamış. Lütfen e-postanızı kontrol edin ve doğrulama kodunu girin.";
+            }
+            if (message.includes("suspended") || message.includes("blocked")) {
+                return "Hesabınız askıya alınmış. Destek ekibi ile iletişime geçin.";
+            }
+            return "Bu hesaba erişim engellenmiş. Destek ekibi ile iletişime geçin.";
+        }
+        
+        // Handle email verification specifically
+        if (message.includes("email not verified") || message.includes("account not verified") || message.includes("verify")) {
+            return "E-posta adresiniz doğrulanmamış. Kayıt olduktan sonra gelen doğrulama e-postasını kontrol edin.";
+        }
+        
+        // Handle 429 Too Many Requests
+        if (statusCode === 429 || message.includes("too many requests") || message.includes("rate limit")) {
+            return "Çok fazla deneme. Lütfen 5 dakika bekleyin.";
+        }
+        
+        // Handle network errors
+        if (message.includes("network") || message.includes("connection") || message.includes("fetch")) {
+            return "Bağlantı hatası. İnternet bağlantınızı kontrol edin.";
+        }
+        
+        // Handle server errors
+        if (statusCode >= 500 || message.includes("server") || message.includes("internal")) {
+            return "Sunucu hatası. Lütfen daha sonra tekrar deneyin.";
+        }
+        
+        // Handle authentication failed
+        if (message.includes("authentication failed")) {
+            return "Giriş bilgileri hatalı. E-posta ve şifrenizi kontrol edin.";
+        }
+        
+        // Default error message
+        return "Giriş yapılırken bir hata oluştu. Lütfen bilgilerinizi kontrol edin.";
+    };
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setError("");
+        setErrors({});
+        setSuccessMessage("");
+        
+        if (!validateForm()) {
+            return;
+        }
+        
         setLoading(true);
         
         if (!authClient) {
-            setError("Authentication system is loading. Please wait.");
+            setErrors({ general: "Kimlik doğrulama sistemi yükleniyor. Lütfen bekleyin." });
             setLoading(false);
             return;
         }
         
         try {
-            await authClient.signIn.email({
-                email,
+            const response = await authClient.signIn.email({
+                email: email.trim(),
                 password,
             });
-            router.push("/");
+            
+            // Only set success message if we actually got a successful response
+            if (response && !response.error) {
+                setSuccessMessage("Giriş başarılı! Yönlendiriliyorsunuz...");
+                setAttemptCount(0); // Reset attempt count on success
+                
+                // Redirect after a short delay to show success message
+                setTimeout(() => {
+                    router.push("/");
+                }, 1000);
+            } else {
+                // Handle case where response exists but contains an error
+                throw new Error(response?.error?.message || "Authentication failed");
+            }
+            
         } catch (error: any) {
-            console.error("Sign in error:", error);
-            setError(error.message || "An error occurred during sign in. Please try again.");
+            // Only log detailed errors in development, not in production
+            if (process.env.NODE_ENV === 'development') {
+                console.error("Sign in error:", error);
+                console.error("Error details:", {
+                    message: error?.message,
+                    status: error?.status,
+                    response: error?.response
+                });
+            } else {
+                // In production, only log essential information
+                console.error("Sign in failed for user:", email.split('@')[0] + '@***');
+            }
+            
+            const newAttemptCount = attemptCount + 1;
+            setAttemptCount(newAttemptCount);
+            
+            const errorMessage = getErrorMessage(error, newAttemptCount);
+            setErrors({ general: errorMessage });
+            
+            // Ensure success message is cleared
+            setSuccessMessage("");
+            
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setEmail(value);
+        
+        // Clear email error on change
+        if (errors.email) {
+            setErrors(prev => ({ ...prev, email: undefined }));
+        }
+    };
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setPassword(value);
+        
+        // Clear password error on change
+        if (errors.password) {
+            setErrors(prev => ({ ...prev, password: undefined }));
         }
     };
 
@@ -70,6 +225,46 @@ export default function SignInPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
+                        {/* Success Message */}
+                        {successMessage && (
+                            <Alert className="mb-4 border-green-200 bg-green-50">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                <AlertDescription className="text-green-700">
+                                    {successMessage}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {/* General Error Message */}
+                        {errors.general && (
+                            <Alert className="mb-4 border-red-200 bg-red-50">
+                                <AlertCircle className="h-4 w-4 text-red-600" />
+                                <AlertDescription className="text-red-700">
+                                    {errors.general}
+                                    {attemptCount >= 3 && !errors.general.includes("doğrulanmamış") && (
+                                        <div className="mt-2">
+                                            <Link 
+                                                href="/forgot-password" 
+                                                className="text-blue-600 hover:text-blue-700 font-medium underline"
+                                            >
+                                                Şifremi Unuttum
+                                            </Link>
+                                        </div>
+                                    )}
+                                    {errors.general.includes("doğrulanmamış") && (
+                                        <div className="mt-2">
+                                            <Link 
+                                                href="/verify-email" 
+                                                className="text-blue-600 hover:text-blue-700 font-medium underline"
+                                            >
+                                                E-posta Doğrulama Sayfasına Git
+                                            </Link>
+                                        </div>
+                                    )}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="email">E-posta Adresi</Label>
@@ -79,36 +274,73 @@ export default function SignInPage() {
                                     name="email"
                                     placeholder="onur@akdeniz.com"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                    className="h-11"
+                                    onChange={handleEmailChange}
+                                    className={`h-11 ${errors.email ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                                 />
+                                {errors.email && (
+                                    <p className="text-sm text-red-600 flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {errors.email}
+                                    </p>
+                                )}
                             </div>
+                            
                             <div className="space-y-2">
                                 <Label htmlFor="password">Şifre</Label>
-                                <Input
-                                    type="password"
-                                    id="password"
-                                    name="password"
-                                    placeholder="••••••••••"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    required
-                                    className="h-11"
-                                />
-                            </div>
-                            {error && (
-                                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">
-                                    {error}
+                                <div className="relative">
+                                    <Input
+                                        type={showPassword ? "text" : "password"}
+                                        id="password"
+                                        name="password"
+                                        placeholder="••••••••••"
+                                        value={password}
+                                        onChange={handlePasswordChange}
+                                        className={`h-11 pr-10 ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        {showPassword ? (
+                                            <EyeOff className="h-4 w-4" />
+                                        ) : (
+                                            <Eye className="h-4 w-4" />
+                                        )}
+                                    </button>
                                 </div>
-                            )}
+                                {errors.password && (
+                                    <p className="text-sm text-red-600 flex items-center gap-1">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {errors.password}
+                                    </p>
+                                )}
+                            </div>
+
                             <Button 
                                 type="submit" 
-                                disabled={loading || !authClient}
-                                className="w-full h-11 bg-blue-600 hover:bg-blue-700"
+                                disabled={loading || !authClient || !!successMessage || attemptCount >= 5}
+                                className="w-full h-11 bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
                             >
-                                {loading ? "Giriş Yapılıyor..." : "Giriş Yap"}
+                                {loading ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                        Giriş Yapılıyor...
+                                    </div>
+                                ) : successMessage ? (
+                                    "Yönlendiriliyor..."
+                                ) : attemptCount >= 5 ? (
+                                    "Çok Fazla Deneme"
+                                ) : (
+                                    "Giriş Yap"
+                                )}
                             </Button>
+
+                            {attemptCount >= 5 && (
+                                <div className="text-center text-sm text-red-600">
+                                    Güvenlik nedeniyle giriş geçici olarak engellenmiştir.
+                                </div>
+                            )}
                         </form>
                         
                         <div className="mt-6 text-center space-y-3">

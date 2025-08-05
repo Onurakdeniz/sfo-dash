@@ -138,38 +138,71 @@ export async function POST(
       }
     }
 
-    // Add user to workspace if this is a workspace invitation
-    if (invitationData.workspaceId && invitationData.role) {
+    // Process invitation acceptance and workspace membership in a transaction
+    try {
+      await db.transaction(async (tx) => {
+        // Mark invitation as accepted first (user has successfully registered)
+        await tx
+          .update(invitation)
+          .set({
+            status: 'accepted',
+            respondedAt: new Date(),
+            acceptedBy: userId,
+            updatedAt: new Date(),
+          })
+          .where(eq(invitation.id, invitationData.id));
+
+        // Add user to workspace (required for both workspace and company invitations)
+        if (invitationData.workspaceId && invitationData.role) {
+          // For company invitations, we still add to workspace but with company context
+          const membershipData = {
+            workspaceId: invitationData.workspaceId,
+            userId,
+            role: invitationData.role,
+            invitedBy: invitationData.invitedBy,
+            inviteStatus: 'accepted',
+            joinedAt: new Date(),
+          };
+
+          // Add company context to permissions if this is a company invitation
+          if (invitationData.type === 'company' && invitationData.companyId) {
+            membershipData.permissions = JSON.stringify({
+              restrictedToCompany: invitationData.companyId,
+              invitationType: 'company'
+            });
+          }
+
+          await tx.insert(workspaceMember).values(membershipData);
+        }
+      });
+      
+      console.log("✅ Invitation accepted and workspace membership created successfully");
+    } catch (transactionError) {
+      console.error("❌ Error in invitation acceptance transaction:", transactionError);
+      
+      // If transaction fails, at least try to mark invitation as accepted
+      // This is a fallback to ensure invitation status is updated even if membership fails
       try {
-        await db.insert(workspaceMember).values({
-          workspaceId: invitationData.workspaceId,
-          userId,
-          role: invitationData.role,
-          invitedBy: invitationData.invitedBy,
-          inviteStatus: 'accepted',
-          joinedAt: new Date(),
-        });
-      } catch (membershipError) {
-        console.error("Error adding user to workspace:", membershipError);
+        await db
+          .update(invitation)
+          .set({
+            status: 'accepted',
+            respondedAt: new Date(),
+            acceptedBy: userId,
+            updatedAt: new Date(),
+          })
+          .where(eq(invitation.id, invitationData.id));
+        console.log("✅ Invitation marked as accepted despite membership error");
+      } catch (fallbackError) {
+        console.error("❌ Critical error: Could not update invitation status:", fallbackError);
         return NextResponse.json(
-          { error: "Failed to add user to workspace" },
+          { error: "Failed to process invitation acceptance" },
           { status: 500 }
         );
       }
     }
 
-    // Mark invitation as accepted
-    await db
-      .update(invitation)
-      .set({
-        status: 'accepted',
-        respondedAt: new Date(),
-        acceptedBy: userId,
-        updatedAt: new Date(),
-      })
-      .where(eq(invitation.id, invitationData.id));
-
-    // Get workspace details and first available company for response
+    // Get workspace details and company information for response
     let workspaceData = null;
     let companyData = null;
     
@@ -187,32 +220,56 @@ export async function POST(
       if (workspaceResult.length > 0) {
         workspaceData = workspaceResult[0];
         
-        // Get the first company in this workspace for redirect
-        const companiesResult = await db
-          .select({
-            id: company.id,
-            name: company.name,
-            fullName: company.fullName,
-          })
-          .from(company)
-          .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
-          .where(eq(workspaceCompany.workspaceId, workspaceData.id))
-          .limit(1);
-          
-        if (companiesResult.length > 0) {
-          const companyRecord = companiesResult[0];
-          companyData = {
-            id: companyRecord.id,
-            name: companyRecord.name,
-            fullName: companyRecord.fullName,
-            slug: (companyRecord.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
-          };
+        // If this is a company invitation, get the specific company
+        if (invitationData.type === 'company' && invitationData.companyId) {
+          const companyResult = await db
+            .select({
+              id: company.id,
+              name: company.name,
+              fullName: company.fullName,
+            })
+            .from(company)
+            .where(eq(company.id, invitationData.companyId))
+            .limit(1);
+            
+          if (companyResult.length > 0) {
+            const companyRecord = companyResult[0];
+            companyData = {
+              id: companyRecord.id,
+              name: companyRecord.name,
+              fullName: companyRecord.fullName,
+              slug: (companyRecord.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+            };
+          }
+        } else {
+          // For workspace invitations, get the first company in this workspace for redirect
+          const companiesResult = await db
+            .select({
+              id: company.id,
+              name: company.name,
+              fullName: company.fullName,
+            })
+            .from(company)
+            .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+            .where(eq(workspaceCompany.workspaceId, workspaceData.id))
+            .limit(1);
+            
+          if (companiesResult.length > 0) {
+            const companyRecord = companiesResult[0];
+            companyData = {
+              id: companyRecord.id,
+              name: companyRecord.name,
+              fullName: companyRecord.fullName,
+              slug: (companyRecord.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+            };
+          }
         }
       }
     }
 
     return NextResponse.json({
       message: "Invitation accepted successfully",
+      invitationType: invitationData.type,
       user: {
         id: userId,
         email: invitationData.email,
