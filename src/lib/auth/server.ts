@@ -27,7 +27,7 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url, token }: { user: any; url: string; token: string }) => {
       try {
         await resend.emails.send({
-          from: "onboarding@resend.dev", // You should replace this with your verified domain
+          from: "noreply@transactions.weddingneonsign.com", // Use verified domain
           to: user.email,
           subject: "Şifrenizi Sıfırlayın - LunaManager",
           html: `
@@ -110,7 +110,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url, token }: { user: any; url: string; token: string }) => {
       try {
         await resend.emails.send({
-          from: "onboarding@resend.dev", // You should replace this with your verified domain
+          from: "noreply@transactions.weddingneonsign.com", // Use verified domain
           to: user.email,
           subject: "Verify your email address",
           html: `

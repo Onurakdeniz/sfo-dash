@@ -19,7 +19,7 @@ import {
 import { useSession } from "@/lib/auth/client";
 import { AuthGuard } from "./auth-guard";
 import { WorkspaceSidebar } from "@/components/layouts/workspace-sidebar";
-import React from "react";
+import React, { useEffect } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -92,6 +92,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
   });
+
+  // Handle server hint to redirect to correct company slug
+  useEffect(() => {
+    if (contextData && (contextData as any).redirectTo) {
+      const redirectSlug = (contextData as any).redirectTo as string;
+      if (redirectSlug && redirectSlug !== companySlug) {
+        router.replace(`/${workspaceSlug}/${redirectSlug}`);
+      }
+    }
+  }, [contextData, companySlug, workspaceSlug, router]);
 
   const workspace = contextData?.workspace || null;
   const company = contextData?.currentCompany || null;

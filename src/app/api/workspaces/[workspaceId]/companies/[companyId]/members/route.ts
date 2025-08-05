@@ -5,6 +5,10 @@ import { db } from "@/db";
 import { workspace, workspaceCompany, company, invitation, user } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { Resend } from "resend";
+import { env } from "@/env";
+
+const resend = new Resend(env.RESEND_API_KEY);
 
 // POST - Invite a new member to a specific company within a workspace
 export async function POST(
@@ -145,30 +149,117 @@ export async function POST(
       message: message || null,
     });
 
-    // Send invitation email (you can implement email sending here)
+    // Send invitation email
+    let emailSent = false;
+    let emailError = null;
+    
     try {
-      // TODO: Implement email sending for company invitations
-      console.log(`Company invitation created: ${invitationId} for ${email} to join ${companyData.name}`);
-    } catch (emailError) {
-      console.error('Failed to send invitation email:', emailError);
-      // Continue without failing the invitation creation
+      const workspaceData = workspaceResult[0];
+      const inviteUrl = `http://localhost:3000/invite/${token}`;
+      
+      console.log("🔧 DEBUG: Company invitation email sending details:");
+      console.log("- RESEND_API_KEY exists:", !!env.RESEND_API_KEY);
+      console.log("- RESEND_API_KEY length:", env.RESEND_API_KEY?.length || 0);
+      console.log("- Invite URL:", inviteUrl);
+      console.log("- To email:", email);
+      console.log("- Company name:", companyData.name);
+      console.log("- Workspace name:", workspaceData.name);
+      
+      const emailResult = await resend.emails.send({
+        from: "noreply@transactions.weddingneonsign.com",
+        to: email,
+        subject: `${companyData.name} şirketine davetiye`,
+        tracking: {
+          click: false,
+          open: false
+        },
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #333; text-align: center;">Şirket Davetiyesi</h1>
+            <div style="background-color: #f8f9fa; border-radius: 10px; padding: 20px; margin: 20px 0;">
+              <h2 style="color: #007cba; margin-bottom: 15px;">Merhaba!</h2>
+              <p style="line-height: 1.6; color: #555;">
+                <strong>${companyData.name}</strong> şirketine katılmak için davet edildiniz.
+              </p>
+              <p style="line-height: 1.6; color: #555;">
+                Bu şirket <strong>${workspaceData.name}</strong> çalışma alanı içerisinde yer almaktadır.
+              </p>
+              ${message ? `<p style="line-height: 1.6; color: #555; font-style: italic; border-left: 3px solid #007cba; padding-left: 15px; margin: 15px 0;">"${message}"</p>` : ''}
+              <p style="line-height: 1.6; color: #555;">
+                Davetiyenizi kabul etmek ve hesap oluşturmak için aşağıdaki bağlantıya tıklayın:
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${inviteUrl}" 
+                   style="background-color: #007cba; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                  Davetiyeyi Kabul Et
+                </a>
+              </div>
+              <p style="color: #888; font-size: 14px; line-height: 1.6;">
+                Bu davetiye 7 gün boyunca geçerlidir. Eğer bu davetiyeyi siz talep etmediyseniz, bu e-postayı güvenle görmezden gelebilirsiniz.
+              </p>
+            </div>
+            <div style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">
+              <p>Bu e-posta LunaManager tarafından gönderilmiştir.</p>
+            </div>
+          </div>
+        `,
+      });
+      
+      console.log("✅ Company invitation email sent successfully! Resend response:", emailResult);
+      console.log(`Company invitation email sent to ${email} for company ${companyData.name}`);
+      emailSent = true;
+    } catch (error) {
+      console.error("❌ Failed to send company invitation email - FULL ERROR DETAILS:");
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+      console.error("Full error object:", error);
+      
+      // Check if it's a Resend-specific error
+      if (error.name === 'ResendError') {
+        console.error("This is a Resend API error. Check your API key and domain verification.");
+      }
+      
+      emailError = error.message;
+      emailSent = false;
     }
 
-    return NextResponse.json({
-      success: true,
-      invitation: {
-        id: invitationId,
-        email,
-        role,
-        type: 'company',
-        companyId,
-        companyName: companyData.name,
-        workspaceId,
-        token,
-        expiresAt,
-      },
-      message: "Company invitation created successfully"
-    });
+    // Return appropriate response based on email sending result
+    if (emailSent) {
+      return NextResponse.json({
+        success: true,
+        invitation: {
+          id: invitationId,
+          email,
+          role,
+          type: 'company',
+          companyId,
+          companyName: companyData.name,
+          workspaceId,
+          token,
+          expiresAt,
+        },
+        message: "Company invitation sent successfully",
+        emailSent: true,
+      });
+    } else {
+      return NextResponse.json({
+        success: true,
+        invitation: {
+          id: invitationId,
+          email,
+          role,
+          type: 'company',
+          companyId,
+          companyName: companyData.name,
+          workspaceId,
+          token,
+          expiresAt,
+        },
+        message: "Company invitation created but email could not be sent. You can resend the invitation from the members list.",
+        emailSent: false,
+        emailError,
+      }, { status: 207 }); // 207 Multi-Status: partial success
+    }
 
   } catch (error) {
     console.error("Error creating company invitation:", error);
