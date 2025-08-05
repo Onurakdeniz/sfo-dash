@@ -13,7 +13,7 @@ export const auth = betterAuth({
   }),
   plugins: [username()],
   baseURL: env.BETTER_AUTH_URL,
-  trustedOrigins: ["http://localhost:3000", "http://localhost:3001"],
+  trustedOrigins: ["http://localhost:3000", "http://localhost:3001", "https://luna-sys.vercel.app"],
   advanced: {
     crossSubDomainCookies: {
       enabled: true,
