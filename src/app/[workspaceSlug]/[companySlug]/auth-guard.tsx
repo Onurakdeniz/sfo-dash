@@ -3,6 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "@/lib/auth/client";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AlertTriangle, Shield } from "lucide-react";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -32,11 +36,28 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (isChecking || sessionLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Kimlik doğrulanıyor...</p>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-background p-6">
+        <Card variant="elevated" className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 p-3 bg-primary/10 rounded-full w-fit">
+              <Shield className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle>Kimlik Doğrulanıyor</CardTitle>
+            <CardDescription>
+              Güvenlik kontrolü yapılıyor, lütfen bekleyin...
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+            <div className="flex justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

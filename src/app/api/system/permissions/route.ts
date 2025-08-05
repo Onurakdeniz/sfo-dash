@@ -19,24 +19,45 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const resourceId = searchParams.get('resourceId');
 
-    let query = db.select({
-      permission: modulePermissions,
-      resource: moduleResources,
-      module: modules
+    let conditions = [];
+    
+    if (resourceId) {
+      conditions.push(eq(modulePermissions.resourceId, resourceId));
+    }
+
+    const permissionsWithRelations = await db.select({
+      id: modulePermissions.id,
+      resourceId: modulePermissions.resourceId,
+      action: modulePermissions.action,
+      name: modulePermissions.name,
+      displayName: modulePermissions.displayName,
+      description: modulePermissions.description,
+      isActive: modulePermissions.isActive,
+      conditions: modulePermissions.conditions,
+      createdAt: modulePermissions.createdAt,
+      updatedAt: modulePermissions.updatedAt,
+      resource: {
+        id: moduleResources.id,
+        moduleId: moduleResources.moduleId,
+        code: moduleResources.code,
+        name: moduleResources.name,
+        displayName: moduleResources.displayName,
+        resourceType: moduleResources.resourceType,
+        module: {
+          id: modules.id,
+          code: modules.code,
+          name: modules.name,
+          displayName: modules.displayName
+        }
+      }
     })
     .from(modulePermissions)
     .leftJoin(moduleResources, eq(modulePermissions.resourceId, moduleResources.id))
     .leftJoin(modules, eq(moduleResources.moduleId, modules.id))
-    .where(eq(modulePermissions.isActive, true))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(modulePermissions.action, modulePermissions.name);
 
-    if (resourceId) {
-      query = query.where(eq(modulePermissions.resourceId, resourceId));
-    }
-
-    const permissions = await query;
-
-    return NextResponse.json(permissions);
+    return NextResponse.json(permissionsWithRelations);
   } catch (error) {
     console.error("Error fetching permissions:", error);
     return NextResponse.json(
@@ -72,14 +93,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate action
-    const validActions = ['view', 'create', 'edit', 'delete', 'execute', 'export', 'import', 'approve', 'manage'];
-    if (!validActions.includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action" },
-        { status: 400 }
-      );
-    }
+    // Allow any action, but suggest common ones
+    const commonActions = ['view', 'create', 'update', 'delete', 'export', 'import', 'approve', 'reject', 'manage', 'execute'];
+    // No validation - allow custom actions
 
     // Check if resource exists
     const resourceExists = await db.select()

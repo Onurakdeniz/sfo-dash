@@ -2,21 +2,21 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Building2, Globe, Users, Trash2, Eye, MoreHorizontal } from "lucide-react";
+import { Plus, Building2, Trash2, Eye, MoreHorizontal } from "lucide-react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 // API calls will be made using fetch to local endpoints
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
 import { Badge } from "@/components/ui/badge";
+
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageWrapper } from "@/components/page-wrapper";
 import { toast } from "sonner";
 
 // API calls will be made using fetch to local endpoints
@@ -35,6 +35,7 @@ interface Company {
   taxNumber?: string;
   taxOffice?: string;
   employeeCount?: number;
+  departmentCount?: number;
 }
 
 interface Workspace {
@@ -130,12 +131,24 @@ export default function CompaniesPage() {
   // Show loading state if workspace is still loading
   if (isLoadingWorkspaces) {
     return (
-      <div className="p-6">
-        <div className="space-y-6">
+      <div className="p-6 space-y-6">
+        <div className="space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-96" />
-          <Skeleton className="h-64 w-full" />
         </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -144,9 +157,14 @@ export default function CompaniesPage() {
   if (!workspace) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">
+        <div className="text-center py-16">
+          <div className="mx-auto w-24 h-24 bg-muted/20 rounded-full flex items-center justify-center mb-6">
+            <Building2 className="h-12 w-12 text-muted-foreground/60" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            Erişim Reddedildi
+          </h3>
+          <p className="text-muted-foreground max-w-sm mx-auto">
             Bu çalışma alanına erişim izniniz yok veya çalışma alanı bulunamadı.
           </p>
         </div>
@@ -161,22 +179,19 @@ export default function CompaniesPage() {
 
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Şirketler</h1>
-          <p className="mt-2 text-muted-foreground">
-            {workspace.name} çalışma alanındaki şirketleri yönetin
-          </p>
-        </div>
+    <PageWrapper
+      title="Şirketler"
+      description={`${workspace.name} çalışma alanındaki şirketleri yönetin`}
+      actions={
         <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
-          <Button>
+          <Button variant="action" size="sm">
             <Plus className="mr-2 h-4 w-4" />
             Şirket Ekle
           </Button>
         </Link>
-      </div>
+      }
+    >
+      <div className="space-y-6">
 
       {/* Companies Table */}
       <Card className="shadow-sm border-border/60">
@@ -194,130 +209,98 @@ export default function CompaniesPage() {
               ))}
             </div>
           ) : companies.length === 0 ? (
-            <div className="text-center py-12">
-              <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">
-                Bu çalışma alanında şirket yok
+            <div className="text-center py-16">
+              <div className="mx-auto w-24 h-24 bg-muted/20 rounded-full flex items-center justify-center mb-6">
+                <Building2 className="h-12 w-12 text-muted-foreground/60" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">
+                Henüz şirket yok
+              </h3>
+              <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                Bu çalışma alanında henüz şirket eklenmemiş. İlk şirketinizi ekleyerek başlayın.
               </p>
               <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
-                <Button className="mt-4">
+                <Button size="lg">
                   <Plus className="mr-2 h-4 w-4" />
-                  İlk şirketinizi ekleyin
+                  İlk Şirketinizi Ekleyin
                 </Button>
               </Link>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table className="w-full table-fixed min-w-[1240px]">
+              <Table>
                 <TableHeader>
-                  <TableRow className="border-b border-border/60">
-                    <TableHead className="min-w-[300px] w-[300px] font-semibold text-foreground/80 py-4">Şirket Bilgileri</TableHead>
-                    <TableHead className="min-w-[280px] w-[280px] font-semibold text-foreground/80 py-4">Vergi Bilgileri</TableHead>
-                    <TableHead className="min-w-[180px] w-[180px] font-semibold text-foreground/80 py-4">Sektör</TableHead>
-                    <TableHead className="min-w-[200px] w-[200px] font-semibold text-foreground/80 py-4">Şirket Büyüklüğü</TableHead>
-                    <TableHead className="min-w-[120px] w-[120px] font-semibold text-foreground/80 py-4">Durum</TableHead>
-                    <TableHead className="min-w-[160px] w-[160px] text-right font-semibold text-foreground/80 py-4">Oluşturma Tarihi</TableHead>
+                  <TableRow>
+                    <TableHead>Şirket</TableHead>
+                    <TableHead>Vergi Bilgileri</TableHead>
+                    <TableHead>Sektör</TableHead>
+                    <TableHead>Departmanlar</TableHead>
+                    <TableHead>Çalışan Sayısı</TableHead>
+                    <TableHead>Durum</TableHead>
+                    <TableHead className="text-right">Oluşturma Tarihi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {companies.map((company: Company) => (
-                    <TableRow key={company.id} className="hover:bg-muted/20 transition-colors duration-200 border-b border-border/40">
-                      <TableCell className="py-6 w-[300px]">
+                    <TableRow key={company.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="py-6">
                         <Link href={`/${workspaceSlug}/${companySlug}/companies/${company.id}`}>
-                          <div className="flex items-center gap-4 hover:bg-muted/30 rounded-lg p-4 transition-all duration-200 cursor-pointer border border-transparent hover:border-border/60 group">
-                            <div className="p-3 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl group-hover:from-primary/30 group-hover:to-primary/20 transition-all duration-200">
-                              <Building2 className="h-5 w-5 text-primary" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-foreground mb-1 break-words">{company.slug}</div>
-                              <div className="text-sm text-muted-foreground break-words">{company.name}</div>
+                          <div className="flex items-center gap-3 hover:text-primary transition-colors cursor-pointer">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="font-medium text-foreground">{company.name}</div>
+                              <div className="text-sm text-muted-foreground">{company.slug}</div>
                             </div>
                           </div>
                         </Link>
                       </TableCell>
-                      <TableCell className="py-6 w-[280px]">
-                        <div className="space-y-2.5">
-                          {company.taxNumber ? (
-                            <div className="flex items-center gap-2 p-2.5 bg-orange-50 text-orange-700 rounded-lg border border-orange-200/60 shadow-sm">
-                              <span className="text-xs font-semibold bg-orange-100 px-1.5 py-0.5 rounded">VN</span>
-                              <span className="text-sm font-medium">{company.taxNumber}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 p-2.5 bg-muted/30 rounded-lg border border-muted">
-                              <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded text-muted-foreground">VN</span>
-                              <span className="text-sm text-muted-foreground">Belirtilmemiş</span>
-                            </div>
-                          )}
-                          {company.taxOffice ? (
-                            <div className="flex items-center gap-2 p-2.5 bg-purple-50 text-purple-700 rounded-lg border border-purple-200/60 shadow-sm">
-                              <span className="text-xs font-semibold bg-purple-100 px-1.5 py-0.5 rounded">VD</span>
-                              <span className="text-sm font-medium break-words">{company.taxOffice}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 p-2.5 bg-muted/30 rounded-lg border border-muted">
-                              <span className="text-xs font-medium bg-muted px-1.5 py-0.5 rounded text-muted-foreground">VD</span>
-                              <span className="text-sm text-muted-foreground">Belirtilmemiş</span>
-                            </div>
-                          )}
+                      <TableCell className="py-6">
+                        <div className="space-y-1">
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">VN: </span>
+                            <span>{company.taxNumber || 'Belirtilmemiş'}</span>
+                          </div>
+                          <div className="text-sm">
+                            <span className="text-muted-foreground">VD: </span>
+                            <span>{company.taxOffice || 'Belirtilmemiş'}</span>
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell className="py-6 w-[180px]">
-                        {company.industry ? (
-                          <div className="inline-flex items-center px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm font-semibold border border-blue-200/60 shadow-sm">
-                            <span className="break-words">{company.industry}</span>
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center px-4 py-2 bg-muted/30 text-muted-foreground rounded-full text-sm border border-muted">
-                            Belirtilmemiş
-                          </div>
-                        )}
+                      <TableCell className="py-6">
+                        <span className="text-sm">{company.industry || 'Belirtilmemiş'}</span>
                       </TableCell>
-                      <TableCell className="py-6 w-[200px]">
-                        {company.employeeCount ? (
-                          <div className="flex items-center gap-2.5 p-2.5 bg-green-50 text-green-700 rounded-lg border border-green-200/60 shadow-sm">
-                            <div className="p-1 bg-green-100 rounded">
-                              <Users className="h-3.5 w-3.5" />
-                            </div>
-                            <span className="text-sm font-semibold">{company.employeeCount} çalışan</span>
-                          </div>
-                        ) : company.size ? (
-                          <div className="flex items-center gap-2.5 p-2.5 bg-green-50 text-green-700 rounded-lg border border-green-200/60 shadow-sm">
-                            <div className="p-1 bg-green-100 rounded">
-                              <Users className="h-3.5 w-3.5" />
-                            </div>
-                            <span className="text-sm font-semibold">{company.size} çalışan</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2.5 p-2.5 bg-muted/30 rounded-lg border border-muted">
-                            <div className="p-1 bg-muted rounded">
-                              <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                            </div>
-                            <span className="text-sm text-muted-foreground">Belirsiz</span>
-                          </div>
-                        )}
+                      <TableCell className="py-6">
+                        <span className="text-sm">{company.departmentCount || 0} departman</span>
                       </TableCell>
-                      <TableCell className="py-6 w-[120px]">
+                      <TableCell className="py-6">
+                        <span className="text-sm">
+                          {company.employeeCount 
+                            ? `${company.employeeCount} çalışan`
+                            : company.size 
+                            ? `${company.size} çalışan`
+                            : 'Belirsiz'
+                          }
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-6">
                         <Badge 
                           variant={company.isActive ? "default" : "secondary"}
                           className={company.isActive 
-                            ? "bg-emerald-100 text-emerald-800 border-emerald-300 px-3 py-1.5 font-semibold shadow-sm" 
-                            : "bg-gray-100 text-gray-700 border-gray-300 px-3 py-1.5 font-semibold shadow-sm"
+                            ? "bg-green-100 text-green-800 hover:bg-green-100 border-green-200" 
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-100 border-gray-200"
                           }
                         >
                           {company.isActive ? 'Aktif' : 'Pasif'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right py-6 w-[160px]">
+                      <TableCell className="text-right py-6">
                         <div className="flex items-center justify-end gap-3">
-                          <div className="text-right">
-                            <div className="text-xs font-medium text-muted-foreground mb-0.5">Oluşturma Tarihi</div>
-                            <div className="text-sm font-semibold text-foreground">
-                              {new Date(company.createdAt).toLocaleDateString('tr-TR')}
-                            </div>
+                          <div className="text-sm text-muted-foreground">
+                            {new Date(company.createdAt).toLocaleDateString('tr-TR')}
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-9 w-9 p-0 hover:bg-muted/60 rounded-lg">
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -364,17 +347,19 @@ export default function CompaniesPage() {
           {selectedCompany && (
             <div className="space-y-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-full">
-                  <Building2 className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold">{selectedCompany.slug}</h3>
-                  <p className="text-muted-foreground">{selectedCompany.name}</p>
+                <Building2 className="h-6 w-6 text-primary" />
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold">{selectedCompany.name}</h3>
+                  <p className="text-muted-foreground">{selectedCompany.slug}</p>
                 </div>
                 <div className="ml-auto">
-                  <Badge variant={selectedCompany.isActive ? "default" : "secondary"}>
+                  <span className={`text-sm font-medium ${
+                    selectedCompany.isActive 
+                      ? 'text-green-600' 
+                      : 'text-muted-foreground'
+                  }`}>
                     {selectedCompany.isActive ? 'Aktif' : 'Pasif'}
-                  </Badge>
+                  </span>
                 </div>
               </div>
               
@@ -432,6 +417,7 @@ export default function CompaniesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </PageWrapper>
   );
 } 

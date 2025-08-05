@@ -5,6 +5,10 @@ import { db } from "@/db";
 import { workspace, workspaceMember, user, invitation } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { Resend } from "resend";
+import { env } from "@/env";
+
+const resend = new Resend(env.RESEND_API_KEY);
 
 export async function GET(
   request: NextRequest,
@@ -203,7 +207,71 @@ export async function POST(
       message: message || null,
     });
 
-    // TODO: Send invitation email here
+    // Send invitation email
+    try {
+      const workspaceData = workspaceResult[0];
+      const inviteUrl = `http://localhost:3000/invite/${token}`; // Force localhost:3000 for development
+      
+      console.log("🔧 DEBUG: Email sending details:");
+      console.log("- RESEND_API_KEY exists:", !!env.RESEND_API_KEY);
+      console.log("- RESEND_API_KEY length:", env.RESEND_API_KEY?.length || 0);
+      console.log("- Invite URL:", inviteUrl);
+      console.log("- To email:", email);
+      console.log("- Workspace name:", workspaceData.name);
+      
+      const emailResult = await resend.emails.send({
+        from: "noreply@transactions.weddingneonsign.com", // Use verified domain
+        to: email,
+        subject: `${workspaceData.name} çalışma alanına davetiye`,
+        tracking: {
+          click: false,
+          open: false
+        },
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #333; text-align: center;">Çalışma Alanı Davetiyesi</h1>
+            <div style="background-color: #f8f9fa; border-radius: 10px; padding: 20px; margin: 20px 0;">
+              <h2 style="color: #007cba; margin-bottom: 15px;">Merhaba!</h2>
+              <p style="line-height: 1.6; color: #555;">
+                <strong>${workspaceData.name}</strong> çalışma alanına katılmak için davet edildiniz.
+              </p>
+              ${message ? `<p style="line-height: 1.6; color: #555; font-style: italic; border-left: 3px solid #007cba; padding-left: 15px; margin: 15px 0;">"${message}"</p>` : ''}
+              <p style="line-height: 1.6; color: #555;">
+                Davetiyenizi kabul etmek ve hesap oluşturmak için aşağıdaki bağlantıya tıklayın:
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${inviteUrl}" 
+                   style="background-color: #007cba; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                  Davetiyeyi Kabul Et
+                </a>
+              </div>
+              <p style="color: #888; font-size: 14px; line-height: 1.6;">
+                Bu davetiye 7 gün boyunca geçerlidir. Eğer bu davetiyeyi siz talep etmediyseniz, bu e-postayı güvenle görmezden gelebilirsiniz.
+              </p>
+            </div>
+            <div style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">
+              <p>Bu e-posta LunaManager tarafından gönderilmiştir.</p>
+            </div>
+          </div>
+        `,
+      });
+      
+      console.log("✅ Email sent successfully! Resend response:", emailResult);
+      console.log(`Invitation email sent to ${email} for workspace ${workspaceData.name}`);
+    } catch (emailError) {
+      console.error("❌ Failed to send invitation email - FULL ERROR DETAILS:");
+      console.error("Error message:", emailError.message);
+      console.error("Error stack:", emailError.stack);
+      console.error("Full error object:", emailError);
+      
+      // Check if it's a Resend-specific error
+      if (emailError.name === 'ResendError') {
+        console.error("This is a Resend API error. Check your API key and domain verification.");
+      }
+      
+      // Don't fail the invitation creation if email sending fails
+      // The invitation is still created and can be used
+    }
     
     return NextResponse.json({
       message: "Invitation sent successfully",

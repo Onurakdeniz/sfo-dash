@@ -1,0 +1,1 @@
+ALTER TABLE "module_resources" DROP CONSTRAINT "module_resources_parent_resource_id_module_resources_id_fk";

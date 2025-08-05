@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageWrapper } from "@/components/page-wrapper";
 import { toast } from "sonner";
 
 interface CreateCompanyData {
@@ -116,8 +117,6 @@ export default function AddCompanyPage() {
     },
   });
 
-  const workspace = workspacesData?.workspaces?.find((w: any) => w.slug === workspaceSlug);
-
   // Create company mutation
   const createCompany = useMutation({
     mutationFn: async (data: CreateCompanyData) => {
@@ -183,27 +182,22 @@ export default function AddCompanyPage() {
     createCompany.mutate(cleanData as CreateCompanyData);
   };
 
+  const workspace = workspacesData?.workspaces?.find((w: any) => w.slug === workspaceSlug);
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Scrollable Form Content with Header */}
-      <ScrollArea className="flex-1">
-        <div className="px-4 sm:px-6 lg:px-8 py-6">
-          {/* Page Header */}
-          <div className="mb-6">
-            <div className="flex items-center gap-4">
-              <Link href={`/${workspaceSlug}/${companySlug}/companies`}>
-                <Button variant="ghost" size="icon">
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-              </Link>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Yeni Şirket Ekle</h1>
-                <p className="text-sm text-muted-foreground">
-                  Şirket bilgilerini doldurarak yeni bir şirket oluşturun
-                </p>
-              </div>
-            </div>
-          </div>
+    <PageWrapper
+      title="Yeni Şirket Ekle"
+      description="Şirket bilgilerini doldurarak yeni bir şirket oluşturun"
+      actions={
+        <Link href={`/${workspaceSlug}/${companySlug}/companies`}>
+          <Button variant="actionSecondary" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Geri Dön
+          </Button>
+        </Link>
+      }
+    >
+      <div className="space-y-6">
 
           {/* Form Content */}
           <form onSubmit={handleSubmit} id="company-form" className="space-y-6 pb-4">
@@ -449,7 +443,6 @@ export default function AddCompanyPage() {
             </Card>
           </form>
         </div>
-      </ScrollArea>
 
       {/* Fixed Footer */}
       <div className="border-t bg-background px-4 sm:px-6 lg:px-8 py-4">
@@ -476,6 +469,6 @@ export default function AddCompanyPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </PageWrapper>
   );
 }

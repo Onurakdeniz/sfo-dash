@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { workspace, workspaceCompany, company, department } from "@/db/schema";
+import { eq, count, inArray } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
@@ -48,6 +48,24 @@ export async function GET(
     .leftJoin(company, eq(workspaceCompany.companyId, company.id))
     .where(eq(workspaceCompany.workspaceId, workspaceId));
 
+    // Get department counts for each company
+    const companyIds = companiesInWorkspace
+      .filter(item => item.company !== null)
+      .map(item => item.company!.id);
+
+    const departmentCounts = companyIds.length > 0 ? await db.select({
+      companyId: department.companyId,
+      count: count(),
+    })
+    .from(department)
+    .where(inArray(department.companyId, companyIds))
+    .groupBy(department.companyId) : [];
+
+    // Create a map for quick lookup
+    const departmentCountMap = new Map(
+      departmentCounts.map(item => [item.companyId, item.count])
+    );
+
     const companies = companiesInWorkspace
       .filter(item => item.company !== null)
       .map(item => {
@@ -74,6 +92,7 @@ export async function GET(
           taxNumber: company.taxNumber,
           taxOffice: company.taxOffice,
           employeeCount: null, // Not available in current schema
+          departmentCount: departmentCountMap.get(company.id) || 0,
         };
       });
 

@@ -30,6 +30,10 @@ const DEFAULT_THEMES = [
     name: "Amber",
     value: "amber",
   },
+  {
+    name: "Claude",
+    value: "claude",
+  },
 ]
 
 const SCALED_THEMES = [

@@ -4,17 +4,27 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { 
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { 
   Building2, 
   Home, 
@@ -26,14 +36,14 @@ import {
   User,
   Plus,
   Check,
-  ChevronLeft,
-  ChevronRight
+  Shield,
+  Dot,
+  MoreHorizontal
 } from "lucide-react";
 import { useSession } from "@/lib/auth/client";
 import { AuthGuard } from "./auth-guard";
 import { useState } from "react";
 import React from "react";
-import { motion } from "framer-motion";
 
 import { useQuery } from "@tanstack/react-query";
 // import { UserProfileModal } from "../../../../components/user-profile-modal";
@@ -67,8 +77,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const params = useParams();
   const router = useRouter();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
   
   // Get workspace and company slugs from URL
   const workspaceSlug = params.workspaceSlug as string;
@@ -122,11 +130,25 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Show loading state while fetching context
   if (contextLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="h-16 w-16 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Çalışma alanı yükleniyor...</p>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-background p-6">
+        <Card variant="elevated" className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 p-3 bg-primary/10 rounded-full w-fit">
+              <Building2 className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle>Çalışma Alanı Yükleniyor</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+            <div className="flex justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -134,17 +156,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Show error state if context failed to load
   if (contextError || !workspace || !company) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-red-600 mb-2">Erişim Hatası</h2>
-          <p className="text-gray-600 dark:text-gray-400">Bu çalışma alanına veya şirkete erişim yetkiniz yok.</p>
-          <button 
-            onClick={() => window.location.href = '/'}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Ana Sayfaya Dön
-          </button>
-        </div>
+      <div className="flex h-screen items-center justify-center bg-background p-6">
+        <Card variant="elevated" className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 p-3 bg-destructive/10 rounded-full w-fit">
+              <Building2 className="h-8 w-8 text-destructive" />
+            </div>
+            <CardTitle className="text-destructive">Erişim Hatası</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-muted-foreground">
+              Bu çalışma alanına veya şirkete erişim yetkiniz yok.
+            </p>
+            <Button 
+              onClick={() => window.location.href = '/'}
+              variant="default"
+              className="w-full"
+            >
+              Ana Sayfaya Dön
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -170,613 +202,391 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return email.slice(0, 2).toUpperCase();
   };
 
-  // Get current page title based on pathname
-  const getPageTitle = (pathname: string) => {
-    const basePath = `/${workspaceSlug}/${companySlug}`;
-    
-    if (pathname === basePath) {
-      return "Kontrol Paneli";
-    } else if (pathname === `${basePath}/companies`) {
-      return "Şirketler";
-    } else if (pathname === `${basePath}/companies/add`) {
-      return "Yeni Şirket Ekle";
-    } else if (pathname === `${basePath}/users`) {
-      return "Kullanıcılar";
-    } else if (pathname === `${basePath}/system`) {
-      return "Sistem";
-    } else if (pathname === `${basePath}/settings`) {
-      return "Ayarlar";
-    } else if (pathname.startsWith(`${basePath}/companies/`) && pathname.includes('/edit')) {
-      return "Şirket Düzenle";
-    } else if (pathname.startsWith(`${basePath}/companies/`) && !pathname.includes('/add')) {
-      // Extract company ID from pathname for company detail pages
-      const companyIdMatch = pathname.match(`${basePath}/companies/([^/]+)`);
-      if (companyIdMatch && companies) {
-        const companyId = companyIdMatch[1];
-        const detailCompany = companies.find((c: Company) => c.id === companyId);
-        return detailCompany?.name || "Şirket Detayları";
-      }
-      return "Şirket Detayları";
-    }
-    
-    return "Dashboard";
-  };
-
-  // Generate breadcrumb items based on current path
-  const getBreadcrumbItems = (pathname: string) => {
-    const basePath = `/${workspaceSlug}/${companySlug}`;
-    const items = [
-      {
-        label: "Dashboard",
-        href: basePath,
-        isLast: false
-      }
-    ];
-
-    if (pathname !== basePath) {
-      // Handle companies section
-      if (pathname.startsWith(`${basePath}/companies`)) {
-        items.push({
-          label: "Şirketler",
-          href: `${basePath}/companies`,
-          isLast: false
-        });
-        
-        if (pathname === `${basePath}/companies/add`) {
-          items.push({
-            label: "Şirket Ekle",
-            href: pathname,
-            isLast: true
-          });
-        } else if (pathname.includes('/edit')) {
-          items.push({
-            label: "Düzenle",
-            href: pathname,
-            isLast: true
-          });
-        } else if (pathname !== `${basePath}/companies`) {
-          // Extract company ID from pathname for company detail pages
-          const companyIdMatch = pathname.match(`${basePath}/companies/([^/]+)`);
-          if (companyIdMatch && companies) {
-            const companyId = companyIdMatch[1];
-            const detailCompany = companies.find((c: Company) => c.id === companyId);
-            const companyName = detailCompany?.name || "Detaylar";
-            items.push({
-              label: companyName,
-              href: pathname,
-              isLast: true
-            });
-          } else {
-            items.push({
-              label: "Detaylar",
-              href: pathname,
-              isLast: true
-            });
-          }
-        } else {
-          items[items.length - 1].isLast = true;
-        }
-      }
-      // Handle users section
-      else if (pathname.startsWith(`${basePath}/users`)) {
-        items.push({
-          label: "Kullanıcılar",
-          href: `${basePath}/users`,
-          isLast: true
-        });
-      }
-      // Handle system section
-      else if (pathname.startsWith(`${basePath}/system`)) {
-        items.push({
-          label: "Sistem",
-          href: `${basePath}/system`,
-          isLast: true
-        });
-      }
-      // Handle settings section
-      else if (pathname.startsWith(`${basePath}/settings`)) {
-        items.push({
-          label: "Ayarlar",
-          href: `${basePath}/settings`,
-          isLast: true
-        });
-      }
-      // Handle other navigation items
-      else {
-        const currentNav = navigation.find(item => item.href === pathname);
-        if (currentNav) {
-          items.push({
-            label: currentNav.name,
-            href: pathname,
-            isLast: true
-          });
-        }
-      }
-    } else {
-      items[0].isLast = true;
-    }
-
-    return items;
-  };
-
   // Handle company selection
   const handleCompanySelect = (selectedCompany: Company) => {
+    console.log('Company selected:', selectedCompany);
     if (selectedCompany.slug !== companySlug) {
-      // Navigate to the selected company
       window.location.href = `/${workspaceSlug}/${selectedCompany.slug}`;
     }
   };
 
   // Handle add company
   const handleAddCompany = () => {
+    console.log('Add company clicked');
     router.push(`/${workspaceSlug}/${companySlug}/companies/add`);
   };
 
-  const sidebarWidth = sidebarCollapsed ? "w-16" : "w-64";
-  const mainMargin = sidebarCollapsed ? "ml-16" : "ml-64";
+
 
   return (
     <AuthGuard>
-      <div className="flex h-screen bg-gray-50">
-        {/* Fixed Sidebar - Left Side - Compact Modern ERP Style */}
-        <motion.aside 
-          className={cn("fixed left-0 top-0 z-40 h-screen bg-white border-r border-gray-200 shadow-sm", sidebarWidth)}
-          initial={false}
-          animate={{ 
-            width: sidebarCollapsed ? 64 : 256,
-            opacity: 1
-          }}
-          transition={{ 
-            duration: 0.3, 
-            ease: "easeInOut",
-            type: "spring",
-            stiffness: 300,
-            damping: 30
-          }}
-        >
-          <div className="flex h-full flex-col">
-            {/* Header with Collapse Toggle */}
-            <div className="p-3 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                {!sidebarCollapsed && (
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      {workspace?.logo ? (
-                        <img 
-                          src={workspace.logo} 
-                          alt={workspace.name} 
-                          className="h-8 w-8 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                          <Building2 className="h-5 w-5 text-white" />
-                        </div>
-                      )}
-                      <span className="font-semibold text-gray-900">Luna Manager</span>
-                    </div>
-                      
-                  </div>
-                )}
-                <motion.div
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                    className="h-8 w-8 p-0 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 hover:border-blue-200 border border-transparent transition-all duration-200 rounded-lg"
-                  >
-                    <motion.div
-                      animate={{ rotate: sidebarCollapsed ? 0 : 180 }}
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                    >
-                      {sidebarCollapsed ? (
-                        <ChevronRight className="h-4 w-4" />
-                      ) : (
-                        <ChevronLeft className="h-4 w-4" />
-                      )}
-                    </motion.div>
-                  </Button>
-                </motion.div>
-              </div>
+      <SidebarProvider defaultOpen={true}>
+        <div className="flex h-screen w-full overflow-hidden">
+          <AppSidebar 
+            workspace={workspace}
+            company={company}
+            companies={companies}
+            navigation={navigation}
+            user={user}
+            workspaceSlug={workspaceSlug}
+            companySlug={companySlug}
+            pathname={pathname}
+            onCompanySelect={handleCompanySelect}
+            onAddCompany={handleAddCompany}
+            onSignOut={handleSignOut}
+            getUserInitials={getUserInitials}
+            router={router}
+          />
+          <SidebarInset className="flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-auto ">
+              {children}
             </div>
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
+    </AuthGuard>
+  );
+}
 
-            
+// Separate AppSidebar component for better organization
+function AppSidebar({ 
+  workspace, 
+  company, 
+  companies, 
+  navigation, 
+  user, 
+  workspaceSlug, 
+  companySlug, 
+  pathname,
+  onCompanySelect,
+  onAddCompany,
+  onSignOut,
+  getUserInitials,
+  router
+}: {
+  workspace: Workspace | null;
+  company: Company | null;
+  companies: Company[];
+  navigation: Array<{ name: string; href: string; icon: any }>;
+  user: any;
+  workspaceSlug: string;
+  companySlug: string;
+  pathname: string;
+  onCompanySelect: (company: Company) => void;
+  onAddCompany: () => void;
+  onSignOut: () => void;
+  getUserInitials: (name: string | null | undefined, email: string) => string;
+  router: any;
+}) {
+  return (
+    <Sidebar variant="inset" collapsible="icon">
+      <SidebarHeader>
+        {/* Logo - Always at top center when collapsed */}
+        <div className="flex justify-center group-data-[collapsible=icon]:block group-data-[state=expanded]:hidden px-2 py-1">
+          {workspace?.logo ? (
+            <img 
+              src={workspace.logo} 
+              alt={workspace.name} 
+              className="h-8 w-8 rounded-lg object-cover"
+            />
+          ) : (
+            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
+              <Building2 className="h-5 w-5 text-primary-foreground" />
+            </div>
+          )}
+        </div>
+        
+        {/* Sidebar Trigger - Centered when collapsed */}
+        <div className="flex justify-center group-data-[collapsible=icon]:block group-data-[state=expanded]:hidden px-2 pb-1">
+          <SidebarTrigger className="h-8 w-8" />
+        </div>
+        
+        {/* Logo and Title - Only when expanded */}
+        <div className="flex items-center justify-between px-2 py-1 group-data-[collapsible=icon]:hidden">
+          <div className="flex items-center gap-2">
+            {workspace?.logo ? (
+              <img 
+                src={workspace.logo} 
+                alt={workspace.name} 
+                className="h-8 w-8 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-primary-foreground" />
+              </div>
+            )}
+            <span className="font-semibold text-sidebar-foreground">Luna Manager</span>
+          </div>
+          <SidebarTrigger className="h-8 w-8" />
+        </div>
 
             {/* Company Selector */}
-            <div className="p-3 border-b border-gray-100">
-              {sidebarCollapsed ? (
-                <motion.div 
-                  className="flex justify-center"
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <div className="h-8 w-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
-                    <Building2 className="h-4 w-4 text-white" />
-                  </div>
-                </motion.div>
-              ) : (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <motion.div
-                      whileHover={{ scale: 1.02, y: -1 }}
-                      whileTap={{ scale: 0.98 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Button variant="ghost" className="w-full justify-between p-2 h-auto hover:bg-gradient-to-r hover:from-gray-50 hover:to-blue-50 transition-all duration-200 rounded-lg border border-transparent hover:border-blue-200 hover:shadow-md">
-                        <div className="flex items-center gap-3">
-                          <motion.div 
-                            className="h-7 w-7 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm"
-                            whileHover={{ rotate: 5 }}
-                            transition={{ duration: 0.2 }}
-                          >
-                            <Building2 className="h-3.5 w-3.5 text-white" />
-                          </motion.div>
-                          <div className="text-left overflow-hidden">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
+            <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                <Tooltip>
+                  <DropdownMenu>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+            <Button 
+              variant="outline" 
+              className="w-full justify-between h-auto p-2 border-dashed hover:border-solid transition-all group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:border-none group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:hover:bg-sidebar-accent"
+            >
+                                      <div className="flex items-center gap-3 group-data-[collapsible=icon]:gap-0">
+                <div className="h-6 w-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-md flex items-center justify-center shadow-sm group-data-[collapsible=icon]:h-4 group-data-[collapsible=icon]:w-4">
+                            <Building2 className="h-3.5 w-3.5 text-white group-data-[collapsible=icon]:h-3 group-data-[collapsible=icon]:w-3" />
+                </div>
+                <div className="text-left overflow-hidden group-data-[collapsible=icon]:hidden">
+                  <p className="text-sm font-medium truncate">
                               {company?.name || "Şirket Seçin"}
                             </p>
-                            <p className="text-xs text-gray-500 font-medium">
-                              {workspace?.name ? `${workspace.name} çalışma alanı` : `${companies?.length || 0} şirket`}
+                  <p className="text-xs text-muted-foreground">
+                    {workspace?.name || `${companies?.length || 0} şirket`}
                             </p>
                           </div>
                         </div>
-                        <motion.div
-                          animate={{ rotate: 0 }}
-                          whileHover={{ rotate: 180 }}
-                          transition={{ duration: 0.3 }}
-                        >
-                          <ChevronDown className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                        </motion.div>
+              <ChevronDown className="h-4 w-4 opacity-50 group-data-[collapsible=icon]:hidden" />
                       </Button>
-                    </motion.div>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent 
-                    align="start" 
-                    className="w-64 bg-white border border-gray-200 shadow-xl rounded-xl p-2 backdrop-blur-sm"
-                    sideOffset={8}
-                  >
-                    <DropdownMenuLabel className="text-xs text-gray-500 font-semibold px-3 py-2 uppercase tracking-wider">
-                      Şirketler
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>{company?.name || "Şirket Seçin"}</p>
+                    </TooltipContent>
+          <DropdownMenuContent 
+            align="start" 
+            className="w-64 z-50 group-data-[collapsible=icon]:ml-2" 
+            side="bottom" 
+            sideOffset={4}
+          >
+            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-wider">
+                      Şirketler ({companies?.length || 0})
                     </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="border-gray-100 my-2" />
+            <DropdownMenuSeparator />
                     {companies && companies.length > 0 ? (
-                      companies.map((comp: Company, index: number) => (
-                        <motion.div
+              companies.map((comp: Company) => (
+                <DropdownMenuItem
                           key={comp.id}
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: index * 0.1, duration: 0.2 }}
-                        >
-                          <DropdownMenuItem
-                            onClick={() => handleCompanySelect(comp)}
-                            className="flex items-center justify-between px-0 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 focus:bg-gradient-to-r focus:from-blue-50 focus:to-indigo-50 rounded-lg mx-1 transition-all duration-200 cursor-pointer"
-                          >
-                            <motion.div 
-                              className="flex items-center gap-3 px-3 py-2.5 w-full"
-                              whileHover={{ x: 2 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <div className="h-5 w-5 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-md flex items-center justify-center shadow-sm">
-                                <Building2 className="h-3 w-3 text-white" />
+                  onClick={() => onCompanySelect(comp)}
+                  className="flex items-center gap-3 p-3"
+                >
+                  <div className="h-4 w-4 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-sm flex items-center justify-center">
+                    <Building2 className="h-2.5 w-2.5 text-white" />
                               </div>
-                              <span className="text-sm font-medium text-gray-700">{comp.name}</span>
+                  <span className="text-sm font-medium">{comp.name}</span>
                               {comp.slug === companySlug && (
-                                <motion.div
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  transition={{ duration: 0.2 }}
-                                >
-                                  <Check className="h-4 w-4 text-blue-600 ml-auto" />
-                                </motion.div>
-                              )}
-                            </motion.div>
+                    <Check className="h-4 w-4 text-primary ml-auto" />
+                  )}
                           </DropdownMenuItem>
-                        </motion.div>
                       ))
                     ) : (
-                      <DropdownMenuItem disabled className="px-3 py-2 text-sm text-gray-400">
+              <DropdownMenuItem disabled>
                         Şirket bulunamadı
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSeparator className="border-gray-100 my-2" />
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <DropdownMenuItem 
-                        onClick={handleAddCompany}
-                        className="px-0 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 focus:bg-gradient-to-r focus:from-green-50 focus:to-emerald-50 rounded-lg mx-1 transition-all duration-200"
-                      >
-                        <div className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-gray-700 w-full">
-                          <div className="h-5 w-5 bg-gradient-to-br from-green-600 to-emerald-600 rounded-md flex items-center justify-center shadow-sm">
-                            <Plus className="h-3 w-3 text-white" />
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onAddCompany} className="flex items-center gap-3 p-3">
+              <div className="h-4 w-4 bg-gradient-to-br from-green-600 to-emerald-600 rounded-sm flex items-center justify-center">
+                <Plus className="h-2.5 w-2.5 text-white" />
                           </div>
-                          <span>Şirket Ekle</span>
-                        </div>
+              <span className="text-sm font-medium">Şirket Ekle</span>
                       </DropdownMenuItem>
-                    </motion.div>
                   </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                  </DropdownMenu>
+                </Tooltip>
             </div>
+      </SidebarHeader>
 
-
-
-            <ScrollArea className="flex-1">
-              <div className="flex-1 p-3">
-                {/* Platform Section */}
-                <div className="mb-4">
-                  {!sidebarCollapsed && (
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">
-                      Platform
-                    </h3>
-                  )}
-                  <nav className="space-y-1">
-                    {navigation.map((item, index) => {
-                      const isActive = pathname === item.href;
-                      return (
-                        <motion.div
-                          key={item.name}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ 
-                            duration: 0.3, 
-                            delay: index * 0.1,
-                            ease: "easeOut" 
-                          }}
-                          whileHover={{ x: 4 }}
-                        >
-                          <Link
-                            href={item.href}
-                            className={cn(
-                              "flex items-center rounded-md px-2 py-2 text-sm font-medium transition-all duration-200",
-                              sidebarCollapsed ? "justify-center" : "gap-3",
-                              isActive
-                                ? "bg-blue-50 text-blue-700 shadow-sm border-l-2 border-blue-600"
-                                : "text-gray-700 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm"
-                            )}
-                            title={sidebarCollapsed ? item.name : undefined}
-                          >
-                            <motion.div
-                              whileHover={{ scale: 1.1 }}
-                              transition={{ duration: 0.2 }}
-                            >
-                              <item.icon className={cn(
-                                "h-4 w-4 flex-shrink-0",
-                                isActive ? "text-blue-600" : "text-gray-500"
-                              )} />
-                            </motion.div>
-                            {!sidebarCollapsed && (
-                              <motion.span 
-                                className="truncate"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: 0.1 }}
-                              >
-                                {item.name}
-                              </motion.span>
-                            )}
-                          </Link>
-                        </motion.div>
-                      );
-                    })}
-                  </nav>
-                </div>
-
-
-              </div>
-            </ScrollArea>
-
-            {/* Bottom Section */}
-            <div className="border-t border-gray-100">
-              {/* Settings Link */}
-              <div className="p-3">
-                <nav className="space-y-1">
-                  <Link
-                    href={`/${workspaceSlug}/${companySlug}/settings`}
-                    className={cn(
-                      "flex items-center rounded-md px-2 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-150",
-                      sidebarCollapsed ? "justify-center" : "gap-3"
-                    )}
-                    title={sidebarCollapsed ? "Ayarlar" : undefined}
-                  >
-                    <Settings className="h-4 w-4 flex-shrink-0 text-gray-500" />
-                    {!sidebarCollapsed && (
-                      <span className="truncate">Ayarlar</span>
-                    )}
-                  </Link>
-                </nav>
-              </div>
-
-
-            </div>
-          </div>
-        </motion.aside>
-
-        {/* Main Content Area */}
-        <main className={cn("flex-1 overflow-y-auto transition-all duration-300", mainMargin)}>
-          <div className="h-full bg-gray-50">
-            {/* Context Header - Shows current page title and breadcrumb */}
-            <div className="bg-gradient-to-r from-white via-blue-50/20 to-white border-b border-gray-200 px-6 py-2">
-              <div className="flex items-center justify-between">
-                <motion.div 
-                  className="flex flex-col space-y-2"
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
-                >
-                  <div className="flex items-center space-x-3">
-                    <motion.div 
-                      className="relative"
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Yönetici Paneli
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+              {navigation.map((item) => {
+                            const isActive = pathname === item.href;
+                            return (
+                  <SidebarMenuItem key={item.name} className={cn(
+                    // Only center inactive items when collapsed
+                    !isActive && "group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
+                  )}>
+                    <SidebarMenuButton 
+                      asChild 
+                      isActive={isActive}
+                      tooltip={item.name}
+                                  className={cn(
+                        "group relative transition-all duration-200",
+                        isActive && "bg-gradient-to-r from-primary/10 to-primary/5 shadow-sm",
+                        // For inactive items: center and make small when collapsed
+                        !isActive && "group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10",
+                        !isActive && "group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:hover:bg-sidebar-accent",
+                        // For active items: keep full width when collapsed to show text
+                        isActive && "group-data-[collapsible=icon]:justify-start group-data-[collapsible=icon]:w-full group-data-[collapsible=icon]:h-auto",
+                        isActive && "group-data-[collapsible=icon]:bg-primary group-data-[collapsible=icon]:text-primary-foreground group-data-[collapsible=icon]:shadow-md"
+                      )}
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 rounded-md blur opacity-15 animate-pulse"></div>
-                      <motion.div 
-                        className="relative bg-gradient-to-r from-blue-600 to-purple-600 p-2 rounded-md shadow-md"
-                        whileHover={{ scale: 1.1, rotate: 5 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        {pathname === `/${workspaceSlug}/${companySlug}` ? (
-                          <Home className="h-4 w-4 text-white" />
-                        ) : pathname.startsWith(`/${workspaceSlug}/${companySlug}/companies`) ? (
-                          <Building2 className="h-4 w-4 text-white" />
-                        ) : pathname.startsWith(`/${workspaceSlug}/${companySlug}/users`) ? (
-                          <Users className="h-4 w-4 text-white" />
-                        ) : pathname.startsWith(`/${workspaceSlug}/${companySlug}/system`) ? (
-                          <Server className="h-4 w-4 text-white" />
-                        ) : pathname.startsWith(`/${workspaceSlug}/${companySlug}/settings`) ? (
-                          <Settings className="h-4 w-4 text-white" />
-                        ) : (
-                          <Home className="h-4 w-4 text-white" />
+                      <Link href={item.href} className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0",
+                          isActive 
+                            ? "bg-primary/20     text-black group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:text-black" 
+                            : "text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                        )}>
+                          <item.icon className="h-4 w-4" />
+                        </div>
+                        <span className={cn(
+                          "font-medium transition-colors duration-200",
+                          isActive ? "text-primary" : "text-foreground",
+                          // Show text for active items even when collapsed, hide for inactive items
+                          isActive ? "" : "group-data-[collapsible=icon]:hidden"
+                        )}>
+                          {item.name}
+                        </span>
+                        {isActive && (
+                          <div className="ml-auto flex items-center">
+                            <div className="h-2 w-2 bg-primary rounded-full animate-pulse"></div>
+                          </div>
                         )}
-                      </motion.div>
-                    </motion.div>
-                    <div>
-                      <motion.h1 
-                        className="text-xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-gray-900 bg-clip-text text-transparent"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
-                      >
-                        {getPageTitle(pathname)}
-                      </motion.h1>
-                      <motion.div 
-                        className="h-0.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full mt-1"
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{ width: "3rem", opacity: 1 }}
-                        transition={{ duration: 0.8, ease: "easeOut", delay: 0.5 }}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            Modüller
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="px-2 py-4 text-sm text-muted-foreground italic group-data-[collapsible=icon]:hidden">
+              Henüz modül yok
+              </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <div className="p-2 border-t border-border/50 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start h-auto p-3 hover:bg-gradient-to-r hover:from-primary/5 hover:to-primary/10 hover:border-primary/20 border border-transparent transition-all duration-200 group rounded-lg group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none group-data-[collapsible=icon]:hover:bg-sidebar-accent"
+              >
+                                        <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                  <div className="relative">
+                    <Avatar className="h-10 w-10 ring-2 ring-primary/10 group-hover:ring-primary/30 transition-all duration-200 shadow-sm group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8">
+                      <AvatarImage 
+                        src={user?.image || ""} 
+                        alt={user?.name || user?.email || ""} 
                       />
+                      <AvatarFallback className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 text-white font-semibold text-sm">
+                        {user ? getUserInitials(user.name, user.email) : "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-background rounded-full shadow-sm group-data-[collapsible=icon]:h-2.5 group-data-[collapsible=icon]:w-2.5">
+                      <div className="h-full w-full bg-green-400 rounded-full animate-pulse"></div>
                     </div>
                   </div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.7 }}
-                  >
-                    <Breadcrumb>
-                      <BreadcrumbList>
-                        {getBreadcrumbItems(pathname).map((item, index) => (
-                          <React.Fragment key={item.href}>
-                            <BreadcrumbItem>
-                              {item.isLast ? (
-                                <BreadcrumbPage className="text-gray-600 font-medium text-sm">
-                                  {item.label}
-                                </BreadcrumbPage>
-                              ) : (
-                                <BreadcrumbLink 
-                                  asChild
-                                  className="text-gray-500 hover:text-blue-600 transition-colors duration-200 font-medium text-sm"
-                                >
-                                  <Link href={item.href}>
-                                    {item.label}
-                                  </Link>
-                                </BreadcrumbLink>
-                              )}
-                            </BreadcrumbItem>
-                            {!item.isLast && <BreadcrumbSeparator className="text-gray-300" />}
-                          </React.Fragment>
-                        ))}
-                      </BreadcrumbList>
-                    </Breadcrumb>
-                  </motion.div>
-                </motion.div>
-                <div className="flex items-center space-x-4">
-                  {/* User Profile Dropdown */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="flex items-center space-x-3 p-2 h-auto hover:bg-gray-50 focus:outline-none">
-                        <div className="flex items-center space-x-3">
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-gray-900">
-                              {user?.name || "User"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {user?.name || user?.email || "Unknown User"}
-                            </p>
-                          </div>
-                          <Avatar className="h-8 w-8 flex-shrink-0 rounded-full overflow-hidden">
-                            <AvatarImage 
-                              src={user?.image || ""} 
-                              alt={user?.name || user?.email || ""} 
-                              className="object-cover w-full h-full rounded-full"
-                            />
-                            <AvatarFallback className="text-xs bg-blue-100 text-blue-700 font-medium rounded-full w-full h-full flex items-center justify-center">
-                              {user ? getUserInitials(user.name, user.email) : "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <ChevronDown className="h-4 w-4 text-gray-400" />
-                        </div>
+                  <div className="text-left overflow-hidden flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
+                    <p className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                      {user?.name || "User"}
+                    </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Badge variant="success" size="sm" className="text-xs px-1.5 py-0.5">
+                        Çevrimiçi
+                      </Badge>
+                      <span className="text-xs text-muted-foreground truncate max-w-20">
+                        {user?.email || "Unknown"}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 opacity-50 group-hover:opacity-100 group-hover:text-primary transition-all duration-200 flex-shrink-0 group-data-[collapsible=icon]:hidden" />
+                </div>
                       </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{user?.name || "User"}</p>
+                      </TooltipContent>
+                    </Tooltip>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent 
                       align="end" 
-                      className="w-56 bg-white border border-gray-200 shadow-lg rounded-lg p-1"
-                      sideOffset={8}
-                    >
-                      <DropdownMenuLabel className="text-xs text-gray-500 font-medium px-3 py-2">
-                        {user?.name || "User"}
-                      </DropdownMenuLabel>
-                      <DropdownMenuSeparator className="border-gray-100 my-1" />
-                      
-                      <DropdownMenuItem 
-                        className="px-0 hover:bg-gray-50 focus:bg-gray-50"
-                        onSelect={(e: Event) => {
-                          e.preventDefault();
-                          setProfileModalOpen(true);
-                        }}
-                      >
-                        <div className="flex items-center px-3 py-2 text-sm text-gray-700 w-full">
-                          <User className="mr-2 h-4 w-4" />
-                          Profil
-                        </div>
-                      </DropdownMenuItem>
-                      
-                      <DropdownMenuSeparator className="border-gray-100 my-1" />
-                      
-                      <DropdownMenuItem 
-                        className="px-0 hover:bg-gray-50 focus:bg-gray-50" 
-                        onSelect={(e: Event) => {
-                          e.preventDefault();
-                          handleSignOut();
-                        }}
-                      >
-                        <div className="flex items-center px-3 py-2 text-sm text-gray-700 w-full">
-                          <LogOut className="mr-2 h-4 w-4" />
-                          Çıkış Yap
-                        </div>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+              className="w-64 mb-2 shadow-lg border-0 bg-white/95 backdrop-blur-sm"
+              side="top"
+            >
+              <DropdownMenuLabel className="pb-3 pt-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Avatar className="h-10 w-10 ring-2 ring-primary/20">
+                      <AvatarImage src={user?.image || ""} />
+                      <AvatarFallback className="bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-600 text-white font-semibold">
+                        {user ? getUserInitials(user.name, user.email) : "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{user?.name || "User"}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                    <div className="flex items-center gap-1 mt-1">
+                      <div className="h-1.5 w-1.5 bg-green-500 rounded-full"></div>
+                      <span className="text-xs text-green-600 font-medium">Aktif</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            {children}
-          </div>
-        </main>
-
-        {/* Test Modal */}
-        {profileModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="fixed inset-0 bg-black/50" onClick={() => setProfileModalOpen(false)} />
-            <div className="relative bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-              <h2 className="text-lg font-semibold mb-4">Test Profile Modal</h2>
-              <p className="mb-4">This is a test modal to see if the basic structure works.</p>
-              <p className="mb-4">User: {user?.name || user?.email || "No user"}</p>
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                onClick={() => setProfileModalOpen(false)}
+                      </DropdownMenuLabel>
+              <DropdownMenuSeparator className="my-2" />
+                      
+                      <DropdownMenuItem 
+                onClick={() => router.push(`/${workspaceSlug}/${companySlug}/profile`)}
+                className="flex items-center gap-3 p-3 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 rounded-md mx-1 transition-all duration-200"
               >
-                Close
-              </button>
+                <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-md flex items-center justify-center">
+                  <User className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Profil Ayarları</p>
+                  <p className="text-xs text-muted-foreground">Hesap bilgilerini düzenle</p>
+                </div>
+                      </DropdownMenuItem>
+                      
+                      <DropdownMenuItem 
+                onClick={() => router.push(`/${workspaceSlug}/${companySlug}/settings`)}
+                className="flex items-center gap-3 p-3 hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 rounded-md mx-1 transition-all duration-200"
+              >
+                <div className="h-8 w-8 bg-gradient-to-br from-gray-500 to-slate-600 rounded-md flex items-center justify-center">
+                  <Settings className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Ayarlar</p>
+                  <p className="text-xs text-muted-foreground">Uygulama tercihlerini yönet</p>
+              </div>
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator className="my-2" />
+              
+              <DropdownMenuItem 
+                onClick={onSignOut}
+                className="flex items-center gap-3 p-3 text-destructive hover:bg-gradient-to-r hover:from-red-50 hover:to-rose-50 focus:text-destructive rounded-md mx-1 transition-all duration-200"
+              >
+                <div className="h-8 w-8 bg-gradient-to-br from-red-500 to-rose-600 rounded-md flex items-center justify-center">
+                  <LogOut className="h-4 w-4 text-white" />
             </div>
+                <div>
+                  <p className="text-sm font-medium">Çıkış Yap</p>
+                  <p className="text-xs text-muted-foreground">Hesabından güvenli çıkış</p>
           </div>
-        )}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
       </div>
-    </AuthGuard>
+      </SidebarFooter>
+    </Sidebar>
   );
 }

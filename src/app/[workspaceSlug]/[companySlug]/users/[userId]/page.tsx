@@ -22,6 +22,7 @@ import {
   Edit
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageWrapper } from "@/components/page-wrapper";
 
 interface WorkspaceMember {
   workspaceId: string;
@@ -201,54 +202,44 @@ export default function UserDetailPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="space-y-6">
-        {/* Breadcrumb / Back Button */}
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
+    <PageWrapper
+      title="Kullanıcı Detayları"
+      description={`${workspace.name} çalışma alanındaki kullanıcı bilgileri`}
+      actions={
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
             onClick={() => router.push(`/${workspaceSlug}/${companySlug}/users`)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Kullanıcılara Geri Dön
+            Geri Dön
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => {
+              // TODO: Open role edit modal/page
+              toast.info('Rol düzenleme yakında geliyor!');
+            }}
+          >
+            <Edit className="mr-2 h-4 w-4" />
+            Düzenle
+          </Button>
+          <Button 
+            variant="outline"
+            className="text-red-600 hover:text-red-700"
+            onClick={() => {
+              if (confirm(`${user.name} kullanıcısını bu çalışma alanından çıkarmak istediğinizden emin misiniz?`)) {
+                removeUser.mutate(user.id);
+              }
+            }}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Çıkar
           </Button>
         </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Kullanıcı Detayları</h1>
-            <p className="mt-2 text-muted-foreground">
-              {workspace.name} çalışma alanındaki kullanıcı bilgileri
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline"
-              onClick={() => {
-                // TODO: Open role edit modal/page
-                toast.info('Rol düzenleme yakında geliyor!');
-              }}
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Düzenle
-            </Button>
-            <Button 
-              variant="outline"
-              className="text-red-600 hover:text-red-700"
-              onClick={() => {
-                if (confirm(`${user.name} kullanıcısını bu çalışma alanından çıkarmak istediğinizden emin misiniz?`)) {
-                  removeUser.mutate(user.id);
-                }
-              }}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Çıkar
-            </Button>
-          </div>
-        </div>
-
+      }
+    >
+      <div className="space-y-6">
         {/* User Info Card */}
         <Card>
           <CardHeader>
@@ -403,6 +394,6 @@ export default function UserDetailPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </PageWrapper>
   );
 }

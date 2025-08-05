@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company } from "@/db/schema";
+import { workspace, workspaceCompany, company, workspaceMember } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export async function GET(
@@ -23,19 +23,36 @@ export async function GET(
     // Get workspace by slug and verify user access
     const [workspaceData] = await db.select()
       .from(workspace)
-      .where(
-        and(
-          eq(workspace.slug, workspaceSlug),
-          eq(workspace.ownerId, session.user.id)
-        )
-      )
+      .where(eq(workspace.slug, workspaceSlug))
       .limit(1);
 
     if (!workspaceData) {
       return NextResponse.json(
-        { error: "Workspace not found or access denied" },
+        { error: "Workspace not found" },
         { status: 404 }
       );
+    }
+
+    // Check if user is the owner or a member of this workspace
+    const isOwner = workspaceData.ownerId === session.user.id;
+    
+    if (!isOwner) {
+      const membershipCheck = await db.select()
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workspaceData.id),
+            eq(workspaceMember.userId, session.user.id)
+          )
+        )
+        .limit(1);
+
+      if (membershipCheck.length === 0) {
+        return NextResponse.json(
+          { error: "Access denied - not a member of this workspace" },
+          { status: 403 }
+        );
+      }
     }
 
     // Get all companies for this workspace

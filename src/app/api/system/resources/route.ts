@@ -19,22 +19,42 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
 
-    let query = db.select({
-      resource: moduleResources,
-      module: modules
+    let conditions = [isNull(moduleResources.deletedAt)];
+    
+    if (moduleId) {
+      conditions.push(eq(moduleResources.moduleId, moduleId));
+    }
+
+    const resourcesWithModules = await db.select({
+      id: moduleResources.id,
+      moduleId: moduleResources.moduleId,
+      code: moduleResources.code,
+      name: moduleResources.name,
+      displayName: moduleResources.displayName,
+      description: moduleResources.description,
+      resourceType: moduleResources.resourceType,
+      path: moduleResources.path,
+      parentResourceId: moduleResources.parentResourceId,
+      isActive: moduleResources.isActive,
+      isPublic: moduleResources.isPublic,
+      requiresApproval: moduleResources.requiresApproval,
+      sortOrder: moduleResources.sortOrder,
+      metadata: moduleResources.metadata,
+      createdAt: moduleResources.createdAt,
+      updatedAt: moduleResources.updatedAt,
+      module: {
+        id: modules.id,
+        code: modules.code,
+        name: modules.name,
+        displayName: modules.displayName
+      }
     })
     .from(moduleResources)
     .leftJoin(modules, eq(moduleResources.moduleId, modules.id))
-    .where(isNull(moduleResources.deletedAt))
+    .where(and(...conditions))
     .orderBy(moduleResources.sortOrder, moduleResources.name);
 
-    if (moduleId) {
-      query = query.where(and(eq(moduleResources.moduleId, moduleId), isNull(moduleResources.deletedAt)));
-    }
-
-    const resources = await query;
-
-    return NextResponse.json(resources);
+    return NextResponse.json(resourcesWithModules);
   } catch (error) {
     console.error("Error fetching resources:", error);
     return NextResponse.json(

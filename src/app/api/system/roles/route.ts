@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { roles, workspace, company } from "@/db/schema";
-import { eq, and, isNull, or } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function GET(request: NextRequest) {
@@ -30,14 +30,8 @@ export async function GET(request: NextRequest) {
       whereCondition = and(whereCondition, eq(roles.companyId, companyId));
     }
 
-    const allRoles = await db.select({
-      role: roles,
-      workspace: workspace,
-      company: company
-    })
+    const allRoles = await db.select()
     .from(roles)
-    .leftJoin(workspace, eq(roles.workspaceId, workspace.id))
-    .leftJoin(company, eq(roles.companyId, company.id))
     .where(whereCondition)
     .orderBy(roles.sortOrder, roles.name);
 

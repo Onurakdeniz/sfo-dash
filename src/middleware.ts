@@ -13,7 +13,8 @@ export async function middleware(request: NextRequest) {
 
   const isApiAuth = request.nextUrl.pathname.startsWith(apiAuthPrefix);
 
-  const isPublicRoute = publicRoutes.includes(request.nextUrl.pathname);
+  // Allow prefix match for dynamic routes like /invite/[token]
+  const isPublicRoute = publicRoutes.some((path) => request.nextUrl.pathname.startsWith(path));
 
   const isAuthRoute = () => {
     return authRoutes.some((path) => request.nextUrl.pathname.startsWith(path));

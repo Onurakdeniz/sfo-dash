@@ -3,11 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Building2, Users, Briefcase, TrendingUp, Activity, Plus } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Building2, Users, Briefcase, TrendingUp, Activity, Plus, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardAction } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageWrapper } from "@/components/page-wrapper";
 // API calls will be made using fetch to local endpoints
 
 interface StatCard {
@@ -39,48 +40,57 @@ interface Workspace {
 //   };
 // }
 
-function StatCard({ title, value, description, icon: Icon }: StatCard) {
+function StatCard({ title, value, description, icon: Icon, trend }: StatCard) {
   return (
-    <Card className="bg-white border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
-      <CardContent className="p-6">
+    <Card variant="elevated" className="group hover:shadow-xl transition-all duration-300">
+      <CardHeader>
         <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-gray-600 mb-2">{title}</p>
-            <p className="text-3xl font-bold text-gray-900 mb-1">{value}</p>
-            <p className="text-sm text-gray-500">{description}</p>
-            
-          </div>
-          <div className="ml-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Icon className="h-6 w-6 text-blue-600" />
+          <div className="space-y-1">
+            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className="text-3xl font-bold">{value}</span>
+              {trend && (
+                <Badge 
+                  variant={trend.isPositive ? "success" : "critical"} 
+                  size="sm"
+                  className="gap-1"
+                >
+                  {trend.isPositive ? (
+                    <ArrowUpRight className="h-3 w-3" />
+                  ) : (
+                    <ArrowDownRight className="h-3 w-3" />
+                  )}
+                  {trend.value}%
+                </Badge>
+              )}
             </div>
           </div>
+          <div className="p-3 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors">
+            <Icon className="h-6 w-6 text-primary" />
+          </div>
         </div>
-      </CardContent>
+        <CardDescription className="text-sm">{description}</CardDescription>
+      </CardHeader>
     </Card>
   );
 }
 
 function StatCardSkeleton() {
   return (
-    <Card className="bg-white border-gray-100">
-      <CardContent className="p-6">
+    <Card variant="elevated">
+      <CardHeader>
         <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <Skeleton className="h-4 w-24 mb-2" />
-            <Skeleton className="h-8 w-16 mb-1" />
-            <Skeleton className="h-4 w-32" />
-            <div className="mt-3 flex items-center">
-              <Skeleton className="h-4 w-4" />
-              <Skeleton className="h-5 w-12 ml-2" />
-              <Skeleton className="h-3 w-20 ml-2" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-24" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-5 w-12 rounded-full" />
             </div>
+            <Skeleton className="h-4 w-32" />
           </div>
-          <div className="ml-4">
-            <Skeleton className="w-12 h-12 rounded-xl" />
-          </div>
+          <Skeleton className="w-12 h-12 rounded-xl" />
         </div>
-      </CardContent>
+      </CardHeader>
     </Card>
   );
 }
@@ -147,32 +157,9 @@ export default function DashboardPage() {
     enabled: !!workspace?.id,
   });
 
-  // Fetch user's workspaces count
-  const { data: userWorkspacesData, isLoading: userWorkspacesLoading } = useQuery({
-    queryKey: ['user-workspaces'],
-    queryFn: async () => {
-      try {
-        const res = await fetch('/api/workspaces', {
-          credentials: 'include'
-        });
-        if (!res.ok) return null;
-        return res.json();
-      } catch {
-        return null;
-      }
-    },
-  });
-
-  const isLoading = workspaceLoading || companiesLoading || membersLoading || userWorkspacesLoading;
+  const isLoading = workspaceLoading || companiesLoading || membersLoading;
 
   const stats = [
-    {
-      title: "Toplam Çalışma Alanları",
-      value: userWorkspacesData?.workspaces?.length || 0,
-      description: "Erişiminiz olan çalışma alanları",
-      icon: Briefcase,
-      trend: { value: 12, isPositive: true },
-    },
     {
       title: "Toplam Şirketler",
       value: companies.length || 0,
@@ -190,111 +177,110 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="py-8">
+    <PageWrapper
+      title="Kontrol Paneli"
+      description={`${workspace?.name} çalışma alanı için genel bakış`}
+    >
+      <div className="space-y-8">
+        {/* Overview Section with Statistics and Quick Actions */}
+        <div>
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-foreground">Genel Bakış</h2>
+            <p className="text-sm text-muted-foreground">
+              {workspace?.name} çalışma alanı için temel istatistikler
+            </p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Statistics Grid */}
+            <div className="lg:col-span-2">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                {isLoading ? (
+                  Array.from({ length: 2 }).map((_, i) => (
+                    <StatCardSkeleton key={i} />
+                  ))
+                ) : (
+                  stats.map((stat) => (
+                    <StatCard key={stat.title} {...stat} />
+                  ))
+                )}
+              </div>
+            </div>
+            
+            {/* Quick Actions */}
+            <div className="lg:col-span-1">
+           
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 h-full">
+                <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
+                  <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full" variant="elevated">
+                    <CardHeader className="h-full">
+                      <div className="flex flex-col items-center justify-center text-center gap-3 h-full">
+                        <div className="p-3 bg-success/10 rounded-xl group-hover:bg-success/20 transition-colors">
+                          <Building2 className="h-6 w-6 text-success" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-sm font-semibold group-hover:text-success transition-colors">
+                            Şirket Ekle
+                          </CardTitle>
+                          <CardDescription className="text-xs mt-1">
+                            Yeni şirket ekleyin
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                </Link>
 
-
-        {/* Statistics Grid */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8 px-4 sm:px-6 lg:px-8">
-          {isLoading ? (
-            Array.from({ length: 3 }).map((_, i) => (
-              <StatCardSkeleton key={i} />
-            ))
-          ) : (
-            stats.map((stat) => (
-              <StatCard key={stat.title} {...stat} />
-            ))
-          )}
+                <Link href={`/${workspaceSlug}/${companySlug}/users`}>
+                  <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer h-full" variant="elevated">
+                    <CardHeader className="h-full">
+                      <div className="flex flex-col items-center justify-center text-center gap-3 h-full">
+                        <div className="p-3 bg-info/10 rounded-xl group-hover:bg-info/20 transition-colors">
+                          <Users className="h-6 w-6 text-info" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-sm font-semibold group-hover:text-info transition-colors">
+                            Üye Davet Et
+                          </CardTitle>
+                          <CardDescription className="text-xs mt-1">
+                            Yeni üyeler ekleyin
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </Card>
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Recent Activity */}
-        <div className="mb-8 px-4 sm:px-6 lg:px-8">
+        <div>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Son Etkinlikler</h2>
-            <Button variant="outline" size="sm" className="border-gray-200 text-gray-600 hover:text-gray-900">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Son Etkinlikler</h2>
+              <p className="text-sm text-muted-foreground">Sistem etkinliklerini ve güncellemeleri takip edin</p>
+            </div>
+            <Button variant="outline" size="sm">
               Tümünü Görüntüle
             </Button>
           </div>
-          <Card className="bg-white border-gray-100">
-            <CardContent className="p-8">
-              <div className="flex flex-col items-center justify-center h-48 text-gray-400">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                  <Activity className="h-8 w-8 text-gray-400" />
-                </div>
-                <p className="text-lg font-medium text-gray-600 mb-2">Etkinlik takibi yakında geliyor</p>
-                <p className="text-sm text-gray-500 text-center max-w-md">
-                  Kullanıcı etkileşimini ve sistem performansını takip etmenize yardımcı olacak güçlü analitikler geliştiriyoruz.
-                </p>
+          <Card variant="subdued">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="p-4 bg-muted/50 rounded-full mb-4">
+                <Activity className="h-8 w-8 text-muted-foreground" />
               </div>
+              <CardTitle className="text-lg mb-2">Etkinlik takibi yakında geliyor</CardTitle>
+              <CardDescription className="text-center max-w-md">
+                Kullanıcı etkileşimini ve sistem performansını takip etmenize yardımcı olacak güçlü analitikler geliştiriyoruz.
+              </CardDescription>
+              <Badge variant="info" className="mt-4">
+                Geliştirme Aşamasında
+              </Badge>
             </CardContent>
           </Card>
         </div>
-
-        {/* Quick Actions */}
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Hızlı İşlemler</h2>
-            <p className="text-sm text-gray-500">Bu yaygın görevlerle başlayın</p>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card className="bg-white border-gray-100 hover:shadow-md transition-all duration-200 cursor-pointer group">
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                    <Briefcase className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">Çalışma Alanı Oluştur</h3>
-                    <p className="text-sm text-gray-600">Ekibiniz için yeni bir çalışma alanı kurun</p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" className="w-full mt-4 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Şimdi Oluştur
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
-              <Card className="bg-white border-gray-100 hover:shadow-md transition-all duration-200 cursor-pointer group">
-                <CardContent className="p-6">
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                      <Building2 className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-1">Şirket Ekle</h3>
-                      <p className="text-sm text-gray-600">Bu çalışma alanına yeni bir şirket ekleyin</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" className="w-full mt-4 text-green-600 hover:text-green-700 hover:bg-green-50">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Şirket Ekle
-                  </Button>
-                </CardContent>
-              </Card>
-            </Link>
-
-            <Card className="bg-white border-gray-100 hover:shadow-md transition-all duration-200 cursor-pointer group">
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                    <Users className="h-6 w-6 text-purple-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">Üye Davet Et</h3>
-                    <p className="text-sm text-gray-600">Çalışma alanına yeni üyeler ekleyin</p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" className="w-full mt-4 text-purple-600 hover:text-purple-700 hover:bg-purple-50">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Davet Gönder
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </div>
-    </div>
+    </PageWrapper>
   );
 }

@@ -1,4 +1,4 @@
-export const publicRoutes: string[] = ["/", "/about", "/verify-email"];
+export const publicRoutes: string[] = ["/", "/about", "/verify-email", "/invite", "/test-invitation-debug"];
 
 export const authRoutes: string[] = ["/signin", "/sign-up", "/forgot-password", "/reset-password"];
 

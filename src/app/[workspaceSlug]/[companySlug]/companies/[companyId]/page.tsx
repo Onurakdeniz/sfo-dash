@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Edit3, Trash2, Loader2, Phone, Mail, Globe, MapPin, FileText, Building, Calendar, Briefcase } from "lucide-react";
+import { ArrowLeft, Building2, Edit3, Trash2, Loader2, Phone, Mail, Globe, MapPin, FileText, Calendar, Briefcase, Building, Users } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
+import { PageWrapper } from "@/components/page-wrapper";
 import { toast } from "sonner";
 
 interface Company {
@@ -63,6 +62,8 @@ interface UpdateCompanyData {
   mersisNumber?: string;
   notes?: string;
 }
+
+
 
 const companyTypes = [
   { value: 'anonim_sirket', label: 'Anonim Şirket (A.Ş.)' },
@@ -121,6 +122,7 @@ export default function CompanyDetailsPage() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [formData, setFormData] = useState<UpdateCompanyData>({});
 
   // Fetch all workspaces and find by slug
@@ -163,6 +165,8 @@ export default function CompanyDetailsPage() {
     },
     enabled: !!workspace?.id && !!companyId,
   });
+
+
 
   // Update company mutation
   const updateCompany = useMutation({
@@ -257,20 +261,20 @@ export default function CompanyDetailsPage() {
     // Convert empty strings to null for optional fields, but keep all current values
     const updateData: UpdateCompanyData = {
       name: formData.name?.trim() || company.name,
-      fullName: formData.fullName?.trim() || null,
-      companyType: formData.companyType || null,
-      industry: formData.industry || null,
-      phone: formData.phone?.trim() || null,
-      email: formData.email?.trim() || null,
-      website: formData.website?.trim() || null,
-      address: formData.address?.trim() || null,
-      district: formData.district?.trim() || null,
-      city: formData.city || null,
-      postalCode: formData.postalCode?.trim() || null,
-      taxOffice: formData.taxOffice?.trim() || null,
-      taxNumber: formData.taxNumber?.trim() || null,
-      mersisNumber: formData.mersisNumber?.trim() || null,
-      notes: formData.notes?.trim() || null,
+      fullName: formData.fullName?.trim() || undefined,
+      companyType: formData.companyType || undefined,
+      industry: formData.industry || undefined,
+      phone: formData.phone?.trim() || undefined,
+      email: formData.email?.trim() || undefined,
+      website: formData.website?.trim() || undefined,
+      address: formData.address?.trim() || undefined,
+      district: formData.district?.trim() || undefined,
+      city: formData.city || undefined,
+      postalCode: formData.postalCode?.trim() || undefined,
+      taxOffice: formData.taxOffice?.trim() || undefined,
+      taxNumber: formData.taxNumber?.trim() || undefined,
+      mersisNumber: formData.mersisNumber?.trim() || undefined,
+      notes: formData.notes?.trim() || undefined,
     };
 
     updateCompany.mutate(updateData);
@@ -283,14 +287,43 @@ export default function CompanyDetailsPage() {
     }));
   };
 
+  const handleDeleteDialogOpen = () => {
+    setDeleteConfirmationText('');
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteDialogClose = () => {
+    setDeleteConfirmationText('');
+    setShowDeleteDialog(false);
+  };
+
+  const isDeleteConfirmed = deleteConfirmationText === company?.name;
+
+
+
   // Show loading state
   if (isLoadingWorkspaces || isLoadingCompany) {
     return (
-      <div className="p-6">
-        <div className="space-y-6">
+      <div className="p-6 space-y-6">
+        <div className="space-y-4">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-96" />
-          <Skeleton className="h-64 w-full" />
+        </div>
+        <div className="grid gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-4 w-48" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     );
@@ -300,9 +333,14 @@ export default function CompanyDetailsPage() {
   if (!workspace) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">
+        <div className="text-center py-16">
+          <div className="mx-auto w-24 h-24 bg-muted/20 rounded-full flex items-center justify-center mb-6">
+            <Building2 className="h-12 w-12 text-muted-foreground/60" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            Erişim Reddedildi
+          </h3>
+          <p className="text-muted-foreground max-w-sm mx-auto">
             Bu çalışma alanına erişim izniniz yok veya çalışma alanı bulunamadı.
           </p>
         </div>
@@ -314,13 +352,19 @@ export default function CompanyDetailsPage() {
   if (error || !company) {
     return (
       <div className="p-6">
-        <div className="text-center py-12">
-          <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">
+        <div className="text-center py-16">
+          <div className="mx-auto w-24 h-24 bg-muted/20 rounded-full flex items-center justify-center mb-6">
+            <Building2 className="h-12 w-12 text-muted-foreground/60" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            Şirket Bulunamadı
+          </h3>
+          <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
             Şirket bulunamadı veya bu şirkete erişim izniniz yok.
           </p>
           <Link href={`/${workspaceSlug}/${companySlug}/companies`}>
-            <Button className="mt-4" variant="outline">
+            <Button variant="outline">
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Şirketler Listesine Dön
             </Button>
           </Link>
@@ -334,49 +378,46 @@ export default function CompanyDetailsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1">
-        <div className="px-4 sm:px-6 lg:px-8 py-6">
-          {/* Page Header */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Link href={`/${workspaceSlug}/${companySlug}/companies`}>
-                  <Button variant="ghost" size="icon">
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <div>
-                  <h1 className="text-2xl font-semibold tracking-tight">{company.name}</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Şirket detayları ve bilgileri
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                {!isEditing ? (
+    <PageWrapper
+      title="Şirket Bilgileri"
+      description={`${company.name} - Şirket detayları ve bilgileri`}
+      actions={
+        <div className="flex gap-2">
+          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/departments`}>
+            <Button variant="outline">
+              <Building className="mr-2 h-4 w-4" />
+              Departmanlar
+            </Button>
+          </Link>
+          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/members`}>
+            <Button variant="outline">
+              <Users className="mr-2 h-4 w-4" />
+              Üyeler
+            </Button>
+          </Link>
+          {!isEditing ? (
+            <>
+              <Button onClick={handleEdit} variant="outline">
+                <Edit3 className="mr-2 h-4 w-4" />
+                Düzenle
+              </Button>
+              <Button 
+                onClick={handleDeleteDialogOpen} 
+                variant="outline" 
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Sil
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={handleCancelEdit} variant="outline">
+                İptal
+              </Button>
+              <Button onClick={handleSaveEdit} disabled={updateCompany.isPending}>
+                {updateCompany.isPending ? (
                   <>
-                    <Button onClick={handleEdit} variant="outline">
-                      <Edit3 className="mr-2 h-4 w-4" />
-                      Düzenle
-                    </Button>
-                    <Button 
-                      onClick={() => setShowDeleteDialog(true)} 
-                      variant="outline" 
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Sil
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button onClick={handleCancelEdit} variant="outline">
-                      İptal
-                    </Button>
-                    <Button onClick={handleSaveEdit} disabled={updateCompany.isPending}>
-                      {updateCompany.isPending ? (
-                        <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Kaydediliyor...
                         </>
@@ -387,10 +428,9 @@ export default function CompanyDetailsPage() {
                   </>
                 )}
               </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
+            }
+    >
+      <div className="space-y-6">
             {/* Basic Information */}
             <Card>
               <CardHeader>
@@ -747,12 +787,10 @@ export default function CompanyDetailsPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </ScrollArea>
+      </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialog open={showDeleteDialog} onOpenChange={handleDeleteDialogClose}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Emin misiniz?</AlertDialogTitle>
@@ -761,14 +799,27 @@ export default function CompanyDetailsPage() {
               ve tüm ilişkili verileri kaldıracaktır.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="delete-confirmation" className="text-sm font-medium">
+              Onaylamak için şirket adını yazın: <span className="font-bold">{company.name}</span>
+            </Label>
+            <Input
+              id="delete-confirmation"
+              value={deleteConfirmationText}
+              onChange={(e) => setDeleteConfirmationText(e.target.value)}
+              placeholder={company.name}
+              className="mt-2"
+              autoComplete="off"
+            />
+          </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
+            <AlertDialogCancel onClick={handleDeleteDialogClose}>
               İptal
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteCompany.mutate()}
-              disabled={deleteCompany.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteCompany.isPending || !isDeleteConfirmed}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
             >
               {deleteCompany.isPending ? (
                 <>
@@ -782,6 +833,6 @@ export default function CompanyDetailsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageWrapper>
   );
 }

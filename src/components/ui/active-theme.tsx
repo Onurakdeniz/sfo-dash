@@ -1,17 +1,57 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-// Placeholder theme type
+// Theme type
 type Theme = string;
 
-// Placeholder implementation for useThemeConfig
+// Available themes that require body class changes
+const THEMES_WITH_CLASSES = ['claude'];
+
 export function useThemeConfig() {
-  const [activeTheme, setActiveTheme] = useState<Theme>('default'); // Default theme
+  const [activeTheme, setActiveThemeState] = useState<Theme>('default');
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    // Set hydrated state and load theme from localStorage
+    setIsHydrated(true);
+    if (typeof window !== 'undefined') {
+      const savedTheme = (localStorage.getItem('active-theme') as Theme) || 'default';
+      setActiveThemeState(savedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Remove all possible theme classes
+      document.body.classList.remove(
+        'theme-default', 
+        'theme-blue', 
+        'theme-green', 
+        'theme-amber', 
+        'theme-claude',
+        'theme-default-scaled', 
+        'theme-blue-scaled', 
+        'theme-mono-scaled'
+      );
+      
+      // Add the current theme class if it's a theme that needs a class
+      if (THEMES_WITH_CLASSES.includes(activeTheme)) {
+        document.body.classList.add(`theme-${activeTheme}`);
+      }
+      
+      localStorage.setItem('active-theme', activeTheme);
+    }
+  }, [activeTheme]);
+
+  const setActiveTheme = (theme: Theme) => {
+    setActiveThemeState(theme);
+  };
 
   return {
-    activeTheme,
+    activeTheme: isHydrated ? activeTheme : 'default',
     setActiveTheme,
+    isHydrated,
   };
 }
 
