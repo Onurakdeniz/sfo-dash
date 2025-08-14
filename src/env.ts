@@ -7,6 +7,7 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.string().optional().default("http://localhost:3000"),
   RESEND_API_KEY: z.string().optional(),
   NEXT_PUBLIC_BASE_URL: z.string().optional().default("http://localhost:3000"),
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

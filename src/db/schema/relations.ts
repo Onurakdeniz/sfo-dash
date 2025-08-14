@@ -3,7 +3,7 @@ import { user } from "./tables/user";
 import { account } from "./tables/account";
 import { session } from "./tables/session";
 import { workspace, workspaceCompany, workspaceMember } from "./tables/workspace";
-import { company, department, unit } from "./tables/company";
+import { company, department, unit, companyFile } from "./tables/company";
 import { invitation, invitationTemplate } from "./tables/invitation";
 import { policies, policyAssignments } from "./tables/policies";
 import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
@@ -60,6 +60,7 @@ export const companyRelations = relations(company, ({ many, one }) => ({
   policyAssignments: many(policyAssignments),
   featureFlags: many(featureFlags),
   roles: many(roles),
+  files: many(companyFile),
 }));
 
 export const workspaceCompanyRelations = relations(workspaceCompany, ({ one }) => ({
@@ -119,6 +120,17 @@ export const unitRelations = relations(unit, ({ one }) => ({
   }),
   lead: one(user, {
     fields: [unit.leadId],
+    references: [user.id],
+  }),
+}));
+
+export const companyFileRelations = relations(companyFile, ({ one }) => ({
+  company: one(company, {
+    fields: [companyFile.companyId],
+    references: [company.id],
+  }),
+  uploader: one(user, {
+    fields: [companyFile.uploadedBy],
     references: [user.id],
   }),
 }));

@@ -37,5 +37,13 @@
       "tag": "0004_new_skaar",
       "breakpoints": true
     }
+    ,
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1754488462319,
+      "tag": "0005_add_submodule_type",
+      "breakpoints": true
+    }
   ]
 }

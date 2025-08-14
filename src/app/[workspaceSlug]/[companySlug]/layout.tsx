@@ -187,6 +187,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const adminNavigation = [
       { name: "Şirketler", href: `/${workspaceSlug}/${companySlug}/companies`, icon: Building2 },
       { name: "Kullanıcılar", href: `/${workspaceSlug}/${companySlug}/users`, icon: Users },
+      { name: "Personel", href: `/${workspaceSlug}/${companySlug}/hr/employees`, icon: Users },
       { name: "Sistem", href: `/${workspaceSlug}/${companySlug}/system`, icon: Server },
       { name: "Ayarlar", href: `/${workspaceSlug}/${companySlug}/settings`, icon: Settings },
     ];

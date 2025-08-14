@@ -62,7 +62,8 @@ const RESOURCE_TYPES = [
   { value: "feature", label: "Özellik/Bileşen" },
   { value: "action", label: "Eylem" },
   { value: "report", label: "Rapor" },
-  { value: "widget", label: "Widget" }
+  { value: "widget", label: "Widget" },
+  { value: "submodule", label: "Alt Modül" }
 ];
 
 export default function ResourcesPage() {
@@ -82,7 +83,7 @@ export default function ResourcesPage() {
     name: "",
     displayName: "",
     description: "",
-    resourceType: "component",
+    resourceType: "feature",
     path: "",
     parentResourceId: "",
     isActive: true,
@@ -304,6 +305,25 @@ export default function ResourcesPage() {
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Geri
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={async () => {
+          try {
+            const res = await fetch('/api/debug/seed/hr', { method: 'POST' });
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data.error || 'Seeding failed');
+            }
+            await queryClient.invalidateQueries({ queryKey: ['modules'] });
+            await queryClient.invalidateQueries({ queryKey: ['resources'] });
+            toast.success('HR kaynakları eklendi (Dev)');
+          } catch (e: any) {
+            toast.error(e.message || 'Seeding başarısız');
+          }
+        }}
+      >
+        <Plus className="w-4 h-4 mr-2" /> HR Kaynaklarını Ekle (Dev)
       </Button>
       <Button onClick={() => setIsCreateDialogOpen(true)}>
         <Plus className="w-4 h-4 mr-2" />

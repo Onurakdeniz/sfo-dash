@@ -18,11 +18,15 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
+    const resourceType = searchParams.get('resourceType');
 
     let conditions = [isNull(moduleResources.deletedAt)];
     
     if (moduleId) {
       conditions.push(eq(moduleResources.moduleId, moduleId));
+    }
+    if (resourceType) {
+      conditions.push(eq(moduleResources.resourceType, resourceType));
     }
 
     const resourcesWithModules = await db.select({
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate resource type
-    const validTypes = ['page', 'api', 'feature', 'report', 'action', 'widget'];
+    const validTypes = ['page', 'api', 'feature', 'report', 'action', 'widget', 'submodule'];
     if (!validTypes.includes(resourceType)) {
       return NextResponse.json(
         { error: "Invalid resource type" },

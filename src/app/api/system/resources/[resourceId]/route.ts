@@ -99,6 +99,15 @@ export async function PUT(
       );
     }
 
+    // Validate resource type
+    const validTypes = ['page', 'api', 'feature', 'report', 'action', 'widget', 'submodule'];
+    if (!validTypes.includes(resourceType)) {
+      return NextResponse.json(
+        { error: "Invalid resource type" },
+        { status: 400 }
+      );
+    }
+
     // Check if resource exists
     const existingResource = await db.select()
       .from(moduleResources)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -20,7 +20,9 @@ import {
   CheckCircle,
   XCircle,
   Search,
-  ArrowLeft
+  ArrowLeft,
+  ChevronRight,
+  ChevronDown
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,7 +34,6 @@ interface Module {
   name: string;
   displayName: string;
   description?: string;
-  category: string;
   icon?: string;
   color?: string;
   isActive: boolean;
@@ -44,26 +45,32 @@ interface Module {
   updatedAt: Date;
 }
 
-const MODULE_CATEGORIES = [
-  { value: "core", label: "Çekirdek", icon: Package, color: "bg-red-500" },
-  { value: "hr", label: "İnsan Kaynakları", icon: Package, color: "bg-blue-500" },
-  { value: "finance", label: "Finans", icon: Package, color: "bg-green-500" },
-  { value: "inventory", label: "Envanter", icon: Package, color: "bg-yellow-500" },
-  { value: "crm", label: "CRM", icon: Package, color: "bg-purple-500" },
-  { value: "project", label: "Proje Yönetimi", icon: Package, color: "bg-indigo-500" },
-  { value: "document", label: "Doküman Yönetimi", icon: Package, color: "bg-pink-500" },
-  { value: "reporting", label: "Raporlama", icon: Package, color: "bg-teal-500" },
-  { value: "integration", label: "Entegrasyon", icon: Package, color: "bg-orange-500" },
-  { value: "security", label: "Güvenlik", icon: Package, color: "bg-gray-500" },
-  { value: "settings", label: "Ayarlar", icon: Package, color: "bg-slate-500" }
-];
+interface SubmoduleResource {
+  id: string;
+  moduleId: string;
+  code: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  resourceType: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+function ModuleIcon({ iconName, className }: { iconName?: string; className?: string }) {
+  const mapping: Record<string, any> = {
+    users: Package,
+  };
+  const IconComp = (iconName && mapping[iconName]) || Package;
+  return <IconComp className={className} />;
+}
 
 export default function ModulesPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  // category removed
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -73,13 +80,22 @@ export default function ModulesPage() {
     name: "",
     displayName: "",
     description: "",
-    category: "",
     icon: "",
     color: "",
     isCore: false,
     sortOrder: 0,
     settings: {},
     metadata: {}
+  });
+  const [expandedModuleIds, setExpandedModuleIds] = useState<Record<string, boolean>>({});
+  const [isSubmoduleDialogOpen, setIsSubmoduleDialogOpen] = useState(false);
+  const [parentModuleForSubmodule, setParentModuleForSubmodule] = useState<Module | null>(null);
+  const [submoduleForm, setSubmoduleForm] = useState({
+    code: "",
+    name: "",
+    displayName: "",
+    description: "",
+    sortOrder: 0,
   });
 
   // Fetch modules
@@ -88,6 +104,16 @@ export default function ModulesPage() {
     queryFn: async () => {
       const response = await fetch("/api/system/modules");
       if (!response.ok) throw new Error("Failed to fetch modules");
+      return response.json();
+    }
+  });
+
+  // Fetch submodules (resources of type 'submodule')
+  const { data: submodules = [] } = useQuery({
+    queryKey: ["resources", "submodules"],
+    queryFn: async () => {
+      const response = await fetch("/api/system/resources?resourceType=submodule");
+      if (!response.ok) throw new Error("Failed to fetch submodules");
       return response.json();
     }
   });
@@ -189,13 +215,112 @@ export default function ModulesPage() {
     }
   });
 
+  // Toggle submodule status
+  const toggleSubmoduleStatusMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const response = await fetch(`/api/system/resources/${id}/toggle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to toggle submodule status");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resources", "submodules"] });
+      toast.success("Alt modül durumu güncellendi");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  // Create submodule mutation
+  const createSubmoduleMutation = useMutation({
+    mutationFn: async (data: { moduleId: string; code: string; name: string; displayName: string; description?: string; sortOrder?: number }) => {
+      const response = await fetch("/api/system/resources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          moduleId: data.moduleId,
+          code: data.code,
+          name: data.name,
+          displayName: data.displayName,
+          description: data.description,
+          resourceType: "submodule",
+          path: null,
+          parentResourceId: null,
+          isPublic: false,
+          requiresApproval: false,
+          sortOrder: data.sortOrder ?? 0,
+          metadata: {}
+        })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create submodule");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["resources", "submodules"] });
+      toast.success("Alt modül oluşturuldu");
+      setIsSubmoduleDialogOpen(false);
+      setParentModuleForSubmodule(null);
+      setSubmoduleForm({ code: "", name: "", displayName: "", description: "", sortOrder: 0 });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    }
+  });
+
+  const openSubmoduleDialog = (module: Module) => {
+    setParentModuleForSubmodule(module);
+    setIsSubmoduleDialogOpen(true);
+  };
+
+  // Quick action: Seed HR module (development only)
+  const seedHr = async () => {
+    try {
+      const res = await fetch('/api/debug/seed/hr', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Seeding failed');
+      }
+      await queryClient.invalidateQueries({ queryKey: ['modules'] });
+      await queryClient.invalidateQueries({ queryKey: ['resources', 'submodules'] });
+      toast.success('HR modülü başarıyla oluşturuldu');
+    } catch (e: any) {
+      toast.error(e.message || 'HR modülü oluşturulamadı');
+    }
+  };
+
+  const handleCreateSubmodule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!parentModuleForSubmodule) return;
+    createSubmoduleMutation.mutate({
+      moduleId: parentModuleForSubmodule.id,
+      code: submoduleForm.code,
+      name: submoduleForm.name,
+      displayName: submoduleForm.displayName,
+      description: submoduleForm.description,
+      sortOrder: submoduleForm.sortOrder,
+    });
+  };
+
+  const toggleExpand = (moduleId: string) => {
+    setExpandedModuleIds((prev) => ({ ...prev, [moduleId]: !prev[moduleId] }));
+  };
+
   const resetForm = () => {
     setFormData({
       code: "",
       name: "",
       displayName: "",
       description: "",
-      category: "",
       icon: "",
       color: "",
       isCore: false,
@@ -212,7 +337,6 @@ export default function ModulesPage() {
       name: module.name,
       displayName: module.displayName,
       description: module.description || "",
-      category: module.category,
       icon: module.icon || "",
       color: module.color || "",
       isCore: module.isCore,
@@ -241,8 +365,7 @@ export default function ModulesPage() {
     const matchesSearch = module.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          module.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          module.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === "all" || module.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    return matchesSearch;
   });
 
   const breadcrumbs = [
@@ -270,6 +393,9 @@ export default function ModulesPage() {
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Geri
+      </Button>
+      <Button variant="secondary" onClick={seedHr}>
+        <Plus className="w-4 h-4 mr-2" /> HR Modülünü Ekle (Dev)
       </Button>
       <Button onClick={() => setIsCreateDialogOpen(true)}>
         <Plus className="w-4 h-4 mr-2" />
@@ -300,19 +426,6 @@ export default function ModulesPage() {
                 className="pl-10"
               />
             </div>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Tüm Kategoriler" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tüm Kategoriler</SelectItem>
-                {MODULE_CATEGORIES.map((category) => (
-                  <SelectItem key={category.value} value={category.value}>
-                    {category.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
@@ -331,7 +444,8 @@ export default function ModulesPage() {
               <TableRow>
                 <TableHead>Kod</TableHead>
                 <TableHead>İsim</TableHead>
-                <TableHead>Kategori</TableHead>
+                <TableHead>Görsel</TableHead>
+              <TableHead>Alt Modüller</TableHead>
                 <TableHead>Durum</TableHead>
                 <TableHead>Çekirdek</TableHead>
                 <TableHead>Sıralama Düzeni</TableHead>
@@ -352,60 +466,112 @@ export default function ModulesPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredModules.map((module: Module) => (
-                  <TableRow key={module.id}>
-                    <TableCell className="font-mono text-sm">{module.code}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{module.displayName}</p>
-                        {module.description && (
-                          <p className="text-sm text-muted-foreground">{module.description}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {MODULE_CATEGORIES.find(c => c.value === module.category)?.label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={module.isActive}
-                        onCheckedChange={(checked) => 
-                          toggleModuleStatusMutation.mutate({ id: module.id, isActive: checked })
-                        }
-                        disabled={module.isCore}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {module.isCore ? (
-                        <Badge variant="secondary">Çekirdek</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
+                filteredModules.map((module: Module) => {
+                  const moduleSubmodules: SubmoduleResource[] = (submodules as SubmoduleResource[]).filter((r) => r.moduleId === module.id);
+                  const isExpanded = !!expandedModuleIds[module.id];
+                  return (
+                    <Fragment key={module.id}>
+                      <TableRow>
+                        <TableCell className="font-mono text-sm">
+                          <button className="inline-flex items-center" onClick={() => toggleExpand(module.id)}>
+                            {isExpanded ? <ChevronDown className="w-4 h-4 mr-1" /> : <ChevronRight className="w-4 h-4 mr-1" />}
+                            {module.code}
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{module.displayName}</p>
+                            {module.description && (
+                              <p className="text-sm text-muted-foreground">{module.description}</p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded" style={{ backgroundColor: module.color || '#e5e7eb' }} />
+                            <div className="w-6 h-6 flex items-center justify-center rounded border">
+                              <ModuleIcon iconName={module.icon} className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">{moduleSubmodules.length}</Badge>
+                            <Button size="sm" variant="outline" onClick={() => openSubmoduleDialog(module)}>
+                              <Plus className="w-4 h-4 mr-1" /> Alt Modül
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={module.isActive}
+                            onCheckedChange={(checked) => 
+                              toggleModuleStatusMutation.mutate({ id: module.id, isActive: checked })
+                            }
+                            disabled={module.isCore}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {module.isCore ? (
+                            <Badge variant="secondary">Çekirdek</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{module.sortOrder}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleEdit(module)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => handleDelete(module)}
+                              disabled={module.isCore}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow key={`${module.id}-submodules`}>
+                          <TableCell colSpan={8}>
+                            <div className="pl-6">
+                              {moduleSubmodules.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">Bu modül için alt modül yok.</p>
+                              ) : (
+                                <div className="space-y-2">
+                                  {moduleSubmodules
+                                    .sort((a, b) => a.sortOrder - b.sortOrder || a.displayName.localeCompare(b.displayName))
+                                    .map((sub) => (
+                                      <div key={sub.id} className="flex items-center justify-between rounded-md border p-3">
+                                        <div>
+                                          <p className="font-medium">{sub.displayName}</p>
+                                          <p className="text-xs text-muted-foreground font-mono">{sub.code}</p>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <Switch
+                                            checked={sub.isActive}
+                                            onCheckedChange={(checked) => toggleSubmoduleStatusMutation.mutate({ id: sub.id, isActive: checked })}
+                                          />
+                                        </div>
+                                      </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       )}
-                    </TableCell>
-                    <TableCell>{module.sortOrder}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleEdit(module)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleDelete(module)}
-                          disabled={module.isCore}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                    </Fragment>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -476,25 +642,6 @@ export default function ModulesPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="category">Kategori</Label>
-                <Select 
-                  value={formData.category} 
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
-                  required
-                >
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="Kategori seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MODULE_CATEGORIES.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        {category.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="sortOrder">Sıralama Düzeni</Label>
                 <Input
                   id="sortOrder"
@@ -504,6 +651,7 @@ export default function ModulesPage() {
                   placeholder="0"
                 />
               </div>
+              <div className="space-y-2"></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -550,6 +698,58 @@ export default function ModulesPage() {
               <Button type="submit" disabled={createModuleMutation.isPending || updateModuleMutation.isPending}>
                 {selectedModule ? "Güncelle" : "Oluştur"} Modül
               </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Submodule Dialog */}
+      <Dialog open={isSubmoduleDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsSubmoduleDialogOpen(false);
+          setParentModuleForSubmodule(null);
+          setSubmoduleForm({ code: "", name: "", displayName: "", description: "", sortOrder: 0 });
+        } else {
+          setIsSubmoduleDialogOpen(true);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Alt Modül Oluştur</DialogTitle>
+            <DialogDescription>
+              {parentModuleForSubmodule ? `${parentModuleForSubmodule.displayName} modülü altında yeni alt modül oluşturun` : "Bir modül seçin"}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateSubmodule} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="sub_code">Kod</Label>
+                <Input id="sub_code" value={submoduleForm.code} onChange={(e) => setSubmoduleForm({ ...submoduleForm, code: e.target.value })} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sub_name">İsim</Label>
+                <Input id="sub_name" value={submoduleForm.name} onChange={(e) => setSubmoduleForm({ ...submoduleForm, name: e.target.value })} required />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sub_displayName">Görünen Ad</Label>
+              <Input id="sub_displayName" value={submoduleForm.displayName} onChange={(e) => setSubmoduleForm({ ...submoduleForm, displayName: e.target.value })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sub_description">Açıklama</Label>
+              <Textarea id="sub_description" value={submoduleForm.description} onChange={(e) => setSubmoduleForm({ ...submoduleForm, description: e.target.value })} rows={3} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sub_sortOrder">Sıralama Düzeni</Label>
+              <Input id="sub_sortOrder" type="number" value={submoduleForm.sortOrder} onChange={(e) => setSubmoduleForm({ ...submoduleForm, sortOrder: parseInt(e.target.value) || 0 })} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => {
+                setIsSubmoduleDialogOpen(false);
+                setParentModuleForSubmodule(null);
+                setSubmoduleForm({ code: "", name: "", displayName: "", description: "", sortOrder: 0 });
+              }}>İptal</Button>
+              <Button type="submit" disabled={createSubmoduleMutation.isPending}>Alt Modül Oluştur</Button>
             </DialogFooter>
           </form>
         </DialogContent>

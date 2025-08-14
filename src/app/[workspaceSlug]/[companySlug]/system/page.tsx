@@ -28,14 +28,6 @@ const systemModules = [
     bgColor: "bg-blue-50 dark:bg-blue-950"
   },
   {
-    title: "Kaynaklar",
-    description: "Sistem kaynaklarını ve uç noktalarını tanımlayın ve yönetin",
-    icon: Shield,
-    href: "resources", 
-    color: "text-green-500",
-    bgColor: "bg-green-50 dark:bg-green-950"
-  },
-  {
     title: "Roller",
     description: "Kullanıcı rollerini oluşturun ve yapılandırın",
     icon: Users,

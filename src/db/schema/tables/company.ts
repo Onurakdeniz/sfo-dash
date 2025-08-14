@@ -123,6 +123,26 @@ export const unit = pgTable('units', {
   unique('units_department_name_unique').on(table.departmentId, table.name),
 ]);
 
+// Company files table - metadata for files stored in Vercel Blob and associated with a company
+export const companyFile = pgTable('company_files', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id').references(() => company.id, { onDelete: 'cascade' }).notNull(),
+  uploadedBy: text('uploaded_by').references(() => user.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  blobUrl: text('blob_url').notNull(),
+  blobPath: text('blob_path'),
+  contentType: varchar('content_type', { length: 255 }),
+  size: integer('size').default(0).notNull(),
+  metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+}, (table) => [
+  index('company_files_company_idx').on(table.companyId),
+  index('company_files_created_idx').on(table.createdAt),
+]);
+
 export type CompanyType = typeof company.$inferSelect;
 export type DepartmentType = typeof department.$inferSelect;
 export type UnitType = typeof unit.$inferSelect;
+export type CompanyFileType = typeof companyFile.$inferSelect;

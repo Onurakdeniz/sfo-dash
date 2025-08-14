@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Edit3, Trash2, Loader2, Phone, Mail, Globe, MapPin, FileText, Calendar, Briefcase, Building, Users } from "lucide-react";
+import { ArrowLeft, Building2, Edit3, Trash2, Loader2, Phone, Mail, Globe, MapPin, FileText, Calendar, Briefcase, Building, Users, FolderOpen } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -393,6 +393,12 @@ export default function CompanyDetailsPage() {
             <Button variant="outline">
               <Users className="mr-2 h-4 w-4" />
               Üyeler
+            </Button>
+          </Link>
+          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/files`}>
+            <Button variant="outline">
+              <FolderOpen className="mr-2 h-4 w-4" />
+              Dosyalar
             </Button>
           </Link>
           {!isEditing ? (

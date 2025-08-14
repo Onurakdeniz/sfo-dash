@@ -3,6 +3,7 @@ export * from "./session";
 export * from "./user";
 export * from "./verification";
 export * from "./company";
+// Exports companyFile as well from company.ts
 export * from "./workspace";
 export * from "./invitation";
 export * from "./policies";

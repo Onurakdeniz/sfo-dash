@@ -53,11 +53,11 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { code, name, displayName, description, category, icon, color, isCore, sortOrder, settings, metadata } = await request.json();
+    const { code, name, displayName, description, icon, color, isCore, sortOrder, settings, metadata } = await request.json();
 
-    if (!name || !displayName || !category) {
+    if (!name || !displayName) {
       return NextResponse.json(
-        { error: "Name, displayName, and category are required" },
+        { error: "Name and displayName are required" },
         { status: 400 }
       );
     }
@@ -81,7 +81,6 @@ export async function PUT(
         name,
         displayName,
         description,
-        category,
         icon,
         color,
         isCore,

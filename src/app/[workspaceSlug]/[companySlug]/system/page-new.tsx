@@ -37,7 +37,6 @@ interface Module {
   name: string;
   displayName: string;
   description?: string;
-  category: string;
   icon?: string;
   color?: string;
   isActive: boolean;
@@ -97,19 +96,7 @@ interface Permission {
   updatedAt: Date;
 }
 
-const MODULE_CATEGORIES = [
-  { value: "core", label: "Çekirdek" },
-  { value: "hr", label: "İnsan Kaynakları" },
-  { value: "finance", label: "Finans" },
-  { value: "inventory", label: "Envanter" },
-  { value: "crm", label: "Müşteri İlişkileri" },
-  { value: "project", label: "Proje Yönetimi" },
-  { value: "document", label: "Döküman Yönetimi" },
-  { value: "reporting", label: "Raporlama" },
-  { value: "integration", label: "Entegrasyon" },
-  { value: "security", label: "Güvenlik" },
-  { value: "settings", label: "Ayarlar" }
-];
+const MODULE_CATEGORIES: never[] = [];
 
 const RESOURCE_TYPES = [
   { value: "page", label: "Sayfa" },
@@ -151,7 +138,6 @@ export default function SystemPage() {
     name: "",
     displayName: "",
     description: "",
-    category: "core",
     icon: "",
     color: "",
     isCore: false,
@@ -249,7 +235,6 @@ export default function SystemPage() {
         name: "",
         displayName: "",
         description: "",
-        category: "core",
         icon: "",
         color: "",
         isCore: false,
@@ -482,21 +467,7 @@ export default function SystemPage() {
                         placeholder="Modül açıklaması"
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="category">Kategori</Label>
-                      <Select value={moduleForm.category} onValueChange={(value) => setModuleForm(prev => ({ ...prev, category: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Kategori seçin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {MODULE_CATEGORIES.map((cat) => (
-                            <SelectItem key={cat.value} value={cat.value}>
-                              {cat.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    
                     <div>
                       <Label htmlFor="icon">İkon</Label>
                       <Input
@@ -567,11 +538,7 @@ export default function SystemPage() {
                           <div className="text-sm text-muted-foreground">{module.name}</div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {MODULE_CATEGORIES.find(c => c.value === module.category)?.label}
-                        </Badge>
-                      </TableCell>
+                      
                       <TableCell>
                         {module.isActive ? (
                           <Badge variant="outline" className="bg-green-50 text-green-700">

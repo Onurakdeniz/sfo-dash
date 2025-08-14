@@ -41,20 +41,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { code, name, displayName, description, category, icon, color, isCore, sortOrder, settings, metadata } = await request.json();
+    const { code, name, displayName, description, icon, color, isCore, sortOrder, settings, metadata } = await request.json();
 
-    if (!code || !name || !displayName || !category) {
+    if (!code || !name || !displayName) {
       return NextResponse.json(
-        { error: "Code, name, displayName, and category are required" },
-        { status: 400 }
-      );
-    }
-
-    // Validate category
-    const validCategories = ['core', 'hr', 'finance', 'inventory', 'crm', 'project', 'document', 'reporting', 'integration', 'security', 'settings'];
-    if (!validCategories.includes(category)) {
-      return NextResponse.json(
-        { error: "Invalid category" },
+        { error: "Code, name and displayName are required" },
         { status: 400 }
       );
     }
@@ -78,7 +69,6 @@ export async function POST(request: NextRequest) {
       name,
       displayName,
       description,
-      category,
       icon,
       color,
       isCore: isCore || false,

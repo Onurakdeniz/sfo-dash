@@ -515,7 +515,6 @@ export const modules = pgTable("modules", {
 	name: varchar({ length: 100 }).notNull(),
 	displayName: varchar("display_name", { length: 100 }).notNull(),
 	description: text(),
-	category: varchar({ length: 20 }).notNull(),
 	icon: varchar({ length: 50 }),
 	color: varchar({ length: 20 }),
 	isActive: boolean("is_active").default(true).notNull(),
@@ -528,11 +527,9 @@ export const modules = pgTable("modules", {
 	deletedAt: timestamp("deleted_at", { mode: 'string' }),
 }, (table) => [
 	index("modules_active_idx").using("btree", table.isActive.asc().nullsLast().op("bool_ops")),
-	index("modules_category_idx").using("btree", table.category.asc().nullsLast().op("text_ops")),
 	index("modules_code_idx").using("btree", table.code.asc().nullsLast().op("text_ops")),
 	index("modules_sort_order_idx").using("btree", table.sortOrder.asc().nullsLast().op("int4_ops")),
 	unique("modules_code_unique").on(table.code),
-	check("modules_category_check", sql`(category)::text = ANY ((ARRAY['core'::character varying, 'hr'::character varying, 'finance'::character varying, 'inventory'::character varying, 'crm'::character varying, 'project'::character varying, 'document'::character varying, 'reporting'::character varying, 'integration'::character varying, 'security'::character varying, 'settings'::character varying])::text[])`),
 ]);
 
 export const roles = pgTable("roles", {

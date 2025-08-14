@@ -14,7 +14,6 @@
  * - moduleAccessLog: Track access to sensitive resources
  * 
  * Constants:
- * - MODULE_CATEGORIES: Module categorization for organization
  * - RESOURCE_TYPES: Types of resources (page, api, feature, report)
  * - PERMISSION_ACTIONS: Available permission actions (view, create, edit, delete, execute)
  */
@@ -25,28 +24,14 @@ import { workspace } from "./workspace";
 import { company } from "./company";
 import { user } from "./user";
 
-// Define constants for type safety
-export const MODULE_CATEGORIES = [
-  "core",           // Core system modules
-  "hr",             // Human Resources
-  "finance",        // Financial Management
-  "inventory",      // Inventory & Stock
-  "crm",           // Customer Relationship
-  "project",       // Project Management
-  "document",      // Document Management
-  "reporting",     // Reports & Analytics
-  "integration",   // External Integrations
-  "security",      // Security & Access
-  "settings"       // Configuration & Settings
-] as const;
-
 export const RESOURCE_TYPES = [
   "page",          // UI pages/screens
   "api",           // API endpoints
   "feature",       // Specific features
   "report",        // Reports
   "action",        // Specific actions
-  "widget"         // Dashboard widgets
+  "widget",        // Dashboard widgets
+  "submodule"      // Logical submodule grouping under a module
 ] as const;
 
 const SYSTEM_PERMISSION_ACTIONS = [
@@ -61,8 +46,6 @@ const SYSTEM_PERMISSION_ACTIONS = [
   "manage"         // Full management rights
 ] as const;
 
-// TypeScript types
-export type ModuleCategory = typeof MODULE_CATEGORIES[number];
 export type ResourceType = typeof RESOURCE_TYPES[number];
 export type PermissionAction = typeof SYSTEM_PERMISSION_ACTIONS[number];
 
@@ -104,7 +87,6 @@ export const modules = pgTable("modules", {
   name: varchar("name", { length: 100 }).notNull(),
   displayName: varchar("display_name", { length: 100 }).notNull(),
   description: text("description"),
-  category: varchar("category", { length: 20 }).notNull(),
   icon: varchar("icon", { length: 50 }), // Icon identifier for UI
   color: varchar("color", { length: 20 }), // Theme color for the module
   isActive: boolean("is_active").default(true).notNull(),
@@ -122,10 +104,8 @@ export const modules = pgTable("modules", {
   deletedAt: timestamp("deleted_at"), // Soft delete
 }, (table) => [
   index("modules_code_idx").on(table.code),
-  index("modules_category_idx").on(table.category),
   index("modules_active_idx").on(table.isActive),
   index("modules_sort_order_idx").on(table.sortOrder),
-  check("modules_category_check", sql`category IN ('core', 'hr', 'finance', 'inventory', 'crm', 'project', 'document', 'reporting', 'integration', 'security', 'settings')`),
 ]);
 
 // Module Resources - Specific resources/features within each module
@@ -160,7 +140,7 @@ export const moduleResources: any = pgTable("module_resources", {
   index("module_resources_parent_idx").on(table.parentResourceId),
   index("module_resources_active_idx").on(table.isActive),
   unique("module_resources_module_code_unique").on(table.moduleId, table.code),
-  check("module_resources_type_check", sql`resource_type IN ('page', 'api', 'feature', 'report', 'action', 'widget')`),
+  check("module_resources_type_check", sql`resource_type IN ('page', 'api', 'feature', 'report', 'action', 'widget', 'submodule')`),
 ]);
 
 // Module Permissions - Define what permissions are available for resources
