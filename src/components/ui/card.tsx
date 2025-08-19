@@ -4,16 +4,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const cardVariants = cva(
-  "bg-card/80 backdrop-blur-sm text-card-foreground flex flex-col rounded-2xl border border-border/50 shadow-lg ring-1 ring-black/5 dark:ring-white/10",
+  "bg-card text-card-foreground flex flex-col rounded-2xl border border-border/50 shadow-sm",
   {
     variants: {
       variant: {
         default: "gap-6 py-6",
         subdued: "gap-4 py-4 bg-muted/20 border-muted/50 shadow-sm",
         sectioned: "gap-0 py-0 divide-y divide-border/50",
-        elevated: "gap-6 py-6 shadow-xl shadow-black/10 dark:shadow-black/20",
-        outlined: "gap-6 py-6 border-2 border-border/60 shadow-md",
-        glass: "gap-6 py-6 bg-background/60 backdrop-blur-md border-white/20 shadow-2xl",
+        elevated: "gap-6 py-6 shadow-md",
+        outlined: "gap-6 py-6 border-2 border-border/60",
+        glass: "gap-6 py-6",
       },
       padding: {
         none: "p-0",

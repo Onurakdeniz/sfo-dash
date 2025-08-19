@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, workspaceMember, company } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { workspace, workspaceCompany, workspaceMember, company, modulePermissions } from "@/db/schema";
+import { and, eq, notInArray } from "drizzle-orm";
 
 // DEBUG ENDPOINT - Remove in production
 // This endpoint helps clean up test data during development
@@ -65,6 +65,11 @@ export async function DELETE(request: NextRequest) {
       deletedWorkspaces++;
     }
 
+    // Also cleanup any permissions with actions outside the allowed set
+    const allowed = ['view', 'edit', 'approve', 'manage'];
+    await db.delete(modulePermissions)
+      .where(notInArray(modulePermissions.action, allowed));
+
     return NextResponse.json({
       success: true,
       message: "Cleanup completed",
@@ -74,6 +79,9 @@ export async function DELETE(request: NextRequest) {
         members: deletedMembers,
         workspaceCompanies: deletedWorkspaceCompanies,
       },
+      permissionsCleanup: {
+        removedActionsNotAllowed: true
+      }
     });
   } catch (error) {
     console.error("Error during cleanup:", error);

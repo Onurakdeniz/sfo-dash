@@ -2,26 +2,36 @@
 
 import { useEffect, useState } from 'react';
 
-// Theme type
-type Theme = string;
+// Supported themes
+const SUPPORTED_THEMES = ['default', 'claude'] as const;
+type Theme = (typeof SUPPORTED_THEMES)[number] | string;
 
 // Available themes that require body class changes
 const THEMES_WITH_CLASSES = ['claude'];
 
 export function useThemeConfig() {
-  const [activeTheme, setActiveThemeState] = useState<Theme>('default');
+  const [activeTheme, setActiveThemeState] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = (localStorage.getItem('active-theme') as Theme) || 'default';
+      const normalized = SUPPORTED_THEMES.includes(saved as any) ? (saved as Theme) : 'default';
+      if (normalized !== saved) {
+        localStorage.setItem('active-theme', normalized);
+      }
+      return normalized;
+    }
+    return 'default';
+  });
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    // Set hydrated state and load theme from localStorage
+    // Mark hydrated after mount; initial state already reflects localStorage
     setIsHydrated(true);
-    if (typeof window !== 'undefined') {
-      const savedTheme = (localStorage.getItem('active-theme') as Theme) || 'default';
-      setActiveThemeState(savedTheme);
-    }
   }, []);
 
   useEffect(() => {
+    if (!isHydrated || typeof window === 'undefined') {
+      return;
+    }
     if (typeof window !== 'undefined') {
       // Remove all possible theme classes
       document.body.classList.remove(
@@ -42,10 +52,11 @@ export function useThemeConfig() {
       
       localStorage.setItem('active-theme', activeTheme);
     }
-  }, [activeTheme]);
+  }, [activeTheme, isHydrated]);
 
   const setActiveTheme = (theme: Theme) => {
-    setActiveThemeState(theme);
+    const normalized = SUPPORTED_THEMES.includes(theme as any) ? theme : 'default';
+    setActiveThemeState(normalized);
   };
 
   return {

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company, department, workspaceMember } from "@/db/schema";
-import { eq, count, inArray, and } from "drizzle-orm";
+import { workspace, workspaceCompany, company, department, workspaceMember, companyLocation } from "@/db/schema";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
+import { eq, count, inArray, and, sql } from "drizzle-orm";
 
 export async function GET(
   request: NextRequest,
@@ -121,22 +122,30 @@ export async function GET(
     .where(inArray(department.companyId, companyIds))
     .groupBy(department.companyId) : [];
 
+    // Get location counts for each company (soft-delete aware)
+    const locationCounts = companyIds.length > 0 ? await db.select({
+      companyId: companyLocation.companyId,
+      count: count(),
+    })
+    .from(companyLocation)
+    .where(and(inArray(companyLocation.companyId, companyIds), sql`${companyLocation.deletedAt} IS NULL`))
+    .groupBy(companyLocation.companyId) : [];
+
     // Create a map for quick lookup
     const departmentCountMap = new Map(
       departmentCounts.map(item => [item.companyId, item.count])
+    );
+
+    const locationCountMap = new Map(
+      locationCounts.map(item => [item.companyId, item.count])
     );
 
     const companies = companiesInWorkspace
       .filter(item => item.company !== null)
       .map(item => {
         const company = item.company!;
-        // Generate slug from name (lowercase, replace spaces with hyphens, remove special chars)
-        const slug = company.name
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-          .replace(/\s+/g, '-') // Replace spaces with hyphens
-          .replace(/-+/g, '-') // Replace multiple hyphens with single
-          .trim();
+        // Generate slug from only the first word transliterated to ASCII
+        const slug = slugifyCompanyFirstWord(company.name || '');
         
         return {
           id: company.id,
@@ -153,6 +162,7 @@ export async function GET(
           taxOffice: company.taxOffice,
           employeeCount: null, // Not available in current schema
           departmentCount: departmentCountMap.get(company.id) || 0,
+          locationCount: locationCountMap.get(company.id) || 0,
         };
       });
 

@@ -25,6 +25,7 @@ import {
   CheckCircle
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import SettingsTabs from "../settings-tabs";
 
 interface WorkspaceSettings {
   id: string;
@@ -256,6 +257,7 @@ export default function WorkspaceSettingsPage() {
       <PageWrapper
         title="Workspace Ayarları"
         description={`${workspace.name} çalışma alanı için sistem ayarları`}
+        secondaryNav={<SettingsTabs />}
       >
         {/* Success/Error Alerts */}
         {showSuccessAlert && (

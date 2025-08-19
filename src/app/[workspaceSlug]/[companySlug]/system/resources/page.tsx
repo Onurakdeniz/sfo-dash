@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import SystemScopeTabs from "../system-tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -73,6 +74,7 @@ export default function ResourcesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedModule, setSelectedModule] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -93,6 +95,22 @@ export default function ResourcesPage() {
     metadata: {}
   });
 
+  // Fetch workspace context to list companies for selection
+  const { data: workspaceContext } = useQuery({
+    queryKey: ["workspace-context", params.workspaceSlug, params.companySlug],
+    queryFn: async () => {
+      const response = await fetch(`/api/workspace-context/${params.workspaceSlug}/${params.companySlug}`);
+      if (!response.ok) throw new Error("Failed to fetch workspace context");
+      return response.json();
+    }
+  });
+
+  useEffect(() => {
+    if (!selectedCompanyId && workspaceContext?.currentCompany?.id) {
+      setSelectedCompanyId(workspaceContext.currentCompany.id);
+    }
+  }, [workspaceContext, selectedCompanyId]);
+
   // Fetch modules for dropdown
   const { data: modules = [] } = useQuery({
     queryKey: ["modules"],
@@ -105,9 +123,11 @@ export default function ResourcesPage() {
 
   // Fetch resources
   const { data: resources = [], isLoading } = useQuery({
-    queryKey: ["resources"],
+    queryKey: ["resources", selectedCompanyId],
     queryFn: async () => {
-      const response = await fetch("/api/system/resources");
+      const hasCompanySelected = !!(selectedCompanyId && selectedCompanyId !== 'global');
+      const url = hasCompanySelected ? `/api/system/resources?companyId=${selectedCompanyId}` : "/api/system/resources";
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to fetch resources");
       return response.json();
     }
@@ -193,7 +213,7 @@ export default function ResourcesPage() {
       const response = await fetch(`/api/system/resources/${id}/toggle`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive })
+        body: JSON.stringify({ isActive, companyId: selectedCompanyId && selectedCompanyId !== 'global' ? selectedCompanyId : undefined })
       });
       if (!response.ok) {
         const error = await response.json();
@@ -300,14 +320,28 @@ export default function ResourcesPage() {
   const actions = (
     <>
       <Button
-        variant="outline"
+        variant="shopifySecondary"
         onClick={() => router.push(`/${params.workspaceSlug}/${params.companySlug}/system`)}
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Geri
       </Button>
+      <div className="w-[260px]">
+        <Label htmlFor="companySelect">Şirket</Label>
+        <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+          <SelectTrigger id="companySelect">
+            <SelectValue placeholder="Workspace (Global)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="global">Workspace (Global)</SelectItem>
+            {(workspaceContext?.companies || []).map((c: any) => (
+              <SelectItem key={c.id} value={c.id}>{c.name || c.fullName}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <Button
-        variant="secondary"
+        variant="shopifySecondary"
         onClick={async () => {
           try {
             const res = await fetch('/api/debug/seed/hr', { method: 'POST' });
@@ -325,7 +359,7 @@ export default function ResourcesPage() {
       >
         <Plus className="w-4 h-4 mr-2" /> HR Kaynaklarını Ekle (Dev)
       </Button>
-      <Button onClick={() => setIsCreateDialogOpen(true)}>
+      <Button variant="shopifyPrimary" onClick={() => setIsCreateDialogOpen(true)}>
         <Plus className="w-4 h-4 mr-2" />
         Kaynak Ekle
       </Button>
@@ -338,6 +372,7 @@ export default function ResourcesPage() {
       description="Sistem kaynaklarını ve izinlerini yönetin"
       breadcrumbs={breadcrumbs}
       actions={actions}
+      secondaryNav={<SystemScopeTabs />}
     >
       <div className="space-y-6">
 
@@ -400,6 +435,7 @@ export default function ResourcesPage() {
                 <TableHead>İsim</TableHead>
                 <TableHead>Modül</TableHead>
                 <TableHead>Tür</TableHead>
+                <TableHead>Şirket Etkin</TableHead>
                 <TableHead>Erişim</TableHead>
                 <TableHead>Durum</TableHead>
                 <TableHead>Onay</TableHead>
@@ -420,7 +456,7 @@ export default function ResourcesPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredResources.map((resource: Resource) => (
+                filteredResources.map((resource: any) => (
                   <TableRow key={resource.id}>
                     <TableCell className="font-mono text-sm">{resource.code}</TableCell>
                     <TableCell>
@@ -442,6 +478,15 @@ export default function ResourcesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      {selectedCompanyId ? (
+                        <Badge variant={resource.isEnabledForCompany ? "secondary" : "outline"}>
+                          {resource.isEnabledForCompany ? "Aktif" : "Pasif"}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       {resource.isPublic ? (
                         <div className="flex items-center gap-1">
                           <Globe className="w-4 h-4 text-green-500" />
@@ -456,10 +501,11 @@ export default function ResourcesPage() {
                     </TableCell>
                     <TableCell>
                       <Switch
-                        checked={resource.isActive}
+                        checked={selectedCompanyId ? !!resource.isEnabledForCompany : resource.isActive}
                         onCheckedChange={(checked) => 
                           toggleResourceStatusMutation.mutate({ id: resource.id, isActive: checked })
                         }
+                        disabled={!!selectedCompanyId && resource.resourceType !== 'submodule'}
                       />
                     </TableCell>
                     <TableCell>
@@ -475,15 +521,16 @@ export default function ResourcesPage() {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button
-                          variant="outline"
+                          variant="shopifySecondary"
                           size="icon"
                           onClick={() => handleEdit(resource)}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="shopifyOutline"
                           size="icon"
+                          className="text-red-600 hover:text-red-700 hover:border-red-300 dark:text-red-400 dark:hover:text-red-300"
                           onClick={() => handleDelete(resource)}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -661,7 +708,7 @@ export default function ResourcesPage() {
             <DialogFooter>
               <Button
                 type="button"
-                variant="outline"
+                variant="shopifySecondary"
                 onClick={() => {
                   setIsCreateDialogOpen(false);
                   setIsEditDialogOpen(false);
@@ -671,7 +718,7 @@ export default function ResourcesPage() {
               >
                 İptal
               </Button>
-              <Button type="submit" disabled={createResourceMutation.isPending || updateResourceMutation.isPending}>
+              <Button type="submit" variant="shopifyPrimary" disabled={createResourceMutation.isPending || updateResourceMutation.isPending}>
                 {selectedResource ? "Güncelle" : "Oluştur"} Kaynak
               </Button>
             </DialogFooter>
@@ -691,7 +738,7 @@ export default function ResourcesPage() {
           </DialogHeader>
           <DialogFooter>
             <Button
-              variant="outline"
+              variant="shopifySecondary"
               onClick={() => {
                 setIsDeleteDialogOpen(false);
                 setSelectedResource(null);
@@ -700,7 +747,7 @@ export default function ResourcesPage() {
               İptal
             </Button>
             <Button
-              variant="destructive"
+              variant="shopifyDestructive"
               onClick={() => selectedResource && deleteResourceMutation.mutate(selectedResource.id)}
               disabled={deleteResourceMutation.isPending}
             >

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+// base çalışma saatleri kaldırıldığı için checkbox/switch burada kullanılmıyor
 import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeSelector } from "@/components/ui/theme-selector";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -23,11 +23,16 @@ import {
   Info,
   AlertCircle,
   CheckCircle,
-  Building2
+  Building2,
+  Calendar as CalendarIcon,
+  Clock,
+  ChevronRight
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import SettingsTabs from "./settings-tabs";
 import Link from "next/link";
 import { RoleGuard } from "@/components/layouts/role-guard";
+// takvim oluşturma modalı kaldırıldı; ayrı sayfa kullanılıyor
 
 interface WorkspaceSettings {
   id: string;
@@ -42,6 +47,17 @@ interface WorkspaceSettings {
   publicHolidays: { date: string; name?: string }[];
   customSettings: Record<string, any>;
 }
+
+type TimeRange = { start: string; end: string };
+type DaySchedule = { isWorkingDay: boolean; workIntervals: TimeRange[]; breaks: TimeRange[] };
+type WorkCalendar = {
+  id: string;
+  name: string;
+  description?: string;
+  days: Record<string, DaySchedule>;
+  createdAt: string;
+  updatedAt: string;
+};
 
 interface WorkspaceContextData {
   workspace: { id: string; name: string; slug: string };
@@ -95,6 +111,7 @@ function SettingsPageContent() {
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [showErrorAlert, setShowErrorAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  // takvim oluşturma ayrı sayfada yapılır
 
   // Get workspace and company context
   const { data: contextData, isLoading: contextLoading } = useQuery<WorkspaceContextData>({
@@ -159,7 +176,13 @@ function SettingsPageContent() {
         workingHoursStart: workspaceSettings.workingHoursStart || '',
         workingHoursEnd: workspaceSettings.workingHoursEnd || '',
         workingDays: Array.isArray(workspaceSettings.workingDays) ? workspaceSettings.workingDays : [],
-        publicHolidays: Array.isArray(workspaceSettings.publicHolidays) ? workspaceSettings.publicHolidays : []
+        publicHolidays: Array.isArray(workspaceSettings.publicHolidays) ? workspaceSettings.publicHolidays : [],
+        customSettings: {
+          ...(workspaceSettings.customSettings || {}),
+          workCalendars: Array.isArray(workspaceSettings.customSettings?.workCalendars)
+            ? workspaceSettings.customSettings.workCalendars
+            : []
+        }
       });
     }
   }, [workspaceSettings]);
@@ -227,6 +250,8 @@ function SettingsPageContent() {
     setWorkspaceForm(prev => ({ ...prev, publicHolidays: newHolidays }));
   };
 
+  // modal ile takvim oluşturma kaldırıldı
+
   // Show loading state if workspace is still loading
   if (contextLoading) {
     return (
@@ -285,6 +310,7 @@ function SettingsPageContent() {
         title="Workspace Ayarları"
         description={`${workspace.name} çalışma alanı için sistem ayarları`}
         actions={actions}
+        secondaryNav={<SettingsTabs />}
       >
         {/* Success/Error Alerts */}
         {showSuccessAlert && (
@@ -425,103 +451,103 @@ function SettingsPageContent() {
                       </div>
                     </div>
 
-                    {/* Working Hours Section */}
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-semibold">Çalışma Saatleri</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label htmlFor="workingHoursStart">Başlangıç Saati</Label>
-                          <Input
-                            id="workingHoursStart"
-                            type="time"
-                            value={workspaceForm.workingHoursStart || ''}
-                            onChange={(e) => setWorkspaceForm(prev => ({ ...prev, workingHoursStart: e.target.value }))}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="workingHoursEnd">Bitiş Saati</Label>
-                          <Input
-                            id="workingHoursEnd"
-                            type="time"
-                            value={workspaceForm.workingHoursEnd || ''}
-                            onChange={(e) => setWorkspaceForm(prev => ({ ...prev, workingHoursEnd: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Working Days */}
-                    <div className="space-y-4">
-                      <Label>Çalışma Günleri</Label>
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                        {DAYS_OF_WEEK.map(day => (
-                          <div key={day.value} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`workspace-${day.value}`}
-                              checked={workspaceForm.workingDays?.includes(day.value) || false}
-                              onCheckedChange={(checked) => handleWorkingDayChange(day.value, checked as boolean)}
-                            />
-                            <Label htmlFor={`workspace-${day.value}`} className="text-sm">
-                              {day.label}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Holidays */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label>Özel Tatiller</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addHoliday()}
-                          disabled={workspaceSettingsLoading || !workspaceSettings}
-                        >
-                          <Plus className="h-4 w-4 mr-2" />
-                          Tatil Ekle
-                        </Button>
-                      </div>
-                      <div className="space-y-4">
-                        {(workspaceForm.publicHolidays || []).map((holiday, index) => (
-                          <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`workspace-holiday-date-${index}`}>Tarih</Label>
-                                <Input
-                                  id={`workspace-holiday-date-${index}`}
-                                  type="date"
-                                  value={holiday.date}
-                                  onChange={(e) => updateHoliday(index, 'date', e.target.value)}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`workspace-holiday-name-${index}`}>Tatil Adı</Label>
-                                <Input
-                                  id={`workspace-holiday-name-${index}`}
-                                  placeholder="Örn: Kurban Bayramı"
-                                  value={holiday.name || ''}
-                                  onChange={(e) => updateHoliday(index, 'name', e.target.value)}
-                                />
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeHoliday(index)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    {/* Çalışma saatleri ve günleri takvimlerle yönetiliyor */}
+                    {/* Özel Tatiller bölümü aşağıya taşındı */}
                   </>
                 )}
               </form>
+            </CardContent>
+          </Card>
+
+          {/* Work Calendars Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5" />
+                Çalışma Takvimi
+              </CardTitle>
+              <CardDescription>
+                Gün bazında mesai ve mola saatlerini içeren bir veya birden fazla takvim tanımlayın
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-sm text-muted-foreground">
+                  {Array.isArray(workspaceForm.customSettings?.workCalendars) && workspaceForm.customSettings.workCalendars.length > 0
+                    ? `${workspaceForm.customSettings.workCalendars.length} takvim`
+                    : 'Henüz takvim oluşturulmadı'}
+                        </div>
+                <Link href={`/${workspaceSlug}/${companySlug}/settings/workspace/calendars/new`}>
+                  <Button type="button">
+                    <Plus className="h-4 w-4 mr-2" /> Yeni Takvim
+                  </Button>
+                </Link>
+                    </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {(workspaceForm.customSettings?.workCalendars || []).map((cal: WorkCalendar) => {
+                  const activeDays = Object.entries(cal.days)
+                    .filter(([_, d]) => d.isWorkingDay)
+                    .map(([k]) => DAYS_OF_WEEK.find(dw => dw.value === k)?.label || k)
+                    .join(', ');
+                  return (
+                    <div key={cal.id} className="p-4 border rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="font-medium">{cal.name || 'İsimsiz Takvim'}</div>
+                          {cal.description && (
+                            <div className="text-sm text-muted-foreground mt-1">{cal.description}</div>
+                          )}
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>{activeDays || 'Çalışma günü tanımlı değil'}</span>
+                          </div>
+                        </div>
+                        <Link href={`/${workspaceSlug}/${companySlug}/settings/workspace/calendars/${cal.id}`} className="inline-flex items-center text-sm">
+                          Detaylar <ChevronRight className="h-4 w-4 ml-1" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Özel Tatiller - takvimlerden sonra */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">Özel Tatiller</CardTitle>
+              <CardDescription>Resmi olmayan, workspace'e özel tatilleri ekleyin</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-muted-foreground"></div>
+                <Button type="button" variant="outline" size="sm" onClick={() => addHoliday()} disabled={workspaceSettingsLoading || !workspaceSettings}>
+                  <Plus className="h-4 w-4 mr-2" /> Tatil Ekle
+                        </Button>
+                      </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(workspaceForm.publicHolidays || []).map((holiday, index) => (
+                  <div key={index} className="p-4 rounded-lg border">
+                    <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor={`workspace-holiday-date-${index}`}>Tarih</Label>
+                          <Input id={`workspace-holiday-date-${index}`} type="date" value={holiday.date} onChange={(e) => updateHoliday(index, 'date', e.target.value)} />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`workspace-holiday-name-${index}`}>Tatil Adı</Label>
+                          <Input id={`workspace-holiday-name-${index}`} placeholder="Örn: Kurban Bayramı" value={holiday.name || ''} onChange={(e) => updateHoliday(index, 'name', e.target.value)} />
+                              </div>
+                            </div>
+                      <Button type="button" variant="outline" size="icon" onClick={() => removeHoliday(index)} className="shrink-0" aria-label="Sil">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                    </div>
+                          </div>
+                        ))}
+                      </div>
             </CardContent>
           </Card>
 

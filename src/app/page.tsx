@@ -7,6 +7,7 @@ import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   const { data: session, isPending } = useSession();
@@ -240,12 +241,9 @@ export default function HomePage() {
             </Alert>
             
             <div className="mt-4 text-center">
-              <button 
-                onClick={() => window.location.reload()}
-                className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors duration-200"
-              >
+              <Button onClick={() => window.location.reload()} className="w-full">
                 Sayfayı Yenile
-              </button>
+              </Button>
             </div>
           </CardContent>
         </Card>

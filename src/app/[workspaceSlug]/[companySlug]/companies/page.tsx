@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageWrapper } from "@/components/page-wrapper";
 import { toast } from "sonner";
 import { RoleGuard } from "@/components/layouts/role-guard";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // API calls will be made using fetch to local endpoints
 
@@ -37,6 +38,7 @@ interface Company {
   taxOffice?: string;
   employeeCount?: number;
   departmentCount?: number;
+  locationCount?: number;
 }
 
 interface Workspace {
@@ -114,7 +116,12 @@ function CompaniesPageContent() {
         credentials: 'include'
       });
       if (!res.ok) {
-        throw new Error('Failed to delete company');
+        let message = 'Failed to delete company';
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {}
+        throw new Error(message);
       }
     },
     onSuccess: () => {
@@ -123,8 +130,8 @@ function CompaniesPageContent() {
       setSelectedCompany(null);
       toast.success('Şirket başarıyla silindi');
     },
-    onError: (error) => {
-      toast.error('Şirket silme başarısız');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Şirket silme başarısız');
       console.error('Delete company error:', error);
     },
   });
@@ -183,24 +190,27 @@ function CompaniesPageContent() {
     <PageWrapper
       title="Şirketler"
       description={`${workspace.name} çalışma alanındaki şirketleri yönetin`}
-      actions={
-        <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
-          <Button variant="action" size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Şirket Ekle
-          </Button>
-        </Link>
-      }
+      className="p-0"
     >
       <div className="space-y-6">
 
       {/* Companies Table */}
-      <Card className="shadow-sm border-border/60">
+      <Card className="shadow-none border-0 ring-0">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Şirket Listesi</CardTitle>
-          <CardDescription>
-            {companies.length > 0 ? `${companies.length} şirket bulundu` : 'Henüz şirket eklenmemiş'}
-          </CardDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg font-semibold">Şirket Listesi</CardTitle>
+              <CardDescription>
+                {companies.length > 0 ? `${companies.length} şirket bulundu` : 'Henüz şirket eklenmemiş'}
+              </CardDescription>
+            </div>
+            <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
+              <Button variant="shopifyPrimary" size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                Şirket Ekle
+              </Button>
+            </Link>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoadingCompanies ? (
@@ -221,7 +231,7 @@ function CompaniesPageContent() {
                 Bu çalışma alanında henüz şirket eklenmemiş. İlk şirketinizi ekleyerek başlayın.
               </p>
               <Link href={`/${workspaceSlug}/${companySlug}/companies/add`}>
-                <Button size="lg">
+                <Button variant="shopifyPrimary" size="lg">
                   <Plus className="mr-2 h-4 w-4" />
                   İlk Şirketinizi Ekleyin
                 </Button>
@@ -236,7 +246,7 @@ function CompaniesPageContent() {
                     <TableHead>Vergi Bilgileri</TableHead>
                     <TableHead>Sektör</TableHead>
                     <TableHead>Departmanlar</TableHead>
-                    <TableHead>Çalışan Sayısı</TableHead>
+                    <TableHead>Lokasyonlar</TableHead>
                     <TableHead>Durum</TableHead>
                     <TableHead className="text-right">Oluşturma Tarihi</TableHead>
                   </TableRow>
@@ -274,15 +284,11 @@ function CompaniesPageContent() {
                         <span className="text-sm">{company.departmentCount || 0} departman</span>
                       </TableCell>
                       <TableCell className="py-6">
-                        <span className="text-sm">
-                          {company.employeeCount 
-                            ? `${company.employeeCount} çalışan`
-                            : company.size 
-                            ? `${company.size} çalışan`
-                            : 'Belirsiz'
-                          }
-                        </span>
+                        <Link href={`/${workspaceSlug}/${companySlug}/companies/${company.id}/locations`} className="text-sm hover:underline">
+                          {(company.locationCount || 0)} lokasyon
+                        </Link>
                       </TableCell>
+                      
                       <TableCell className="py-6">
                         <Badge 
                           variant={company.isActive ? "default" : "secondary"}
@@ -301,7 +307,7 @@ function CompaniesPageContent() {
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <Button variant="shopifyOutline" size="icon-sm" className="h-8 w-8">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -343,7 +349,7 @@ function CompaniesPageContent() {
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Şirket Detayları</DialogTitle>
+            <DialogTitle>Şirket</DialogTitle>
           </DialogHeader>
           {selectedCompany && (
             <div className="space-y-6">
@@ -385,7 +391,7 @@ function CompaniesPageContent() {
         </div>
       )}
           <DialogFooter>
-            <Button onClick={() => setShowDetailModal(false)}>Kapat</Button>
+            <Button variant="shopifySecondary" onClick={() => setShowDetailModal(false)}>Kapat</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -401,19 +407,23 @@ function CompaniesPageContent() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setSelectedCompany(null)}>
-              İptal
+            <AlertDialogCancel asChild>
+              <Button variant="shopifySecondary" onClick={() => setSelectedCompany(null)}>
+                İptal
+              </Button>
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (selectedCompany) {
-                  deleteCompany.mutate(selectedCompany.id);
-                }
-              }}
-              disabled={deleteCompany.isPending}
-              className="bg-destructive text-white hover:bg-destructive/90 hover:text-white focus:text-white"
-            >
-              {deleteCompany.isPending ? 'Siliniyor...' : 'Sil'}
+            <AlertDialogAction asChild>
+              <Button
+                variant="shopifyDestructive"
+                onClick={() => {
+                  if (selectedCompany) {
+                    deleteCompany.mutate(selectedCompany.id);
+                  }
+                }}
+                disabled={deleteCompany.isPending}
+              >
+                {deleteCompany.isPending ? 'Siliniyor...' : 'Sil'}
+              </Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

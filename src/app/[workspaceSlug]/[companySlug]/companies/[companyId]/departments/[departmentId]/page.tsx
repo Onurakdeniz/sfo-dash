@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building, Edit3, Trash2, Loader2, Plus, Building2, User, Mail, Target, Code, Users } from "lucide-react";
+import { ArrowLeft, Building, Edit3, Trash2, Loader2, Plus, Building2, User, Mail, Target, Code, Users, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageWrapper } from "@/components/page-wrapper";
 import { toast } from "sonner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Department {
   id: string;
   companyId: string;
   parentDepartmentId?: string;
+  locationId?: string;
   code?: string;
   name: string;
   description?: string;
@@ -48,6 +50,7 @@ interface Department {
 interface Unit {
   id: string;
   name: string;
+  code?: string;
   description?: string;
   staffCount: number;
   leadId?: string;
@@ -77,12 +80,14 @@ interface UpdateDepartmentData {
   };
   managerId?: string;
   parentDepartmentId?: string;
+  locationId?: string;
   mailAddress?: string;
   notes?: string;
 }
 
 interface CreateUnitData {
   name: string;
+  code?: string;
   description?: string;
   staffCount?: number;
   leadId?: string;
@@ -90,6 +95,7 @@ interface CreateUnitData {
 
 interface UpdateUnitData {
   name?: string;
+  code?: string;
   description?: string;
   staffCount?: number;
   leadId?: string;
@@ -111,7 +117,7 @@ export default function DepartmentDetailsPage() {
   const [showDeleteUnitDialog, setShowDeleteUnitDialog] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [formData, setFormData] = useState<UpdateDepartmentData>({});
-  const [unitFormData, setUnitFormData] = useState<CreateUnitData>({ name: '', staffCount: 0 });
+  const [unitFormData, setUnitFormData] = useState<CreateUnitData>({ name: '', code: '', staffCount: 0 });
   const [editUnitFormData, setEditUnitFormData] = useState<UpdateUnitData>({});
 
   // Fetch all workspaces and find by slug
@@ -215,6 +221,23 @@ export default function DepartmentDetailsPage() {
     enabled: !!workspace?.id,
   });
 
+  // Fetch locations for optional location assignment
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations', workspace?.id, companyId],
+    queryFn: async () => {
+      if (!workspace?.id) return [];
+      try {
+        const res = await fetch(`/api/workspaces/${workspace.id}/companies/${companyId}/locations`, { credentials: 'include' });
+        if (!res.ok) return [];
+        return res.json();
+      } catch (error) {
+        console.error('Error fetching locations:', error);
+        return [];
+      }
+    },
+    enabled: !!workspace?.id && !!companyId,
+  });
+
   // Fetch other departments for parent selection
   const { data: allDepartments = [] } = useQuery({
     queryKey: ['all-departments', workspace?.id, companyId],
@@ -273,7 +296,12 @@ export default function DepartmentDetailsPage() {
         credentials: 'include'
       });
       if (!res.ok) {
-        throw new Error('Failed to delete department');
+        let message = 'Failed to delete department';
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {}
+        throw new Error(message);
       }
     },
     onSuccess: () => {
@@ -281,8 +309,8 @@ export default function DepartmentDetailsPage() {
       toast.success('Departman başarıyla silindi');
       router.push(`/${workspaceSlug}/${companySlug}/companies/${companyId}`);
     },
-    onError: (error) => {
-      toast.error('Departman silme başarısız');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Departman silme başarısız');
       console.error('Delete department error:', error);
     },
   });
@@ -308,7 +336,7 @@ export default function DepartmentDetailsPage() {
       queryClient.invalidateQueries({ queryKey: ['units', workspace?.id, companyId, departmentId] });
       queryClient.invalidateQueries({ queryKey: ['department', workspace?.id, companyId, departmentId] });
       setShowCreateUnitModal(false);
-      setUnitFormData({ name: '', staffCount: 0 });
+      setUnitFormData({ name: '', code: '', staffCount: 0 });
       toast.success('Birim başarıyla oluşturuldu');
     },
     onError: (error) => {
@@ -357,7 +385,12 @@ export default function DepartmentDetailsPage() {
         credentials: 'include'
       });
       if (!res.ok) {
-        throw new Error('Failed to delete unit');
+        let message = 'Failed to delete unit';
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {}
+        throw new Error(message);
       }
     },
     onSuccess: () => {
@@ -367,8 +400,8 @@ export default function DepartmentDetailsPage() {
       setSelectedUnit(null);
       toast.success('Birim başarıyla silindi');
     },
-    onError: (error) => {
-      toast.error('Birim silme başarısız');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Birim silme başarısız');
       console.error('Delete unit error:', error);
     },
   });
@@ -387,6 +420,7 @@ export default function DepartmentDetailsPage() {
         },
         managerId: department.managerId || '',
         parentDepartmentId: department.parentDepartmentId || '',
+        locationId: department.locationId || '',
         mailAddress: department.mailAddress || '',
         notes: department.notes || ''
       });
@@ -417,6 +451,7 @@ export default function DepartmentDetailsPage() {
       },
       managerId: formData.managerId || undefined,
       parentDepartmentId: formData.parentDepartmentId || undefined,
+      locationId: formData.locationId || undefined,
       mailAddress: formData.mailAddress?.trim() || undefined,
       notes: formData.notes?.trim() || undefined,
     };
@@ -439,6 +474,7 @@ export default function DepartmentDetailsPage() {
 
     const createData: CreateUnitData = {
       name: unitFormData.name.trim(),
+      code: unitFormData.code?.trim() || undefined,
       description: unitFormData.description?.trim() || undefined,
       staffCount: unitFormData.staffCount || 0,
       leadId: unitFormData.leadId || undefined,
@@ -451,6 +487,7 @@ export default function DepartmentDetailsPage() {
     setSelectedUnit(unit);
     setEditUnitFormData({
       name: unit.name,
+      code: unit.code || '',
       description: unit.description || '',
       staffCount: unit.staffCount,
       leadId: unit.leadId || '',
@@ -466,6 +503,7 @@ export default function DepartmentDetailsPage() {
 
     const updateData: UpdateUnitData = {
       name: editUnitFormData.name?.trim(),
+      code: editUnitFormData.code?.trim() || undefined,
       description: editUnitFormData.description?.trim() || undefined,
       staffCount: editUnitFormData.staffCount || 0,
       leadId: editUnitFormData.leadId || undefined,
@@ -605,7 +643,7 @@ export default function DepartmentDetailsPage() {
       description="Departman detayları ve birim yönetimi"
       breadcrumbs={breadcrumbs}
       actions={
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {!isEditing ? (
             <>
               <Button onClick={handleEdit} variant="outline">
@@ -702,49 +740,7 @@ export default function DepartmentDetailsPage() {
               </CardContent>
             </Card>
 
-            {/* Goals Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Hedefler</CardTitle>
-                <CardDescription>
-                  Departmanın kısa, orta ve uzun vadeli hedeflerini belirleyin.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="short-term-goals">Kısa Vadeli Hedefler</Label>
-                  <Textarea
-                    id="short-term-goals"
-                    value={formData.goals?.shortTerm || ''}
-                    onChange={(e) => handleGoalChange('shortTerm', e.target.value)}
-                    placeholder="Bu yıl içinde gerçekleştirilmesi hedeflenen amaçlar"
-                    rows={3}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="medium-term-goals">Orta Vadeli Hedefler</Label>
-                  <Textarea
-                    id="medium-term-goals"
-                    value={formData.goals?.mediumTerm || ''}
-                    onChange={(e) => handleGoalChange('mediumTerm', e.target.value)}
-                    placeholder="1-3 yıl içinde ulaşılması hedeflenen amaçlar"
-                    rows={3}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="long-term-goals">Uzun Vadeli Hedefler</Label>
-                  <Textarea
-                    id="long-term-goals"
-                    value={formData.goals?.longTerm || ''}
-                    onChange={(e) => handleGoalChange('longTerm', e.target.value)}
-                    placeholder="3+ yıl içinde gerçekleştirilmesi hedeflenen stratejik amaçlar"
-                    rows={3}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            
 
             {/* Management & Communication Section */}
             <Card>
@@ -796,6 +792,28 @@ export default function DepartmentDetailsPage() {
                     </Select>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Bağlı Lokasyon</Label>
+                    <Select
+                      value={formData.locationId || 'none'}
+                      onValueChange={(value) => handleInputChange('locationId', value === 'none' ? '' : value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Lokasyon seçin (opsiyonel)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Lokasyon yok</SelectItem>
+                        {locations.map((loc: any) => (
+                          <SelectItem key={loc.id} value={loc.id}>
+                            {loc.name} {loc.isHeadquarters ? '(Merkez)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
                 
                 <div className="space-y-2">
                   <Label htmlFor="mail-address">Departman E-posta Adresi</Label>
@@ -820,6 +838,62 @@ export default function DepartmentDetailsPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Goals Section - collapsible and less prominent (after management) */}
+            <Collapsible defaultOpen={false}>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Hedefler</CardTitle>
+                    <CardDescription>
+                      Departmanın kısa, orta ve uzun vadeli hedeflerini belirleyin.
+                    </CardDescription>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm" className="gap-1">
+                      Aç/Kapat
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="short-term-goals">Kısa Vadeli Hedefler</Label>
+                      <Textarea
+                        id="short-term-goals"
+                        value={formData.goals?.shortTerm || ''}
+                        onChange={(e) => handleGoalChange('shortTerm', e.target.value)}
+                        placeholder="Bu yıl içinde gerçekleştirilmesi hedeflenen amaçlar"
+                        rows={3}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="medium-term-goals">Orta Vadeli Hedefler</Label>
+                      <Textarea
+                        id="medium-term-goals"
+                        value={formData.goals?.mediumTerm || ''}
+                        onChange={(e) => handleGoalChange('mediumTerm', e.target.value)}
+                        placeholder="1-3 yıl içinde ulaşılması hedeflenen amaçlar"
+                        rows={3}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="long-term-goals">Uzun Vadeli Hedefler</Label>
+                      <Textarea
+                        id="long-term-goals"
+                        value={formData.goals?.longTerm || ''}
+                        onChange={(e) => handleGoalChange('longTerm', e.target.value)}
+                        placeholder="3+ yıl içinde gerçekleştirilmesi hedeflenen stratejik amaçlar"
+                        rows={3}
+                      />
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           </div>
         ) : (
           <Card>
@@ -864,6 +938,16 @@ export default function DepartmentDetailsPage() {
                     </div>
                   </div>
 
+                  {department.locationId && (
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Bağlı Lokasyon</Label>
+                      <div className="flex items-center gap-2 p-3 bg-muted/20 rounded-lg">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{locations.find((l: any) => l.id === department.locationId)?.name || department.locationId}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {department.description && (
                     <div className="space-y-2">
                       <Label className="text-muted-foreground">Açıklama</Label>
@@ -872,43 +956,14 @@ export default function DepartmentDetailsPage() {
                   )}
 
                   {department.responsibilityArea && (
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Sorumluluk Alanı</Label>
-                      <p className="text-sm whitespace-pre-wrap bg-purple-50 p-3 rounded-lg border border-purple-200">{department.responsibilityArea}</p>
-                    </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Sorumluluk Alanı</Label>
+                    <p className="text-sm whitespace-pre-wrap bg-muted/20 p-3 rounded-lg">{department.responsibilityArea}</p>
+                  </div>
                   )}
                 </div>
 
-                {/* Goals Section */}
-                {(department.goals?.shortTerm || department.goals?.mediumTerm || department.goals?.longTerm) && (
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Target className="h-5 w-5 text-green-600" />
-                      <h4 className="text-lg font-semibold">Hedefler</h4>
-                    </div>
-                    
-                    <div className="grid gap-4">
-                      {department.goals?.shortTerm && (
-                        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                          <h5 className="font-semibold text-green-800 mb-2">Kısa Vadeli Hedefler</h5>
-                          <p className="text-sm text-green-700 whitespace-pre-wrap">{department.goals.shortTerm}</p>
-                        </div>
-                      )}
-                      {department.goals?.mediumTerm && (
-                        <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                          <h5 className="font-semibold text-yellow-800 mb-2">Orta Vadeli Hedefler</h5>
-                          <p className="text-sm text-yellow-700 whitespace-pre-wrap">{department.goals.mediumTerm}</p>
-                        </div>
-                      )}
-                      {department.goals?.longTerm && (
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <h5 className="font-semibold text-blue-800 mb-2">Uzun Vadeli Hedefler</h5>
-                          <p className="text-sm text-blue-700 whitespace-pre-wrap">{department.goals.longTerm}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {/* Management & Contact first, Goals after and collapsible */}
 
                 {/* Management & Contact */}
                 <div className="space-y-6">
@@ -921,14 +976,14 @@ export default function DepartmentDetailsPage() {
                     <div className="space-y-2">
                       <Label className="text-muted-foreground">Departman Yöneticisi</Label>
                       {department.managerName ? (
-                        <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                          <div className="p-2 bg-green-100 rounded-full">
-                            <User className="h-4 w-4 text-green-600" />
+                        <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-lg">
+                          <div className="p-2 bg-muted rounded-full">
+                            <User className="h-4 w-4 text-muted-foreground" />
                           </div>
                           <div>
-                            <p className="font-medium text-green-800">{department.managerName}</p>
+                            <p className="font-medium">{department.managerName}</p>
                             {department.managerEmail && (
-                              <p className="text-sm text-green-600">{department.managerEmail}</p>
+                              <p className="text-sm text-muted-foreground">{department.managerEmail}</p>
                             )}
                           </div>
                         </div>
@@ -940,11 +995,11 @@ export default function DepartmentDetailsPage() {
                     <div className="space-y-2">
                       <Label className="text-muted-foreground">Departman E-posta</Label>
                       {department.mailAddress ? (
-                        <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-lg border border-orange-200">
-                          <div className="p-2 bg-orange-100 rounded-full">
-                            <Mail className="h-4 w-4 text-orange-600" />
+                        <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-lg">
+                          <div className="p-2 bg-muted rounded-full">
+                            <Mail className="h-4 w-4 text-muted-foreground" />
                           </div>
-                          <p className="font-medium text-orange-800">{department.mailAddress}</p>
+                          <p className="font-medium">{department.mailAddress}</p>
                         </div>
                       ) : (
                         <p className="text-sm text-muted-foreground p-3 bg-muted/20 rounded-lg">E-posta adresi yok</p>
@@ -960,8 +1015,50 @@ export default function DepartmentDetailsPage() {
                   )}
                 </div>
 
+                {/* Goals Section - collapsed by default and placed after management */}
+                {(department.goals?.shortTerm || department.goals?.mediumTerm || department.goals?.longTerm) && (
+                  <Collapsible defaultOpen={false}>
+                    <div className="space-y-6">
+                      <div className="flex items-center gap-2 mb-4 justify-between">
+                        <div className="flex items-center gap-2">
+                          <Target className="h-5 w-5 text-green-600" />
+                          <h4 className="text-lg font-semibold">Hedefler</h4>
+                        </div>
+                        <CollapsibleTrigger asChild>
+                          <Button type="button" variant="ghost" size="sm" className="gap-1">
+                            Aç/Kapat
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </CollapsibleTrigger>
+                      </div>
+                      <CollapsibleContent>
+                        <div className="grid gap-4">
+                          {department.goals?.shortTerm && (
+                            <div className="p-4 bg-muted/20 rounded-lg">
+                              <h5 className="font-semibold mb-2">Kısa Vadeli Hedefler</h5>
+                              <p className="text-sm whitespace-pre-wrap">{department.goals.shortTerm}</p>
+                            </div>
+                          )}
+                          {department.goals?.mediumTerm && (
+                            <div className="p-4 bg-muted/20 rounded-lg">
+                              <h5 className="font-semibold mb-2">Orta Vadeli Hedefler</h5>
+                              <p className="text-sm whitespace-pre-wrap">{department.goals.mediumTerm}</p>
+                            </div>
+                          )}
+                          {department.goals?.longTerm && (
+                            <div className="p-4 bg-muted/20 rounded-lg">
+                              <h5 className="font-semibold mb-2">Uzun Vadeli Hedefler</h5>
+                              <p className="text-sm whitespace-pre-wrap">{department.goals.longTerm}</p>
+                            </div>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                )}
+
                 {/* Timestamps */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">Oluşturulma Tarihi</Label>
                     <p className="text-sm">{new Date(department.createdAt).toLocaleDateString('tr-TR', {
@@ -1035,67 +1132,69 @@ export default function DepartmentDetailsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Birim Adı</TableHead>
+                    <TableHead>Birim Kodu</TableHead>
                     <TableHead>Açıklama</TableHead>
-                    <TableHead>Personel Sayısı</TableHead>
+                    <TableHead>Kapasite (Personel)</TableHead>
                     <TableHead>Birim Lideri</TableHead>
                     <TableHead>Oluşturma Tarihi</TableHead>
                     <TableHead className="text-right">İşlemler</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {units.map((unit: Unit) => (
-                    <TableRow key={unit.id}>
-                      <TableCell className="font-medium">{unit.name}</TableCell>
-                      <TableCell className="max-w-xs truncate">{unit.description || 'Açıklama yok'}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="flex items-center gap-1 w-fit">
-                          <Users className="h-3 w-3" />
-                          {unit.staffCount}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {unit.leadName ? (
-                          <div className="flex items-center gap-2">
-                            <div className="p-1 bg-green-100 rounded-full">
-                              <User className="h-3 w-3 text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">{unit.leadName}</p>
-                              {unit.leadEmail && (
-                                <p className="text-xs text-muted-foreground">{unit.leadEmail}</p>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">Lider atanmamış</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(unit.createdAt).toLocaleDateString('tr-TR')}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleEditUnit(unit)}
-                          >
-                            <Edit3 className="h-3 w-3 mr-1" />
-                            Düzenle
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => handleDeleteUnit(unit)}
-                          >
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Sil
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+          {units.map((unitItem: Unit) => (
+            <TableRow key={unitItem.id}>
+              <TableCell className="font-medium">{unitItem.name}</TableCell>
+              <TableCell className="max-w-[120px] truncate">{unitItem.code || '-'}</TableCell>
+              <TableCell className="max-w-xs truncate">{unitItem.description || 'Açıklama yok'}</TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-sm">{unitItem.staffCount}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                {unitItem.leadName ? (
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-green-100 rounded-full">
+                      <User className="h-3 w-3 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{unitItem.leadName}</p>
+                      {unitItem.leadEmail && (
+                        <p className="text-xs text-muted-foreground">{unitItem.leadEmail}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Lider atanmamış</span>
+                )}
+              </TableCell>
+              <TableCell>
+                {new Date(unitItem.createdAt).toLocaleDateString('tr-TR')}
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleEditUnit(unitItem)}
+                  >
+                    <Edit3 className="h-3 w-3 mr-1" />
+                    Düzenle
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => handleDeleteUnit(unitItem)}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Sil
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
                 </TableBody>
               </Table>
             )}
@@ -1124,6 +1223,15 @@ export default function DepartmentDetailsPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="unit-code">Birim Kodu</Label>
+              <Input
+                id="unit-code"
+                value={unitFormData.code || ''}
+                onChange={(e) => handleUnitInputChange('code', e.target.value)}
+                placeholder="Örn: HR-REC, IT-NET"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="unit-description">Açıklama</Label>
               <Textarea
                 id="unit-description"
@@ -1135,7 +1243,7 @@ export default function DepartmentDetailsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="unit-staff-count">Personel Sayısı</Label>
+                <Label htmlFor="unit-staff-count">Kapasite (Personel)</Label>
                 <Input
                   id="unit-staff-count"
                   type="number"
@@ -1171,7 +1279,7 @@ export default function DepartmentDetailsPage() {
               variant="outline" 
               onClick={() => {
                 setShowCreateUnitModal(false);
-                setUnitFormData({ name: '', staffCount: 0 });
+                setUnitFormData({ name: '', code: '', staffCount: 0 });
               }}
             >
               İptal
@@ -1214,6 +1322,15 @@ export default function DepartmentDetailsPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="edit-unit-code">Birim Kodu</Label>
+              <Input
+                id="edit-unit-code"
+                value={editUnitFormData.code || ''}
+                onChange={(e) => handleEditUnitInputChange('code', e.target.value)}
+                placeholder="Örn: HR-REC, IT-NET"
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="edit-unit-description">Açıklama</Label>
               <Textarea
                 id="edit-unit-description"
@@ -1225,7 +1342,7 @@ export default function DepartmentDetailsPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-unit-staff-count">Personel Sayısı</Label>
+                <Label htmlFor="edit-unit-staff-count">Kapasite (Personel)</Label>
                 <Input
                   id="edit-unit-staff-count"
                   type="number"

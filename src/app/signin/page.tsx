@@ -297,17 +297,20 @@ export default function SignInPage() {
                                         onChange={handlePasswordChange}
                                         className={`h-11 pr-10 ${errors.password ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                                     />
-                                    <button
+                                    <Button
                                         type="button"
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 h-8 w-8"
+                                        aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
                                     >
                                         {showPassword ? (
                                             <EyeOff className="h-4 w-4" />
                                         ) : (
                                             <Eye className="h-4 w-4" />
                                         )}
-                                    </button>
+                                    </Button>
                                 </div>
                                 {errors.password && (
                                     <p className="text-sm text-red-600 flex items-center gap-1">

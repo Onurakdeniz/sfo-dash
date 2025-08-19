@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { workspace, workspaceCompany, company, workspaceMember } from "@/db/schema";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
@@ -127,20 +128,10 @@ export async function POST(request: NextRequest) {
       const companyData = companyRecord;
       
       if (companyData) {
-        // Create company slug from name
-        const createSlug = (name: string) => {
-          return name
-            .toLowerCase()
-            .replace(/[^\w\s-]/g, '') // Remove special characters
-            .replace(/\s+/g, '-') // Replace spaces with hyphens
-            .replace(/-+/g, '-') // Replace multiple hyphens with single
-            .trim();
-        };
-        
         companyDetails = {
           id: companyData.id,
           name: companyData.name,
-          slug: createSlug(companyData.name) || companyData.id, // Fallback to ID
+          slug: slugifyCompanyFirstWord(companyData.name) || companyData.id, // Fallback to ID
         };
       }
     }
@@ -245,12 +236,7 @@ export async function GET(request: NextRequest) {
               id: companyData.id,
               name: companyData.name,
               fullName: companyData.fullName,
-              slug: companyData.name
-                .toLowerCase()
-                .replace(/[^\w\s-]/g, '') // Remove special characters
-                .replace(/\s+/g, '-') // Replace spaces with hyphens  
-                .replace(/-+/g, '-') // Replace multiple hyphens with single
-                .trim(),
+              slug: slugifyCompanyFirstWord(companyData.name || ''),
             } : null,
           };
         })

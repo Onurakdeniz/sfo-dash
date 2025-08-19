@@ -423,7 +423,7 @@ export default function SystemPage() {
                     Modül Ekle
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-3xl sm:max-w-3xl">
                   <DialogHeader>
                     <DialogTitle>Yeni Modül Ekle</DialogTitle>
                     <DialogDescription>

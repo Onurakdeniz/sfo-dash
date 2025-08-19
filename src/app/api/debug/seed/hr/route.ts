@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
             name: moduleName,
             displayName: moduleDisplayName,
             description: moduleDescription,
+            category: "system",
             icon: "users",
             color: "#3B82F6",
             isCore: false,
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // 2) Ensure submodule: Employee Profiles
     const submoduleCode = "employee_profiles";
-    const submoduleDisplayName = "Personel Profilleri";
+    const submoduleDisplayName = "Personel Yönetimi";
     const submoduleName = "Employee Profiles";
     const submoduleDescription =
       "Çalışanların kişisel, iletişim ve istihdam bilgileri ile belge yönetiminin tutulduğu dijital kimlik kartı.";
@@ -127,7 +128,7 @@ export async function POST(request: NextRequest) {
             moduleId: hrModule.id,
             code: pageResourceCode,
             name: "Employee Profiles Page",
-            displayName: "Personel Profilleri Sayfası",
+            displayName: "Personel Profilleri",
             description: "Personel profillerini listeleme ve yönetme sayfası.",
             resourceType: "page",
             path: "/:workspaceSlug/:companySlug/hr/employees",

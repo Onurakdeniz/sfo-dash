@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { roleModulePermissions, roles, modulePermissions, moduleResources, modules, workspace } from "@/db/schema";
+import { roleModulePermissions, roles, modulePermissions, moduleResources, modules, workspace, company } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const roleId = searchParams.get('roleId');
     const workspaceId = searchParams.get('workspaceId');
+    const companyId = searchParams.get('companyId');
 
     let whereCondition = and();
 
@@ -26,9 +27,8 @@ export async function GET(request: NextRequest) {
       whereCondition = and(whereCondition, eq(roleModulePermissions.roleId, roleId));
     }
 
-    if (workspaceId) {
-      whereCondition = and(whereCondition, eq(roleModulePermissions.workspaceId, workspaceId));
-    }
+    if (workspaceId) whereCondition = and(whereCondition, eq(roleModulePermissions.workspaceId, workspaceId));
+    if (companyId) whereCondition = and(whereCondition, eq(roleModulePermissions.companyId, companyId));
 
     const rolePermissions = await db.select({
       rolePermission: roleModulePermissions,
@@ -65,14 +65,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { 
-      roleId, 
-      permissionId, 
-      workspaceId, 
-      isGranted, 
-      expiresAt, 
-      conditions 
-    } = await request.json();
+    const { roleId, permissionId, workspaceId, companyId, isGranted, expiresAt, conditions } = await request.json();
 
     if (!roleId || !permissionId || !workspaceId) {
       return NextResponse.json(
@@ -112,6 +105,18 @@ export async function POST(request: NextRequest) {
       .from(workspace)
       .where(eq(workspace.id, workspaceId))
       .limit(1);
+    // If company provided, check it exists
+    if (companyId) {
+      const companyExists = await db
+        .select()
+        .from(company)
+        .where(eq(company.id, companyId))
+        .limit(1);
+      if (companyExists.length === 0) {
+        return NextResponse.json({ error: "Company not found" }, { status: 404 });
+      }
+    }
+
 
     if (workspaceExists.length === 0) {
       return NextResponse.json(
@@ -126,7 +131,8 @@ export async function POST(request: NextRequest) {
       .where(and(
         eq(roleModulePermissions.roleId, roleId),
         eq(roleModulePermissions.permissionId, permissionId),
-        eq(roleModulePermissions.workspaceId, workspaceId)
+        eq(roleModulePermissions.workspaceId, workspaceId),
+        companyId ? eq(roleModulePermissions.companyId, companyId) : isNull(roleModulePermissions.companyId)
       ))
       .limit(1);
 
@@ -150,6 +156,7 @@ export async function POST(request: NextRequest) {
         roleId,
         permissionId,
         workspaceId,
+        companyId: companyId || null,
         isGranted: isGranted !== undefined ? isGranted : true,
         grantedBy: session.user.id,
         expiresAt: expiresAt ? new Date(expiresAt) : null,

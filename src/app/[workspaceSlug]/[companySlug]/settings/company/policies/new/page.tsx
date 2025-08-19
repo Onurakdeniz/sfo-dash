@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageWrapper } from "@/components/page-wrapper";
+import SettingsTabs from "../../../settings-tabs";
 import { ArrowLeft, Save } from "lucide-react";
 
 interface PolicyFormData {
@@ -47,78 +48,56 @@ export default function NewPolicyPage() {
     setIsLoading(true);
 
     try {
+      const ctxRes = await fetch(`/api/workspace-context/${params.workspaceSlug}/${params.companySlug}`, { credentials: 'include' });
+      const ctx = ctxRes.ok ? await ctxRes.json() : null;
+      const workspaceId = ctx?.workspace?.id;
+      const companyId = ctx?.currentCompany?.id;
+
       const response = await fetch(`/api/system/policies`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, workspaceId, companyId }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create policy');
-      }
+      if (!response.ok) throw new Error('Failed to create policy');
 
-      // Redirect back to policies list
-      router.push(`/${params.workspaceSlug}/${params.companySlug}/system/policies`);
+      router.push(`/${params.workspaceSlug}/${params.companySlug}/settings/company/policies`);
     } catch (error) {
       console.error('Error creating policy:', error);
-      // You might want to add toast notification here
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCancel = () => {
-    router.push(`/${params.workspaceSlug}/${params.companySlug}/system/policies`);
+    router.push(`/${params.workspaceSlug}/${params.companySlug}/settings/company/policies`);
   };
 
   return (
-    <PageWrapper>
+    <PageWrapper title="Yeni Politika" description="Yeni bir organizasyon politikası oluşturun" secondaryNav={<SettingsTabs />}> 
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={handleCancel}
-          >
+          <Button variant="ghost" size="sm" onClick={handleCancel}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Politikalara Geri Dön
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Yeni Politika</h1>
-            <p className="text-muted-foreground">Yeni bir organizasyon politikası oluşturun</p>
-          </div>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle>Politika Detayları</CardTitle>
-            <CardDescription>
-              Yeni politika için detayları doldurun
-            </CardDescription>
+            <CardDescription>Yeni politika için detayları doldurun</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="title">Politika Başlığı</Label>
-                  <Input
-                    id="title"
-                    type="text"
-                    placeholder="Politika başlığını girin"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
-                    required
-                  />
+                  <Input id="title" type="text" placeholder="Politika başlığını girin" value={formData.title} onChange={(e) => handleInputChange('title', e.target.value)} required />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="type">Politika Türü</Label>
-                  <Select 
-                    value={formData.type} 
-                    onValueChange={(value) => handleInputChange('type', value)}
-                  >
+                  <Select value={formData.type} onValueChange={(value) => handleInputChange('type', value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Politika türü seçin" />
                     </SelectTrigger>
@@ -136,10 +115,7 @@ export default function NewPolicyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="status">Durum</Label>
-                <Select 
-                  value={formData.status} 
-                  onValueChange={(value) => handleInputChange('status', value)}
-                >
+                <Select value={formData.status} onValueChange={(value) => handleInputChange('status', value)}>
                   <SelectTrigger className="w-full md:w-48">
                     <SelectValue />
                   </SelectTrigger>
@@ -154,29 +130,12 @@ export default function NewPolicyPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="content">Politika İçeriği</Label>
-                <Textarea
-                  id="content"
-                  placeholder="Politika içeriğini girin..."
-                  className="min-h-64"
-                  value={formData.content}
-                  onChange={(e) => handleInputChange('content', e.target.value)}
-                  required
-                />
+                <Textarea id="content" placeholder="Politika içeriğini girin..." className="min-h-64" value={formData.content} onChange={(e) => handleInputChange('content', e.target.value)} required />
               </div>
 
               <div className="flex justify-end gap-4 pt-6">
-                <Button 
-                  type="button" 
-                  variant="outline"
-                  onClick={handleCancel}
-                  disabled={isLoading}
-                >
-                  İptal
-                </Button>
-                <Button 
-                  type="submit"
-                  disabled={isLoading || !formData.title || !formData.type || !formData.content}
-                >
+                <Button type="button" variant="outline" onClick={handleCancel} disabled={isLoading}>İptal</Button>
+                <Button type="submit" disabled={isLoading || !formData.title || !formData.type || !formData.content}>
                   <Save className="h-4 w-4 mr-2" />
                   {isLoading ? 'Oluşturuluyor...' : 'Politika Oluştur'}
                 </Button>
@@ -188,3 +147,5 @@ export default function NewPolicyPage() {
     </PageWrapper>
   );
 }
+
+

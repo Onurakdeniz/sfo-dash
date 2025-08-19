@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { modules } from "@/db/schema";
+import { modules, companyModules } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
 export async function PATCH(
   request: NextRequest,
@@ -18,7 +19,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { isActive } = await request.json();
+    const { isActive, companyId } = await request.json();
 
     if (typeof isActive !== "boolean") {
       return NextResponse.json(
@@ -40,21 +41,59 @@ export async function PATCH(
       return NextResponse.json({ error: "Module not found" }, { status: 404 });
     }
 
-    // Core modules cannot be deactivated
-    if (existingModule[0].isCore && !isActive) {
-      return NextResponse.json({ error: "Core modules cannot be deactivated" }, { status: 400 });
+    // If toggling globally (no company scope), update modules table
+    if (!companyId) {
+      const updatedModule = await db
+        .update(modules)
+        .set({
+          isActive,
+          updatedAt: new Date(),
+        })
+        .where(eq(modules.id, params.moduleId))
+        .returning();
+
+      return NextResponse.json(updatedModule[0]);
     }
 
-    // Update module status
-    const updatedModule = await db.update(modules)
-      .set({
-        isActive,
-        updatedAt: new Date()
-      })
-      .where(eq(modules.id, params.moduleId))
-      .returning();
+    // Company-scoped toggle
+    // Upsert company_modules row
+    const existingCompanyModule = await db
+      .select()
+      .from(companyModules)
+      .where(
+        and(
+          eq(companyModules.moduleId, params.moduleId),
+          eq(companyModules.companyId, companyId)
+        )
+      )
+      .limit(1);
 
-    return NextResponse.json(updatedModule[0]);
+    let row;
+    if (existingCompanyModule.length > 0) {
+      const updated = await db
+        .update(companyModules)
+        .set({ isEnabled: isActive, toggledBy: session.user.id, toggledAt: new Date(), updatedAt: new Date() })
+        .where(eq(companyModules.id, existingCompanyModule[0].id))
+        .returning();
+      row = updated[0];
+    } else {
+      const inserted = await db
+        .insert(companyModules)
+        .values({
+          id: randomUUID(),
+          companyId,
+          moduleId: params.moduleId,
+          isEnabled: isActive,
+          toggledBy: session.user.id,
+          toggledAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+      row = inserted[0];
+    }
+
+    return NextResponse.json(row);
   } catch (error) {
     console.error("Error toggling module status:", error);
     return NextResponse.json(

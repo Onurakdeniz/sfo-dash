@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,6 @@ import {
   Users,
   Edit,
   Trash2,
-  Search,
   Building2,
   Globe,
   Shield,
@@ -26,6 +25,8 @@ import {
   ArrowLeft
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import SystemScopeTabs from "../system-tabs";
+import PermissionsAssignment from "./permissions-assignment";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -46,32 +47,43 @@ interface Role {
 }
 
 const getRoleScopes = (workspaceContext: any) => [
-  { value: "system", label: "Sistem", icon: Shield, description: "Tüm çalışma alanlarında mevcut" },
+  { value: "system", label: "Sistem Genel", icon: Shield, description: "Tüm çalışma alanlarında geçerli" },
   { 
     value: "workspace", 
-    label: "Çalışma Alanı", 
+    label: "Tüm Workspace", 
     icon: Globe, 
-    description: workspaceContext ? `${workspaceContext.workspace.name} çalışma alanında mevcut` : "Bir çalışma alanı içinde mevcut"
+    description: workspaceContext ? `${workspaceContext.workspace.name} workspace'inde geçerli` : "Workspace genelinde geçerli"
   },
   { 
     value: "company", 
-    label: "Şirket", 
+    label: "Tek Şirket", 
     icon: Building2, 
-    description: workspaceContext ? `${workspaceContext.currentCompany.name} şirketinde mevcut` : "Bir şirket içinde mevcut"
+    description: workspaceContext ? `${workspaceContext.currentCompany.name} şirketinde geçerli` : "Seçilen şirket içinde geçerli"
   }
 ];
+
+const ACTION_LABEL_MAP: Record<string, string> = {
+  view: "Görüntüle",
+  edit: "Düzenle",
+  manage: "Tüm Yetki",
+  approve: "Onay"
+};
+
+type Module = { id: string; displayName: string; isEnabledForCompany?: boolean };
+type Resource = { id: string; displayName: string; moduleId: string };
+type Permission = { id: string; action: string; name: string; displayName: string; resourceId: string };
 
 export default function RolesPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedScope, setSelectedScope] = useState<string>("all");
+  
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
   const [formData, setFormData] = useState({
     code: "",
     name: "",
@@ -82,6 +94,68 @@ export default function RolesPage() {
     sortOrder: 0,
     metadata: {}
   });
+  const [showPermissionStep, setShowPermissionStep] = useState(false);
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<Set<string>>(new Set());
+
+  // Data for permission selection step
+  const { data: modulesForCreate = [] } = useQuery({
+    queryKey: ["modules", formData.scope, selectedCompanyId],
+    queryFn: async () => {
+      const shouldFilterByCompany = formData.scope === "company" && selectedCompanyId && selectedCompanyId !== "global";
+      const url = shouldFilterByCompany
+        ? `/api/system/modules?companyId=${selectedCompanyId}`
+        : "/api/system/modules";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Modüller alınamadı");
+      return res.json();
+    }
+  });
+  const [permModuleId, setPermModuleId] = useState<string>("all");
+  const [permResourceId, setPermResourceId] = useState<string>("all");
+  const { data: permResources = [] } = useQuery({
+    queryKey: ["resources", permModuleId],
+    queryFn: async () => {
+      const url = permModuleId === "all" ? "/api/system/resources" : `/api/system/resources?moduleId=${permModuleId}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Alt modüller alınamadı");
+      return res.json();
+    }
+  });
+  const { data: permPermissions = [] } = useQuery({
+    queryKey: ["permissions", permResourceId],
+    queryFn: async () => {
+      const url = permResourceId === "all" ? "/api/system/permissions" : `/api/system/permissions?resourceId=${permResourceId}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("İzinler alınamadı");
+      return res.json();
+    }
+  });
+
+  const modulesAvailableForPermissions: Module[] = useMemo(() => {
+    if (!Array.isArray(modulesForCreate)) return [] as Module[];
+    if (formData.scope === "company") {
+      return (modulesForCreate as Module[]).filter((m) => m.isEnabledForCompany !== false);
+    }
+    return modulesForCreate as Module[];
+  }, [modulesForCreate, formData.scope]);
+
+  const resourcesAvailableForPermissions: Resource[] = useMemo(() => {
+    if (!Array.isArray(permResources)) return [] as Resource[];
+    if (formData.scope === "company" && permModuleId === "all") {
+      const allowedModuleIds = new Set((modulesAvailableForPermissions as Module[]).map((m) => m.id));
+      return (permResources as Resource[]).filter((r) => allowedModuleIds.has(r.moduleId));
+    }
+    return permResources as Resource[];
+  }, [permResources, formData.scope, permModuleId, modulesAvailableForPermissions]);
+
+  const permissionsAvailableForCompany: Permission[] = useMemo(() => {
+    if (!Array.isArray(permPermissions)) return [] as Permission[];
+    if (formData.scope === "company" && permResourceId === "all") {
+      const allowedResourceIds = new Set((resourcesAvailableForPermissions as Resource[]).map((r) => r.id));
+      return (permPermissions as Permission[]).filter((p) => allowedResourceIds.has(p.resourceId));
+    }
+    return permPermissions as Permission[];
+  }, [permPermissions, formData.scope, permResourceId, resourcesAvailableForPermissions]);
 
   // Fetch workspace context to get actual IDs
   const { data: workspaceContext } = useQuery({
@@ -93,14 +167,24 @@ export default function RolesPage() {
     }
   });
 
-  // Fetch roles
+  // Default behavior: show workspace roles; user can filter by company via the select below
+
+  // Fetch roles scoped to current workspace/company
   const { data: roles = [], isLoading } = useQuery({
-    queryKey: ["roles", params.workspaceSlug, params.companySlug],
+    queryKey: ["roles", workspaceContext?.workspace?.id, selectedCompanyId],
     queryFn: async () => {
-      const response = await fetch("/api/system/roles");
+      if (!workspaceContext?.workspace?.id) return [];
+      const urlParams = new URLSearchParams();
+      if (selectedCompanyId && selectedCompanyId !== 'global') {
+        urlParams.set("companyId", selectedCompanyId);
+      } else {
+        urlParams.set("workspaceId", workspaceContext.workspace.id);
+      }
+      const response = await fetch(`/api/system/roles?${urlParams.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch roles");
       return response.json();
-    }
+    },
+    enabled: !!workspaceContext?.workspace?.id
   });
 
   // Create role mutation
@@ -110,14 +194,17 @@ export default function RolesPage() {
         throw new Error("Workspace context not loaded");
       }
 
+      // Validate company selection for company-scoped role
+      if (data.scope === "company" && !(selectedCompanyId && selectedCompanyId !== "global")) {
+        throw new Error("Lütfen şirket seçin");
+      }
+
       const roleData = {
         ...data,
-        workspaceId: data.scope === "workspace" ? workspaceContext.workspace.id : 
-                     data.scope === "company" ? workspaceContext.workspace.id : undefined,
-        companyId: data.scope === "company" ? workspaceContext.currentCompany.id : undefined
+        workspaceId: data.scope === "workspace" ? workspaceContext.workspace.id : undefined,
+        companyId: data.scope === "company" ? selectedCompanyId || workspaceContext.currentCompany?.id : undefined
       };
       delete roleData.scope;
-      
       const response = await fetch("/api/system/roles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -127,12 +214,45 @@ export default function RolesPage() {
         const error = await response.json();
         throw new Error(error.error || "Failed to create role");
       }
-      return response.json();
+      const created = await response.json();
+
+      // If there are selected permissions, assign them
+      if (selectedPermissionIds.size > 0) {
+        const assignments = await Promise.allSettled(
+          Array.from(selectedPermissionIds).map(async (permissionId) => {
+            const body: any = {
+              roleId: created.id,
+              permissionId,
+              workspaceId: workspaceContext.workspace.id,
+              companyId: formData.scope === "company" ? (selectedCompanyId || workspaceContext.currentCompany?.id) : undefined,
+              isGranted: true,
+            };
+            const res = await fetch("/api/system/role-permissions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({} as any));
+              throw new Error(err.error || "İzin ataması başarısız");
+            }
+            return res.json();
+          })
+        );
+        const failed = assignments.filter((a) => a.status === "rejected").length;
+        if (failed > 0) {
+          toast.error(`${failed} izin ataması başarısız oldu`);
+        }
+      }
+
+      return created;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["roles"] });
       toast.success("Rol başarıyla oluşturuldu");
       setIsCreateDialogOpen(false);
+      setShowPermissionStep(false);
+      setSelectedPermissionIds(new Set());
       resetForm();
     },
     onError: (error: Error) => {
@@ -267,14 +387,7 @@ export default function RolesPage() {
     return "system";
   };
 
-  const filteredRoles = roles.filter((role: Role) => {
-    const matchesSearch = role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         role.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         role.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const roleScope = getRoleScope(role);
-    const matchesScope = selectedScope === "all" || roleScope === selectedScope;
-    return matchesSearch && matchesScope;
-  });
+  const filteredRoles = roles;
 
   const breadcrumbs = [
     {
@@ -315,38 +428,11 @@ export default function RolesPage() {
       description="Sistem rollerini ve izinlerini yönetin"
       breadcrumbs={breadcrumbs}
       actions={actions}
+      secondaryNav={<SystemScopeTabs />}
     >
       <div className="space-y-6">
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Rolleri ara..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={selectedScope} onValueChange={setSelectedScope}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Tüm Kapsamlar" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tüm Kapsamlar</SelectItem>
-                {getRoleScopes(workspaceContext).map((scope) => (
-                  <SelectItem key={scope.value} value={scope.value}>
-                    {scope.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      
 
       {/* Roles Table */}
       <Card>
@@ -465,7 +551,7 @@ export default function RolesPage() {
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>
               {selectedRole ? "Rolü Düzenle" : "Yeni Rol Oluştur"}
@@ -488,7 +574,7 @@ export default function RolesPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="name">İsim</Label>
+                <Label htmlFor="name">Rol Adı</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -508,16 +594,7 @@ export default function RolesPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Açıklama</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Rol açıklaması..."
-                rows={3}
-              />
-            </div>
+            {/* Açıklama alanını şimdilik kaldırıldı */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="scope">Kapsam</Label>
@@ -544,17 +621,23 @@ export default function RolesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="sortOrder">Sıralama Düzeni</Label>
-                <Input
-                  id="sortOrder"
-                  type="number"
-                  value={formData.sortOrder}
-                  onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
-                  placeholder="0"
-                />
-              </div>
+              {/* Sıralama Düzeni kaldırıldı */}
             </div>
+            {formData.scope === "company" && (
+              <div className="space-y-2">
+                <Label htmlFor="roleCompany">Şirket Seç</Label>
+                <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId} disabled={!!selectedRole}>
+                  <SelectTrigger id="roleCompany">
+                    <SelectValue placeholder="Şirket seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(workspaceContext?.companies || []).map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name || c.fullName}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="isSystem"
@@ -564,6 +647,72 @@ export default function RolesPage() {
               />
               <Label htmlFor="isSystem">Sistem Rolü (Silinemez)</Label>
             </div>
+            {/* Permission selection step for new roles */}
+            {!selectedRole && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>İzinler (opsiyonel)</Label>
+                    <p className="text-xs text-muted-foreground">Rol oluşturulurken izinleri seçebilirsiniz</p>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => setShowPermissionStep((v) => !v)}>
+                    {showPermissionStep ? "İzin Seçimini Gizle" : "İzin Seç"}
+                  </Button>
+                </div>
+                {showPermissionStep && (
+                  <div className="space-y-3 border rounded-md p-3">
+                    <div className="flex gap-3">
+                      <Select value={permModuleId} onValueChange={(v) => { setPermModuleId(v); setPermResourceId("all"); }}>
+                        <SelectTrigger className="w-[220px]"><SelectValue placeholder="Modül" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tüm Modüller</SelectItem>
+                          {modulesAvailableForPermissions.map((m: Module) => (
+                            <SelectItem key={m.id} value={m.id}>{m.displayName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={permResourceId} onValueChange={setPermResourceId}>
+                        <SelectTrigger className="w-[240px]"><SelectValue placeholder="Alt Modül" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tüm Alt Modüller</SelectItem>
+                          {resourcesAvailableForPermissions.map((r: Resource) => (
+                            <SelectItem key={r.id} value={r.id}>{r.displayName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="max-h-64 overflow-auto space-y-2">
+                      {permissionsAvailableForCompany.map((p: Permission) => {
+                        const key = p.id;
+                        const checked = selectedPermissionIds.has(key);
+                        const actionLabel = ACTION_LABEL_MAP[p.action] || p.action;
+                        return (
+                          <div key={key} className="flex items-center justify-between gap-4 border rounded p-2">
+                            <div>
+                              <div className="text-sm font-medium">{p.displayName}</div>
+                              <div className="text-xs text-muted-foreground font-mono">{p.name} • {actionLabel}</div>
+                            </div>
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                setSelectedPermissionIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (v) next.add(key); else next.delete(key);
+                                  return next;
+                                });
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                      {permissionsAvailableForCompany.length === 0 && (
+                        <div className="text-sm text-muted-foreground">Gösterilecek izin yok</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <DialogFooter>
               <Button
                 type="button"
@@ -619,18 +768,15 @@ export default function RolesPage() {
       {/* Permissions Management Dialog */}
       {selectedRole && (
         <Dialog open={isPermissionsDialogOpen} onOpenChange={setIsPermissionsDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogContent className="max-w-[95vw] sm:max-w-6xl max-h-[85vh]">
             <DialogHeader>
               <DialogTitle>İzinleri Yönet - {selectedRole.displayName}</DialogTitle>
               <DialogDescription>
                 Bu rol için izinleri yapılandırın
               </DialogDescription>
             </DialogHeader>
-            <div className="overflow-y-auto">
-              {/* This would be implemented as a separate component */}
-              <p className="text-center text-muted-foreground py-8">
-                İzin yönetimi arayüzü burada uygulanacaktır
-              </p>
+            <div className="overflow-y-auto space-y-6 max-h-[65vh] pr-1">
+              <PermissionsAssignment role={selectedRole} workspaceContext={workspaceContext} />
             </div>
             <DialogFooter>
               <Button

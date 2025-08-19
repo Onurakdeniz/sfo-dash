@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { workspace, workspaceCompany, company, workspaceMember } from "@/db/schema";
+import { eq, inArray } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,7 +15,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get all workspaces where user is owner or member
+    // Get owned workspace IDs
+    const owned = await db.select({ id: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.ownerId, session.user.id));
+
+    // Get member workspace IDs
+    const member = await db.select({ id: workspaceMember.workspaceId })
+      .from(workspaceMember)
+      .where(eq(workspaceMember.userId, session.user.id));
+
+    const allWorkspaceIds = Array.from(new Set([...
+      owned.map(w => w.id),
+      ...member.map(m => m.id)
+    ]));
+
+    if (allWorkspaceIds.length === 0) {
+      return NextResponse.json({ workspaces: [], total: 0 });
+    }
+
+    // Load full workspace details for all relevant IDs
     const userWorkspaces = await db.select({
       workspaceId: workspace.id,
       workspaceName: workspace.name,
@@ -25,7 +44,7 @@ export async function GET(request: NextRequest) {
       workspaceOwnerId: workspace.ownerId,
     })
     .from(workspace)
-    .where(eq(workspace.ownerId, session.user.id));
+    .where(inArray(workspace.id, allWorkspaceIds));
 
     const workspacesWithDetails = await Promise.all(
       userWorkspaces.map(async (w) => {

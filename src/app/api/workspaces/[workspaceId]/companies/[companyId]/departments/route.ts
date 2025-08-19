@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { department, company, workspaceCompany, user, workspace } from "@/db/schema";
+import { department, company, workspaceCompany, user, workspace, companyLocation } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export async function GET(
@@ -37,12 +37,14 @@ export async function GET(
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
 
-    // Fetch departments with manager info and unit count
+    // Fetch departments with manager info, location info, and unit count
     const departments = await db
       .select({
         id: department.id,
         companyId: department.companyId,
         parentDepartmentId: department.parentDepartmentId,
+        locationId: department.locationId,
+        locationName: companyLocation.name,
         code: department.code,
         name: department.name,
         description: department.description,
@@ -66,6 +68,7 @@ export async function GET(
       })
       .from(department)
       .leftJoin(user, eq(department.managerId, user.id))
+      .leftJoin(companyLocation, eq(department.locationId, companyLocation.id))
       .where(
         and(
           eq(department.companyId, companyId),
@@ -106,6 +109,7 @@ export async function POST(
       goals,
       managerId,
       parentDepartmentId,
+      locationId,
       mailAddress,
       notes
     } = body;
@@ -134,6 +138,24 @@ export async function POST(
 
     if (workspaceAccess.length === 0) {
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    // If locationId is provided, validate it belongs to the same company
+    if (locationId && typeof locationId === 'string' && locationId.trim()) {
+      const locationExists = await db
+        .select()
+        .from(companyLocation)
+        .where(
+          and(
+            eq(companyLocation.id, locationId.trim()),
+            eq(companyLocation.companyId, companyId),
+            sql`${companyLocation.deletedAt} IS NULL`
+          )
+        )
+        .limit(1);
+      if (locationExists.length === 0) {
+        return NextResponse.json({ error: "Invalid location for this company" }, { status: 400 });
+      }
     }
 
     // Check if department with same name already exists in company
@@ -200,6 +222,7 @@ export async function POST(
         id: departmentId,
         companyId: companyId,
         parentDepartmentId: parentDepartmentId?.trim() || null,
+        locationId: locationId?.trim() || null,
         code: code?.trim() || null,
         name: name.trim(),
         description: description?.trim() || null,

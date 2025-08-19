@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Loader2 } from "lucide-react";
+import { ArrowLeft, Building2, Loader2, ChevronDown, Info } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
 import { PageWrapper } from "@/components/page-wrapper";
 import { toast } from "sonner";
@@ -45,6 +47,7 @@ interface CreateDepartmentData {
   };
   managerId?: string;
   parentDepartmentId?: string;
+  locationId?: string;
   mailAddress?: string;
   notes?: string;
 }
@@ -68,6 +71,7 @@ export default function AddDepartmentPage() {
     },
     managerId: '',
     parentDepartmentId: '',
+    locationId: '',
     mailAddress: '',
     notes: ''
   });
@@ -134,6 +138,25 @@ export default function AddDepartmentPage() {
         return res.json();
       } catch (error) {
         console.error('Error fetching departments:', error);
+        return [];
+      }
+    },
+    enabled: !!workspace?.id && !!companyId,
+  });
+
+  // Fetch locations for optional location assignment
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations', workspace?.id, companyId],
+    queryFn: async () => {
+      if (!workspace?.id) return [];
+      try {
+        const res = await fetch(`/api/workspaces/${workspace.id}/companies/${companyId}/locations`, {
+          credentials: 'include'
+        });
+        if (!res.ok) return [];
+        return res.json();
+      } catch (error) {
+        console.error('Error fetching locations:', error);
         return [];
       }
     },
@@ -257,7 +280,8 @@ export default function AddDepartmentPage() {
         </Link>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-8">
+      <TooltipProvider>
+        <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basic Information Section */}
         <Card>
           <CardHeader>
@@ -272,89 +296,85 @@ export default function AddDepartmentPage() {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="name">Departman Adı *</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="name">Departman Adı *</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Departman adını girin. Bu alan zorunludur.</TooltipContent>
+                  </Tooltip>
+                </div>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  placeholder="Departman adını girin"
+                  placeholder="Örn: İnsan Kaynakları"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="code">Departman Kodu</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="code">Departman Kodu</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Kısa kod (örn. HR, IT, SALES). Raporlama ve filtrelemede kullanılır.</TooltipContent>
+                  </Tooltip>
+                </div>
                 <Input
                   id="code"
                   value={formData.code || ''}
                   onChange={(e) => handleInputChange('code', e.target.value)}
-                  placeholder="HR, IT, SALES vb."
+                  placeholder="Örn: HR (İnsan Kaynakları)"
                 />
               </div>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="description">Açıklama</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="description">Açıklama</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                      <Info className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Departmanın genel amacı ve kapsamını kısaca açıklayın.</TooltipContent>
+                </Tooltip>
+              </div>
               <Textarea
                 id="description"
                 value={formData.description || ''}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                placeholder="Departmanın genel açıklaması"
+                placeholder="Örn: Çalışan yaşam döngüsü yönetimi, işe alım, eğitim ve performans."
                 rows={3}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="responsibility-area">Sorumluluk Alanı</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="responsibility-area">Sorumluluk Alanı</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                      <Info className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Departmanın sorumlu olduğu iş, süreç ve teslimleri detaylandırın.</TooltipContent>
+                </Tooltip>
+              </div>
               <Textarea
                 id="responsibility-area"
                 value={formData.responsibilityArea || ''}
                 onChange={(e) => handleInputChange('responsibilityArea', e.target.value)}
-                placeholder="Departmanın sorumluluk alanını detaylıca açıklayın"
+                placeholder="Örn: İşe alım, oryantasyon, bordro koordinasyonu, performans değerlendirme ve yan haklar."
                 rows={4}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Goals Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Hedefler</CardTitle>
-            <CardDescription>
-              Departmanın kısa, orta ve uzun vadeli hedeflerini belirleyin.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="short-term-goals">Kısa Vadeli Hedefler</Label>
-              <Textarea
-                id="short-term-goals"
-                value={formData.goals?.shortTerm || ''}
-                onChange={(e) => handleGoalChange('shortTerm', e.target.value)}
-                placeholder="Bu yıl içinde gerçekleştirilmesi hedeflenen amaçlar"
-                rows={3}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="medium-term-goals">Orta Vadeli Hedefler</Label>
-              <Textarea
-                id="medium-term-goals"
-                value={formData.goals?.mediumTerm || ''}
-                onChange={(e) => handleGoalChange('mediumTerm', e.target.value)}
-                placeholder="1-3 yıl içinde ulaşılması hedeflenen amaçlar"
-                rows={3}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="long-term-goals">Uzun Vadeli Hedefler</Label>
-              <Textarea
-                id="long-term-goals"
-                value={formData.goals?.longTerm || ''}
-                onChange={(e) => handleGoalChange('longTerm', e.target.value)}
-                placeholder="3+ yıl içinde gerçekleştirilmesi hedeflenen stratejik amaçlar"
-                rows={3}
               />
             </div>
           </CardContent>
@@ -371,7 +391,17 @@ export default function AddDepartmentPage() {
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label htmlFor="manager-select">Departman Yöneticisi</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="manager-select">Departman Yöneticisi</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Bu departmandan sorumlu ana kişi.</TooltipContent>
+                  </Tooltip>
+                </div>
                 <Select
                   value={formData.managerId || 'unassigned'}
                   onValueChange={(value) => handleInputChange('managerId', value === 'unassigned' ? '' : value)}
@@ -391,7 +421,17 @@ export default function AddDepartmentPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="parent-department">Bağlı Olduğu Departman</Label>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="parent-department">Bağlı Olduğu Departman</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Hiyerarşide üst/bağlı olunan departman.</TooltipContent>
+                  </Tooltip>
+                </div>
                 <Select
                   value={formData.parentDepartmentId || 'none'}
                   onValueChange={(value) => handleInputChange('parentDepartmentId', value === 'none' ? '' : value)}
@@ -412,28 +452,164 @@ export default function AddDepartmentPage() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="mail-address">Departman E-posta Adresi</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="location">Bağlı Lokasyon</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                      <Info className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Opsiyonel: Departmanı bir lokasyona bağlayın.</TooltipContent>
+                </Tooltip>
+              </div>
+              <Select
+                value={formData.locationId || 'none'}
+                onValueChange={(value) => handleInputChange('locationId', value === 'none' ? '' : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Lokasyon seçin (opsiyonel)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Lokasyon yok</SelectItem>
+                  {locations.map((loc: any) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {loc.name} {loc.isHeadquarters ? '(Merkez)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="mail-address">Departman E-posta Adresi</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                      <Info className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Departmanın ortak e-posta adresi (örn. departman@sirket.com).</TooltipContent>
+                </Tooltip>
+              </div>
               <Input
                 id="mail-address"
                 type="email"
                 value={formData.mailAddress || ''}
                 onChange={(e) => handleInputChange('mailAddress', e.target.value)}
-                placeholder="departman@sirket.com"
+                placeholder="Örn: ik@sirket.com"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="notes">Notlar</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="notes">Notlar</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                      <Info className="h-3.5 w-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Departman hakkında ek notlar (iç kullanım).</TooltipContent>
+                </Tooltip>
+              </div>
               <Textarea
                 id="notes"
                 value={formData.notes || ''}
                 onChange={(e) => handleInputChange('notes', e.target.value)}
-                placeholder="Departman hakkında ek notlar"
+                placeholder="Örn: 2025 İK bütçesi onay sürecinde."
                 rows={4}
               />
             </div>
           </CardContent>
         </Card>
+
+        {/* Goals Section - moved to bottom and collapsible */}
+        <Collapsible defaultOpen={false}>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Hedefler</CardTitle>
+                <CardDescription>
+                  Departmanın kısa, orta ve uzun vadeli hedeflerini belirleyin.
+                </CardDescription>
+              </div>
+              <CollapsibleTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" className="gap-1">
+                  Aç/Kapat
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="short-term-goals">Kısa Vadeli Hedefler</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Önümüzdeki 0-12 ay içinde ulaşılacak hedefler.</TooltipContent>
+                  </Tooltip>
+                  </div>
+                  <Textarea
+                    id="short-term-goals"
+                    value={formData.goals?.shortTerm || ''}
+                    onChange={(e) => handleGoalChange('shortTerm', e.target.value)}
+                    placeholder="Örn: Q4 sonuna kadar işe alım süresini ortalama 30 güne düşürmek."
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="medium-term-goals">Orta Vadeli Hedefler</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">1-3 yıl aralığındaki hedefler.</TooltipContent>
+                  </Tooltip>
+                  </div>
+                  <Textarea
+                    id="medium-term-goals"
+                    value={formData.goals?.mediumTerm || ''}
+                    onChange={(e) => handleGoalChange('mediumTerm', e.target.value)}
+                    placeholder="Örn: 12 ay içinde çalışan memnuniyet skorunu %10 artırmak."
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="long-term-goals">Uzun Vadeli Hedefler</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-5 w-5 p-0 rounded-full border border-muted-foreground/30 text-muted-foreground hover:bg-muted/50">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">3+ yıl ufkunda stratejik hedefler.</TooltipContent>
+                  </Tooltip>
+                  </div>
+                  <Textarea
+                    id="long-term-goals"
+                    value={formData.goals?.longTerm || ''}
+                    onChange={(e) => handleGoalChange('longTerm', e.target.value)}
+                    placeholder="Örn: 3 yıl içinde yetenek yönetimi programını devreye almak."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
 
         <div className="flex justify-end gap-4">
           <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/departments`}>
@@ -455,7 +631,8 @@ export default function AddDepartmentPage() {
             )}
           </Button>
         </div>
-      </form>
+        </form>
+      </TooltipProvider>
     </PageWrapper>
   );
 }

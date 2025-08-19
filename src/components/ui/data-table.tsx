@@ -172,13 +172,13 @@ export function DataTable<T extends Record<string, any>>({
       {/* Table */}
       <div className="rounded-lg border overflow-hidden">
         <table className={cn(dataTableVariants({ variant, size }), className)}>
-          <thead className="bg-muted/50">
-            <tr>
+          <thead className="bg-primary border-primary text-primary-foreground">
+            <tr className="border-b border-primary">
               {selectable && (
-                <th className="w-12">
+                <th className="w-12 px-4">
                   <Checkbox
                     checked={isAllSelected}
-                    indeterminate={isIndeterminate ? true : undefined}
+                    indeterminate={isIndeterminate}
                     onCheckedChange={handleSelectAll}
                   />
                 </th>
@@ -187,8 +187,8 @@ export function DataTable<T extends Record<string, any>>({
                 <th
                   key={String(column.key)}
                   className={cn(
-                    "text-left font-medium text-muted-foreground",
-                    column.sortable && "cursor-pointer hover:text-foreground",
+                    "text-left font-medium",
+                    column.sortable && "cursor-pointer",
                     column.width && `w-[${column.width}]`
                   )}
                   onClick={() => column.sortable && handleSort(column.key)}
@@ -249,9 +249,9 @@ export function DataTable<T extends Record<string, any>>({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Edit</DropdownMenuItem>
-                      <DropdownMenuItem>View</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                      <DropdownMenuItem>Düzenle</DropdownMenuItem>
+                      <DropdownMenuItem>Detaylar</DropdownMenuItem>
+                      <DropdownMenuItem className="text-red-600">Sil</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </td>

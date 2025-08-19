@@ -8,7 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRouter, useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { authClient } from "@/lib/auth/client";
-import { AlertCircle, CheckCircle2, Users, Building, Mail, Shield, Clock, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, Users, Building, Mail, Shield, Clock, Sparkles, Phone } from "lucide-react";
+export const runtime = 'edge';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
@@ -55,6 +56,13 @@ export default function InvitePage() {
     password: "",
     confirmPassword: "",
   });
+
+  const [phone, setPhone] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneVerifying, setPhoneVerifying] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [phoneMessage, setPhoneMessage] = useState<string | null>(null);
 
   // Fetch invitation details on mount
   useEffect(() => {
@@ -134,6 +142,12 @@ export default function InvitePage() {
       return;
     }
 
+    if (!phoneVerified) {
+      setError("Lütfen telefon numaranızı doğrulayın");
+      setSignupLoading(false);
+      return;
+    }
+
     try {
       // Accept invitation and create user
       const response = await fetch(`/api/invitations/${token}/accept`, {
@@ -144,6 +158,7 @@ export default function InvitePage() {
         body: JSON.stringify({
           name: formData.name,
           password: formData.password,
+          phone,
         }),
       });
 
@@ -155,34 +170,36 @@ export default function InvitePage() {
         return;
       }
 
-      // Sign in the user
-      try {
-        await authClient.signIn.email({
-          email: invitation.email,
-          password: formData.password,
-        });
-
+      // If a new user was created, attempt sign-in with the provided password; otherwise route to sign-in
+      if (data.createdNewUser) {
+        try {
+          await authClient.signIn.email({
+            email: invitation.email,
+            password: formData.password,
+          });
+          setSuccess(true);
+          setTimeout(() => {
+            if (data.workspace && data.workspace.slug && data.company && data.company.slug) {
+              router.push(`/${data.workspace.slug}/${data.company.slug}`);
+            } else if (data.workspace && data.workspace.slug) {
+              router.push(`/${data.workspace.slug}`);
+            } else {
+              router.push('/');
+            }
+          }, 2000);
+        } catch (signInError) {
+          console.error("Auto sign-in failed:", signInError);
+          setSuccess(true);
+          setTimeout(() => {
+            router.push('/signin');
+          }, 2000);
+        }
+      } else {
+        // Existing users won't have a new password set here; route them to sign-in
         setSuccess(true);
-        
-        // Redirect to workspace after a short delay
-        setTimeout(() => {
-          if (data.workspace && data.workspace.slug && data.company && data.company.slug) {
-            // Redirect to workspace + company combination
-            router.push(`/${data.workspace.slug}/${data.company.slug}`);
-          } else if (data.workspace && data.workspace.slug) {
-            // Fallback to workspace root if no company
-            router.push(`/${data.workspace.slug}`);
-          } else {
-            router.push('/');
-          }
-        }, 2000);
-      } catch (signInError) {
-        console.error("Auto sign-in failed:", signInError);
-        setSuccess(true);
-        // Redirect to sign-in page if auto sign-in fails
         setTimeout(() => {
           router.push('/signin');
-        }, 2000);
+        }, 1500);
       }
     } catch (err) {
       console.error("Error accepting invitation:", err);
@@ -425,6 +442,107 @@ export default function InvitePage() {
                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                 </div>
               </div>
+
+              <div className="space-y-2.5">
+                <Label htmlFor="phone" className="text-sm font-medium text-slate-700">Telefon Numarası</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      placeholder="Örn: +90555XXXXXXX"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="h-12 border-slate-200 bg-white/50 focus:bg-white transition-colors duration-200 rounded-lg pl-10"
+                    />
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      setPhoneMessage(null);
+                      setError("");
+                      setPhoneSending(true);
+                      try {
+                        const res = await fetch('/api/auth/phone-verification/send', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ phone }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setError(data.message || 'Kod gönderilemedi');
+                        } else {
+                          if (data.debugToken) {
+                            setPhoneMessage(`Geliştirme modunda kod: ${data.debugToken}`);
+                            setPhoneCode(data.debugToken);
+                          } else {
+                            setPhoneMessage('Doğrulama kodu gönderildi');
+                          }
+                        }
+                      } catch (err) {
+                        setError('Beklenmeyen bir hata oluştu');
+                      } finally {
+                        setPhoneSending(false);
+                      }
+                    }}
+                    disabled={phoneSending || !phone || phoneVerified}
+                    className="h-12"
+                  >
+                    {phoneSending ? 'Gönderiliyor...' : (phoneVerified ? 'Doğrulandı' : 'Kodu Gönder')}
+                  </Button>
+                </div>
+                {phoneMessage && (
+                  <p className="text-sm text-green-600">{phoneMessage}</p>
+                )}
+              </div>
+
+              <div className="space-y-2.5">
+                <Label htmlFor="phoneCode" className="text-sm font-medium text-slate-700">SMS Doğrulama Kodu</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    id="phoneCode"
+                    name="phoneCode"
+                    placeholder="4 haneli kod"
+                    value={phoneCode}
+                    onChange={(e) => setPhoneCode(e.target.value)}
+                    className="h-12 border-slate-200 bg-white/50 focus:bg-white transition-colors duration-200 rounded-lg"
+                  />
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      setError("");
+                      setPhoneVerifying(true);
+                      try {
+                        const res = await fetch('/api/auth/phone-verification/verify', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ phone, token: phoneCode }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setError(data.message || 'Kod doğrulanamadı');
+                          setPhoneVerified(false);
+                        } else {
+                          setPhoneVerified(true);
+                          setPhoneMessage('Telefon numarası doğrulandı');
+                        }
+                      } catch (err) {
+                        setError('Beklenmeyen bir hata oluştu');
+                        setPhoneVerified(false);
+                      } finally {
+                        setPhoneVerifying(false);
+                      }
+                    }}
+                    disabled={phoneVerifying || !phone || !phoneCode || phoneVerified}
+                    className="h-12"
+                  >
+                    {phoneVerifying ? 'Doğrulanıyor...' : (phoneVerified ? 'Doğrulandı' : 'Doğrula')}
+                  </Button>
+                </div>
+              </div>
               
               <div className="space-y-2.5">
                 <Label htmlFor="password" className="text-sm font-medium text-slate-700">Şifre</Label>
@@ -463,7 +581,7 @@ export default function InvitePage() {
               
               <Button 
                 type="submit" 
-                disabled={signupLoading || !authClient}
+                disabled={signupLoading || !authClient || !phoneVerified}
                 className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {signupLoading ? (

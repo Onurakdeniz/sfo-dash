@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { workspace, workspaceCompany, company, workspaceMember } from "@/db/schema";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 import { eq, and } from "drizzle-orm";
 
 export async function GET(
@@ -115,7 +116,7 @@ export async function GET(
       id: c.company.id,
       name: c.company.name,
       fullName: c.company.fullName,
-      slug: (c.company.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      slug: slugifyCompanyFirstWord(c.company.name || ''),
     }));
 
     const currentCompany = companies.find(c => c.slug === companySlug);
@@ -157,6 +158,9 @@ export async function GET(
       currentCompany,
       companies,
       user: {
+        id: session.user.id,
+        name: (session.user as any).name || null,
+        email: (session.user as any).email || null,
         role: userRole,
         permissions: userPermissions,
         isOwner: isOwner,

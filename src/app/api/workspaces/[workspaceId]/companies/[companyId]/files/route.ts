@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth/server";
 import { db } from "@/db";
-import { company, companyFile, workspaceCompany } from "@/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { company, companyFileTemplate, companyFileVersion, workspaceCompany } from "@/db/schema";
+import { and, desc, eq, sql, inArray } from "drizzle-orm";
 
 // List files and create file metadata records after successful Blob uploads
 export async function GET(
@@ -28,19 +28,32 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams;
     const q = searchParams.get("q");
 
-    const rows = await db
+    const templates = await db
       .select()
-      .from(companyFile)
+      .from(companyFileTemplate)
       .where(
         and(
-          eq(companyFile.companyId, companyId),
-          sql`${companyFile.deletedAt} IS NULL`,
-          q ? sql`${companyFile.name} ILIKE ${"%" + q + "%"}` : sql`true`
+          eq(companyFileTemplate.companyId, companyId),
+          sql`${companyFileTemplate.deletedAt} IS NULL`,
+          q ? sql`(${companyFileTemplate.name} ILIKE ${"%" + q + "%"} OR ${companyFileTemplate.code} ILIKE ${"%" + q + "%"})` : sql`true`
         )
       )
-      .orderBy(desc(companyFile.createdAt));
+      .orderBy(desc(companyFileTemplate.updatedAt));
 
-    return NextResponse.json(rows);
+    const templateIds = templates.map(t => t.id);
+    let currentVersionsByTemplate: Record<string, any> = {};
+    if (templateIds.length) {
+      const currentVersions = await db
+        .select()
+        .from(companyFileVersion)
+        .where(and(inArray(companyFileVersion.templateId, templateIds), eq(companyFileVersion.isCurrent, true)));
+      for (const v of currentVersions) currentVersionsByTemplate[v.templateId] = v;
+    }
+
+    return NextResponse.json(templates.map(t => ({
+      ...t,
+      currentVersion: currentVersionsByTemplate[t.id] || null,
+    })));
   } catch (error) {
     console.error("Error listing company files:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -65,29 +78,67 @@ export async function POST(
     if (access.length === 0) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
     const body = await request.json();
-    const { name, blobUrl, blobPath, contentType, size, metadata } = body ?? {};
+    const { name, blobUrl, blobPath, contentType, size, metadata, code, category, description } = body ?? {};
 
     if (!name || !blobUrl) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const id = `cfile_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    const [row] = await db
-      .insert(companyFile)
+    const codeVal = (code ?? metadata?.code) ? String(code ?? metadata?.code) : null;
+    let tpl = null as any;
+    if (codeVal) {
+      const [existing] = await db
+        .select()
+        .from(companyFileTemplate)
+        .where(and(eq(companyFileTemplate.companyId, companyId), eq(companyFileTemplate.code, codeVal)))
+        .limit(1);
+      if (existing) tpl = existing;
+    }
+    if (!tpl) {
+      const templateId = `ctpl_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const [createdTpl] = await db
+        .insert(companyFileTemplate)
+        .values({
+          id: templateId,
+          companyId,
+          code: codeVal,
+          name: String(name),
+          category: category ?? metadata?.category ?? null,
+          description: description ?? metadata?.description ?? null,
+          createdBy: session.user.id,
+          updatedBy: session.user.id,
+        })
+        .returning();
+      tpl = createdTpl;
+    }
+
+    const versionId = `cver_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const versionVal = metadata?.version ? String(metadata.version) : null;
+    const [ver] = await db
+      .insert(companyFileVersion)
       .values({
-        id,
-        companyId,
-        uploadedBy: session.user.id,
+        id: versionId,
+        templateId: tpl.id,
+        version: versionVal,
         name: String(name),
         blobUrl: String(blobUrl),
         blobPath: blobPath ? String(blobPath) : null,
         contentType: contentType ? String(contentType) : null,
         size: Number(size ?? 0),
         metadata: metadata ?? null,
+        isCurrent: true,
+        createdBy: session.user.id,
       })
       .returning();
 
-    return NextResponse.json(row, { status: 201 });
+    if (versionVal) {
+      await db
+        .update(companyFileVersion)
+        .set({ isCurrent: false })
+        .where(and(eq(companyFileVersion.templateId, tpl.id), sql`${companyFileVersion.id} <> ${ver.id}`));
+    }
+
+    return NextResponse.json({ template: tpl, version: ver }, { status: 201 });
   } catch (error) {
     console.error("Error creating company file record:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { department, company, workspaceCompany, user } from "@/db/schema";
+import { department, company, workspaceCompany, user, companyLocation, employeeProfile } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export async function GET(
@@ -43,6 +43,7 @@ export async function GET(
         id: department.id,
         companyId: department.companyId,
         parentDepartmentId: department.parentDepartmentId,
+        locationId: department.locationId,
         code: department.code,
         name: department.name,
         description: department.description,
@@ -111,6 +112,7 @@ export async function PUT(
       goals,
       managerId,
       parentDepartmentId,
+      locationId,
       mailAddress,
       notes
     } = body;
@@ -156,6 +158,24 @@ export async function PUT(
 
     if (existingDepartment.length === 0) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 });
+    }
+
+    // If locationId is provided, validate it belongs to the same company
+    if (locationId && typeof locationId === 'string' && locationId.trim()) {
+      const locationExists = await db
+        .select()
+        .from(companyLocation)
+        .where(
+          and(
+            eq(companyLocation.id, locationId.trim()),
+            eq(companyLocation.companyId, companyId),
+            sql`${companyLocation.deletedAt} IS NULL`
+          )
+        )
+        .limit(1);
+      if (locationExists.length === 0) {
+        return NextResponse.json({ error: "Invalid location for this company" }, { status: 400 });
+      }
     }
 
     // Check if another department with same name already exists in company
@@ -219,6 +239,7 @@ export async function PUT(
       .update(department)
       .set({
         parentDepartmentId: parentDepartmentId?.trim() || null,
+        locationId: locationId?.trim() || null,
         code: code?.trim() || null,
         name: name.trim(),
         description: description?.trim() || null,
@@ -289,6 +310,25 @@ export async function DELETE(
 
     if (existingDepartment.length === 0) {
       return NextResponse.json({ error: "Department not found" }, { status: 404 });
+    }
+
+    // Prevent deleting department if there are employees assigned to it
+    const assignedEmployees = await db
+      .select()
+      .from(employeeProfile)
+      .where(
+        and(
+          eq(employeeProfile.companyId, companyId),
+          eq(employeeProfile.departmentId, departmentId)
+        )
+      )
+      .limit(1);
+
+    if (assignedEmployees.length > 0) {
+      return NextResponse.json(
+        { error: "Cannot delete department with assigned employees. Please reassign or remove employees first." },
+        { status: 400 }
+      );
     }
 
     // Check if department has child departments

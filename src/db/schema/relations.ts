@@ -3,11 +3,12 @@ import { user } from "./tables/user";
 import { account } from "./tables/account";
 import { session } from "./tables/session";
 import { workspace, workspaceCompany, workspaceMember } from "./tables/workspace";
-import { company, department, unit, companyFile } from "./tables/company";
+import { company, department, unit, companyFile, companyFileTemplate, companyFileVersion, companyFileAttachment, companyLocation } from "./tables/company";
+import { employeeProfile, employeeFile } from "./tables/hr";
 import { invitation, invitationTemplate } from "./tables/invitation";
 import { policies, policyAssignments } from "./tables/policies";
 import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
-import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog } from "./tables/system";
+import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog, userRoles, userModulePermissions } from "./tables/system";
 
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -22,6 +23,8 @@ export const userRelations = relations(user, ({ many, one }) => ({
   createdPolicies: many(policies),
   assignedPolicies: many(policyAssignments),
   grantedPermissions: many(roleModulePermissions),
+  systemRoles: many(userRoles),
+  directPermissions: many(userModulePermissions),
   accessLogs: many(moduleAccessLog),
 }));
 
@@ -45,6 +48,7 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
 export const companyRelations = relations(company, ({ many, one }) => ({
   workspaces: many(workspaceCompany),
   departments: many(department),
+  locations: many(companyLocation),
   invitations: many(invitation),
   invitationTemplates: many(invitationTemplate),
   parentCompany: one(company, {
@@ -61,6 +65,14 @@ export const companyRelations = relations(company, ({ many, one }) => ({
   featureFlags: many(featureFlags),
   roles: many(roles),
   files: many(companyFile),
+  fileTemplates: many(companyFileTemplate),
+}));
+
+export const companyLocationRelations = relations(companyLocation, ({ one }) => ({
+  company: one(company, {
+    fields: [companyLocation.companyId],
+    references: [company.id],
+  }),
 }));
 
 export const workspaceCompanyRelations = relations(workspaceCompany, ({ one }) => ({
@@ -98,6 +110,10 @@ export const departmentRelations = relations(department, ({ one, many }) => ({
     fields: [department.companyId],
     references: [company.id],
   }),
+  location: one(companyLocation, {
+    fields: [department.locationId],
+    references: [companyLocation.id],
+  }),
   manager: one(user, {
     fields: [department.managerId],
     references: [user.id],
@@ -131,6 +147,89 @@ export const companyFileRelations = relations(companyFile, ({ one }) => ({
   }),
   uploader: one(user, {
     fields: [companyFile.uploadedBy],
+    references: [user.id],
+  }),
+  updater: one(user, {
+    fields: [companyFile.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+export const companyFileTemplateRelations = relations(companyFileTemplate, ({ one, many }) => ({
+  company: one(company, {
+    fields: [companyFileTemplate.companyId],
+    references: [company.id],
+  }),
+  createdByUser: one(user, {
+    fields: [companyFileTemplate.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [companyFileTemplate.updatedBy],
+    references: [user.id],
+  }),
+  versions: many(companyFileVersion),
+}));
+
+export const companyFileVersionRelations = relations(companyFileVersion, ({ one, many }) => ({
+  template: one(companyFileTemplate, {
+    fields: [companyFileVersion.templateId],
+    references: [companyFileTemplate.id],
+  }),
+  createdByUser: one(user, {
+    fields: [companyFileVersion.createdBy],
+    references: [user.id],
+  }),
+  attachments: many(companyFileAttachment),
+}));
+
+export const companyFileAttachmentRelations = relations(companyFileAttachment, ({ one }) => ({
+  version: one(companyFileVersion, {
+    fields: [companyFileAttachment.versionId],
+    references: [companyFileVersion.id],
+  }),
+  createdByUser: one(user, {
+    fields: [companyFileAttachment.createdBy],
+    references: [user.id],
+  }),
+}));
+
+// Employee Profile Relations
+export const employeeProfileRelations = relations(employeeProfile, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [employeeProfile.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [employeeProfile.companyId],
+    references: [company.id],
+  }),
+  user: one(user, {
+    fields: [employeeProfile.userId],
+    references: [user.id],
+  }),
+  department: one(department, {
+    fields: [employeeProfile.departmentId],
+    references: [department.id],
+  }),
+  manager: one(user, {
+    fields: [employeeProfile.managerId],
+    references: [user.id],
+  }),
+}));
+
+// Employee File Relations
+export const employeeFileRelations = relations(employeeFile, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [employeeFile.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [employeeFile.companyId],
+    references: [company.id],
+  }),
+  user: one(user, {
+    fields: [employeeFile.userId],
     references: [user.id],
   }),
 }));

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth/server";
 import { db } from "@/db";
 import { company, workspaceCompany } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
-import { generateUploadUrl } from "@vercel/blob";
+import { put } from "@vercel/blob";
 
 // This route generates a direct client upload URL via @vercel/blob SDK
 // Client will POST the file directly to Blob using this URL
@@ -25,24 +25,20 @@ export async function POST(
       .limit(1);
     if (access.length === 0) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-    const body = await request.json().catch(() => ({}));
-    const filename: string | undefined = body.filename || undefined;
-    const contentType: string | undefined = body.contentType || undefined;
-    const accessType: "public" | "private" = body.access === "public" ? "public" : "public";
+    const form = await request.formData();
+    const file = form.get("file") as File | null;
+    const filename = (form.get("filename") as string | null) ?? file?.name ?? null;
+    // Vercel Blob SDK currently expects access: "public" in this project
+    const accessType = "public" as const;
 
-    if (!filename) {
-      return NextResponse.json({ error: "filename is required" }, { status: 400 });
+    if (!file || !filename) {
+      return NextResponse.json({ error: "file is required" }, { status: 400 });
     }
 
     const key = `companies/${companyId}/${Date.now()}_${filename}`;
-    const { url, pathname } = await generateUploadUrl({
-      access: accessType,
-      pathname: key,
-      contentType,
-      tokenPayload: { companyId },
-    } as any);
+    const blob = await put(key, file, { access: accessType, addRandomSuffix: false });
 
-    return NextResponse.json({ uploadUrl: url, pathname, key });
+    return NextResponse.json({ url: blob.url, pathname: blob.pathname, key });
   } catch (error) {
     console.error("Error generating upload URL:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

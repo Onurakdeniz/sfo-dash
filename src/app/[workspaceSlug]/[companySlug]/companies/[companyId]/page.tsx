@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, Edit3, Trash2, Loader2, Phone, Mail, Globe, MapPin, FileText, Calendar, Briefcase, Building, Users, FolderOpen } from "lucide-react";
+import { ArrowLeft, Building2, Edit3, Trash2, Loader2, Phone, Mail, Globe, MapPin, FileText, Calendar, Briefcase, X, Check } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,8 +15,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageWrapper } from "@/components/page-wrapper";
+// import { PageWrapper } from "@/components/page-wrapper";
+import CompanyPageLayout from "@/components/layouts/company-page-layout";
 import { toast } from "sonner";
+import CompanyTabs from "./company-tabs";
 
 interface Company {
   id: string;
@@ -114,6 +117,7 @@ const cities = [
 
 export default function CompanyDetailsPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useParams();
   const workspaceSlug = params.workspaceSlug as string;
   const companySlug = params.companySlug as string;
@@ -208,7 +212,12 @@ export default function CompanyDetailsPage() {
         credentials: 'include'
       });
       if (!res.ok) {
-        throw new Error('Failed to delete company');
+        let message = 'Failed to delete company';
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {}
+        throw new Error(message);
       }
     },
     onSuccess: () => {
@@ -216,8 +225,8 @@ export default function CompanyDetailsPage() {
       toast.success('Şirket başarıyla silindi');
       router.push(`/${workspaceSlug}/${companySlug}/companies`);
     },
-    onError: (error) => {
-      toast.error('Şirket silme başarısız');
+    onError: (error: Error) => {
+      toast.error(error.message || 'Şirket silme başarısız');
       console.error('Delete company error:', error);
     },
   });
@@ -363,7 +372,7 @@ export default function CompanyDetailsPage() {
             Şirket bulunamadı veya bu şirkete erişim izniniz yok.
           </p>
           <Link href={`/${workspaceSlug}/${companySlug}/companies`}>
-            <Button variant="outline">
+            <Button variant="shopifySecondary">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Şirketler Listesine Dön
             </Button>
@@ -377,152 +386,153 @@ export default function CompanyDetailsPage() {
     return companyTypes.find(type => type.value === value)?.label || value;
   };
 
+  const headerActions = !isEditing ? (
+    <div className="flex items-center gap-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button aria-label="Düzenle" onClick={handleEdit} variant="shopifySecondary" size="sm" className="rounded-md">
+            <Edit3 className="h-4 w-4" />
+            Düzenle
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Düzenle</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button aria-label="Sil" onClick={handleDeleteDialogOpen} variant="shopifyDestructive" size="sm" className="rounded-md">
+            <Trash2 className="h-4 w-4" />
+            Sil
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Sil</TooltipContent>
+      </Tooltip>
+    </div>
+  ) : (
+    <div className="flex items-center gap-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button aria-label="İptal" onClick={handleCancelEdit} variant="shopifySecondary" size="sm" className="rounded-md">
+            <X className="h-4 w-4" />
+            İptal
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>İptal</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button aria-label="Kaydet" onClick={handleSaveEdit} variant="shopifySuccess" size="sm" disabled={updateCompany.isPending} className="rounded-md">
+            {updateCompany.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Kaydediliyor...
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4" />
+                Kaydet
+              </>
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Kaydet</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+
   return (
-    <PageWrapper
+    <CompanyPageLayout
       title="Şirket Bilgileri"
       description={`${company.name} - Şirket detayları ve bilgileri`}
-      actions={
-        <div className="flex gap-2">
-          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/departments`}>
-            <Button variant="outline">
-              <Building className="mr-2 h-4 w-4" />
-              Departmanlar
-            </Button>
-          </Link>
-          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/members`}>
-            <Button variant="outline">
-              <Users className="mr-2 h-4 w-4" />
-              Üyeler
-            </Button>
-          </Link>
-          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/files`}>
-            <Button variant="outline">
-              <FolderOpen className="mr-2 h-4 w-4" />
-              Dosyalar
-            </Button>
-          </Link>
-          {!isEditing ? (
-            <>
-              <Button onClick={handleEdit} variant="outline">
-                <Edit3 className="mr-2 h-4 w-4" />
-                Düzenle
-              </Button>
-              <Button 
-                onClick={handleDeleteDialogOpen} 
-                variant="outline" 
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Sil
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button onClick={handleCancelEdit} variant="outline">
-                İptal
-              </Button>
-              <Button onClick={handleSaveEdit} disabled={updateCompany.isPending}>
-                {updateCompany.isPending ? (
-                  <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Kaydediliyor...
-                        </>
-                      ) : (
-                        'Kaydet'
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            }
+      actions={headerActions}
+      tabs={<CompanyTabs />}
     >
       <div className="space-y-6">
-            {/* Basic Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Temel Bilgiler
-                </CardTitle>
-                <CardDescription>
-                  Şirketin temel bilgileri
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Şirket Adı</Label>
-                    {isEditing ? (
-                      <Input
-                        value={formData.name || ''}
-                        onChange={(e) => handleInputChange('name', e.target.value)}
-                        placeholder="Şirket adı"
-                        required
-                      />
-                    ) : (
-                      <p className="text-sm py-2">{company.name}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tam Unvan</Label>
-                    {isEditing ? (
-                      <Input
-                        value={formData.fullName || ''}
-                        onChange={(e) => handleInputChange('fullName', e.target.value)}
-                        placeholder="Tam unvan"
-                      />
-                    ) : (
-                      <p className="text-sm py-2">{company.fullName || 'Belirtilmemiş'}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Şirket Türü</Label>
-                    {isEditing ? (
-                      <Select value={formData.companyType || ''} onValueChange={(value) => handleInputChange('companyType', value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Şirket türünü seçin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {companyTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm py-2">{getCompanyTypeLabel(company.companyType) || 'Belirtilmemiş'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Sektör</Label>
-                    {isEditing ? (
-                      <Select value={formData.industry || ''} onValueChange={(value) => handleInputChange('industry', value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sektör seçin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {industries.map((industry) => (
-                            <SelectItem key={industry} value={industry}>
-                              {industry}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p className="text-sm py-2">{company.industry || 'Belirtilmemiş'}</p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Temel Bilgiler
+              </CardTitle>
+              <CardDescription>Şirketin temel bilgileri</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Şirket Adı</Label>
+                {isEditing ? (
+                  <Input
+                    value={formData.name || ''}
+                    onChange={(e) => handleInputChange('name', e.target.value)}
+                    placeholder="Şirket adı"
+                    required
+                  />
+                ) : (
+                  <p className="text-sm py-2">{company.name}</p>
+          )}
+        </div>
+              <div className="space-y-2">
+                <Label>Tam Unvan</Label>
+                {isEditing ? (
+                  <Input
+                    value={formData.fullName || ''}
+                    onChange={(e) => handleInputChange('fullName', e.target.value)}
+                    placeholder="Tam unvan"
+                  />
+                ) : (
+                  <p className="text-sm py-2">{company.fullName || 'Belirtilmemiş'}</p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Şirket Türü</Label>
+                {isEditing ? (
+                  <Select value={formData.companyType || ''} onValueChange={(value) => handleInputChange('companyType', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Şirket türünü seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyTypes.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm py-2">{getCompanyTypeLabel(company.companyType) || 'Belirtilmemiş'}</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Sektör</Label>
+                {isEditing ? (
+                  <Select value={formData.industry || ''} onValueChange={(value) => handleInputChange('industry', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sektör seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {industries.map((industry) => (
+                        <SelectItem key={industry} value={industry}>
+                          {industry}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-sm py-2">{company.industry || 'Belirtilmemiş'}</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+            
 
             {/* Contact Information */}
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
                 <CardTitle className="flex items-center gap-2">
                   <Phone className="h-5 w-5" />
                   İletişim Bilgileri
@@ -530,6 +540,7 @@ export default function CompanyDetailsPage() {
                 <CardDescription>
                   Şirketin iletişim bilgileri
                 </CardDescription>
+                </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -819,26 +830,30 @@ export default function CompanyDetailsPage() {
             />
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleDeleteDialogClose}>
-              İptal
+            <AlertDialogCancel asChild>
+              <Button variant="shopifySecondary" onClick={handleDeleteDialogClose}>
+                İptal
+              </Button>
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteCompany.mutate()}
-              disabled={deleteCompany.isPending || !isDeleteConfirmed}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
-            >
-              {deleteCompany.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Siliniyor...
-                </>
-              ) : (
-                'Sil'
-              )}
+            <AlertDialogAction asChild>
+              <Button
+                variant="shopifyDestructive"
+                onClick={() => deleteCompany.mutate()}
+                disabled={deleteCompany.isPending || !isDeleteConfirmed}
+              >
+                {deleteCompany.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Siliniyor...
+                  </>
+                ) : (
+                  'Sil'
+                )}
+              </Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </PageWrapper>
+    </CompanyPageLayout>
   );
 }

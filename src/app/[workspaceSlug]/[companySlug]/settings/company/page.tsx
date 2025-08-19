@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,9 +20,13 @@ import {
   Trash2, 
   Settings,
   Globe,
-  AlertCircle
+  AlertCircle,
+  Calendar as CalendarIcon,
+  Clock,
+  ChevronRight
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import SettingsTabs from "../settings-tabs";
 import Link from "next/link";
 
 interface CompanySettings {
@@ -33,12 +36,20 @@ interface CompanySettings {
   taxRate: string;
   invoicePrefix: string;
   invoiceNumbering: string;
-  workingHoursStart?: string;
-  workingHoursEnd?: string;
-  workingDays?: string[];
   publicHolidays?: { date: string; name?: string }[];
   customSettings: Record<string, any>;
 }
+
+type TimeRange = { start: string; end: string };
+type DaySchedule = { isWorkingDay: boolean; workIntervals: TimeRange[]; breaks: TimeRange[] };
+type WorkCalendar = {
+  id: string;
+  name: string;
+  description?: string;
+  days: Record<string, DaySchedule>;
+  createdAt: string;
+  updatedAt: string;
+};
 
 interface WorkspaceContextData {
   workspace: { id: string; name: string; slug: string };
@@ -46,15 +57,7 @@ interface WorkspaceContextData {
   companies: { id: string; name: string; slug: string }[];
 }
 
-const DAYS_OF_WEEK = [
-  { value: "monday", label: "Pazartesi" },
-  { value: "tuesday", label: "Salı" },
-  { value: "wednesday", label: "Çarşamba" },
-  { value: "thursday", label: "Perşembe" },
-  { value: "friday", label: "Cuma" },
-  { value: "saturday", label: "Cumartesi" },
-  { value: "sunday", label: "Pazar" }
-];
+// Takvimler gün bazında çalışma ve mola aralıklarını içerir
 
 const INVOICE_NUMBERING_TYPES = [
   { value: "sequential", label: "Sıralı (1, 2, 3...)" },
@@ -70,7 +73,7 @@ export default function CompanySettingsPage() {
 
   // Form states
   const [companyForm, setCompanyForm] = useState<Partial<CompanySettings>>({});
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [policies, setPolicies] = useState<any[]>([]);
 
   // Get workspace and company context
   const { data: contextData, isLoading: contextLoading } = useQuery<WorkspaceContextData>({
@@ -86,13 +89,14 @@ export default function CompanySettingsPage() {
   });
 
   const workspace = contextData?.workspace;
+  const company = contextData?.currentCompany;
 
   // Fetch company settings for selected company
   const { data: companySettings, isLoading: companySettingsLoading, error: companySettingsError } = useQuery<CompanySettings>({
-    queryKey: ['company-settings', selectedCompanyId, workspace?.id],
+    queryKey: ['company-settings', company?.id, workspace?.id],
     queryFn: async () => {
-      if (!selectedCompanyId || !workspace?.id) throw new Error('Company or workspace not found');
-      const res = await fetch(`/api/settings/company?companyId=${selectedCompanyId}&workspaceId=${workspace.id}`, {
+      if (!company?.id || !workspace?.id) throw new Error('Company or workspace not found');
+      const res = await fetch(`/api/settings/company?companyId=${company.id}&workspaceId=${workspace.id}`, {
         credentials: 'include'
       });
       if (!res.ok) {
@@ -101,14 +105,13 @@ export default function CompanySettingsPage() {
       }
       return res.json();
     },
-    enabled: !!(selectedCompanyId && workspace?.id),
+    enabled: !!(company?.id && workspace?.id),
   });
 
   // Debug logging
   if (process.env.NODE_ENV === 'development') {
     console.log('CompanySettingsPage render:', {
       companyForm,
-      selectedCompanyId,
       contextData,
       workspace,
       companySettingsLoading: companySettingsLoading,
@@ -126,49 +129,41 @@ export default function CompanySettingsPage() {
         taxRate: companySettings.taxRate || '',
         invoicePrefix: companySettings.invoicePrefix || '',
         invoiceNumbering: companySettings.invoiceNumbering || '',
-        workingHoursStart: companySettings.workingHoursStart || '',
-        workingHoursEnd: companySettings.workingHoursEnd || '',
-        workingDays: Array.isArray(companySettings.workingDays) ? companySettings.workingDays : [],
-        publicHolidays: Array.isArray(companySettings.publicHolidays) ? companySettings.publicHolidays : []
+        publicHolidays: Array.isArray(companySettings.publicHolidays) ? companySettings.publicHolidays : [],
+        customSettings: {
+          ...(companySettings.customSettings || {}),
+          workCalendars: Array.isArray(companySettings.customSettings?.workCalendars)
+            ? companySettings.customSettings.workCalendars
+            : []
+        }
       });
     }
   }, [companySettings]);
 
-  // Initialize selected company when context loads
+  // Load policies for embedded section
   useEffect(() => {
-    if (contextData?.companies && contextData.companies.length > 0) {
-      // Default to current company if available, otherwise first company
-      const defaultCompany = contextData.currentCompany || contextData.companies[0];
-      setSelectedCompanyId(defaultCompany.id);
-    }
-  }, [contextData]);
-
-  // Reset company form when selected company changes but keep the fetched data
-  useEffect(() => {
-    if (selectedCompanyId && companySettings) {
-      setCompanyForm({
-        ...companySettings,
-        fiscalYearStart: companySettings.fiscalYearStart || '',
-        taxRate: companySettings.taxRate || '',
-        invoicePrefix: companySettings.invoicePrefix || '',
-        invoiceNumbering: companySettings.invoiceNumbering || '',
-        workingHoursStart: companySettings.workingHoursStart || '',
-        workingHoursEnd: companySettings.workingHoursEnd || '',
-        workingDays: Array.isArray(companySettings.workingDays) ? companySettings.workingDays : [],
-        publicHolidays: Array.isArray(companySettings.publicHolidays) ? companySettings.publicHolidays : []
-      });
-    }
-  }, [selectedCompanyId, companySettings]);
+    const loadPolicies = async () => {
+      try {
+        const response = await fetch('/api/system/policies');
+        if (!response.ok) throw new Error('Failed to fetch policies');
+        const data = await response.json();
+        setPolicies(data || []);
+      } catch (e) {
+        setPolicies([]);
+      }
+    };
+    loadPolicies();
+  }, []);
 
   // Company settings mutation
   const updateCompanySettings = useMutation({
     mutationFn: async (data: Partial<CompanySettings>) => {
-      if (!selectedCompanyId || !workspace?.id) throw new Error('Company or workspace not found');
+      if (!company?.id || !workspace?.id) throw new Error('Company or workspace not found');
       const res = await fetch('/api/settings/company', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...data, companyId: selectedCompanyId, workspaceId: workspace.id })
+        body: JSON.stringify({ ...data, companyId: company.id, workspaceId: workspace.id })
       });
       if (!res.ok) throw new Error('Failed to update company settings');
       return res.json();
@@ -188,21 +183,7 @@ export default function CompanySettingsPage() {
 
   const handleCompanySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCompanyId) {
-      toast.error("Hata!", {
-        description: "Lütfen önce bir şirket seçin.",
-      });
-      return;
-    }
     updateCompanySettings.mutate(companyForm);
-  };
-
-  const handleWorkingDayChange = (day: string, checked: boolean) => {
-    const currentDays = companyForm.workingDays || [];
-    const newDays = checked 
-      ? [...currentDays, day]
-      : currentDays.filter(d => d !== day);
-    setCompanyForm(prev => ({ ...prev, workingDays: newDays }));
   };
 
   const addHoliday = () => {
@@ -237,13 +218,13 @@ export default function CompanySettingsPage() {
   }
 
   // Show error if workspace not found
-  if (!workspace) {
+  if (!workspace || !company) {
     return (
       <div className="p-6">
         <div className="text-center py-12">
           <Settings className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <p className="text-muted-foreground">
-            Bu çalışma alanına erişim izniniz yok veya çalışma alanı bulunamadı.
+            Bu çalışma alanına veya şirkete erişim izniniz yok ya da bulunamadı.
           </p>
         </div>
       </div>
@@ -252,11 +233,10 @@ export default function CompanySettingsPage() {
 
   const actions = (
     <>
-      {selectedCompanyId && (
         <Button 
           type="submit" 
           form="company-settings-form"
-          disabled={updateCompanySettings.isPending || companySettingsLoading || !selectedCompanyId || !companySettings}
+        disabled={updateCompanySettings.isPending || companySettingsLoading || !companySettings}
         >
           {updateCompanySettings.isPending ? (
             <>
@@ -267,7 +247,6 @@ export default function CompanySettingsPage() {
             'Kaydet'
           )}
         </Button>
-      )}
       <Link href={`/${workspaceSlug}/${companySlug}/settings`}>
         <Button variant="outline">
           <Globe className="mr-2 h-4 w-4" />
@@ -283,6 +262,7 @@ export default function CompanySettingsPage() {
         title="Şirket Ayarları"
         description={`${workspace.name} çalışma alanındaki şirketler için ayarlar`}
         actions={actions}
+        secondaryNav={<SettingsTabs />}
       >
         <div className="space-y-6">
           <Alert>
@@ -305,60 +285,7 @@ export default function CompanySettingsPage() {
             </Alert>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Şirket Seçimi
-              </CardTitle>
-              <CardDescription>
-                Ayarlarını düzenlemek istediğiniz şirketi seçin
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="company-select">Şirket</Label>
-                  <Select 
-                    value={selectedCompanyId} 
-                    onValueChange={setSelectedCompanyId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Şirket seçin" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contextData?.companies?.map(company => (
-                        <SelectItem key={company.id} value={company.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{company.name}</span>
-                            {contextData.currentCompany?.id === company.id && (
-                              <Badge variant="secondary" className="text-xs">
-                                Mevcut
-                              </Badge>
-                            )}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedCompanyId && (
-                  <div className="p-4 border rounded-lg bg-muted/50">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      <span className="font-medium">
-                        {contextData?.companies?.find(c => c.id === selectedCompanyId)?.name}
-                      </span>
-                      <Badge variant="outline">Seçili</Badge>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {selectedCompanyId && (
+          {company && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -435,101 +362,59 @@ export default function CompanySettingsPage() {
                         </div>
                       </div>
 
-                      {/* Working Hours Override */}
-                      <div className="space-y-4">
-                        <h3 className="text-lg font-semibold">Çalışma Saatleri (İsteğe Bağlı)</h3>
-                        <p className="text-sm text-muted-foreground">Boş bırakırsanız workspace ayarları kullanılır</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="space-y-2">
-                            <Label htmlFor="companyWorkingHoursStart">Başlangıç Saati</Label>
-                            <Input
-                              id="companyWorkingHoursStart"
-                              type="time"
-                              value={companyForm.workingHoursStart || ''}
-                              onChange={(e) => setCompanyForm(prev => ({ ...prev, workingHoursStart: e.target.value }))}
-                            />
+                      {/* Çalışma Takvimi - Şirket */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <CalendarIcon className="h-5 w-5" />
+                            Çalışma Takvimi (Şirket)
+                          </CardTitle>
+                          <CardDescription>Gün bazında mesai ve mola saatlerini içeren şirket takvimleri</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="text-sm text-muted-foreground">
+                              {Array.isArray(companyForm.customSettings?.workCalendars) && (companyForm.customSettings as any).workCalendars.length > 0
+                                ? `${(companyForm.customSettings as any).workCalendars.length} takvim`
+                                : 'Henüz takvim oluşturulmadı'}
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="companyWorkingHoursEnd">Bitiş Saati</Label>
-                            <Input
-                              id="companyWorkingHoursEnd"
-                              type="time"
-                              value={companyForm.workingHoursEnd || ''}
-                              onChange={(e) => setCompanyForm(prev => ({ ...prev, workingHoursEnd: e.target.value }))}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Working Days Override */}
-                      <div className="space-y-4">
-                        <Label>Çalışma Günleri (İsteğe Bağlı Üzerine Yazma)</Label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-                          {DAYS_OF_WEEK.map(day => (
-                            <div key={day.value} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`company-${day.value}`}
-                                checked={companyForm.workingDays?.includes(day.value) || false}
-                                onCheckedChange={(checked) => handleWorkingDayChange(day.value, checked as boolean)}
-                              />
-                              <Label htmlFor={`company-${day.value}`} className="text-sm">
-                                {day.label}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Company Holidays */}
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <Label>Şirket Özel Tatilleri</Label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addHoliday()}
-                            disabled={companySettingsLoading || !companySettings}
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Tatil Ekle
-                          </Button>
-                        </div>
-                        <div className="space-y-4">
-                          {(companyForm.publicHolidays || []).map((holiday, index) => (
-                            <div key={index} className="flex items-center gap-4 p-4 border rounded-lg">
-                              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor={`company-holiday-date-${index}`}>Tarih</Label>
-                                  <Input
-                                    id={`company-holiday-date-${index}`}
-                                    type="date"
-                                    value={holiday.date}
-                                    onChange={(e) => updateHoliday(index, 'date', e.target.value)}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor={`company-holiday-name-${index}`}>Tatil Adı</Label>
-                                  <Input
-                                    id={`company-holiday-name-${index}`}
-                                    placeholder="Örn: Şirket Kuruluş Günü"
-                                    value={holiday.name || ''}
-                                    onChange={(e) => updateHoliday(index, 'name', e.target.value)}
-                                  />
-                                </div>
-                              </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => removeHoliday(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
+                            <Link href={`/${workspaceSlug}/${companySlug}/settings/company/calendars/new`}>
+                              <Button type="button">
+                                <Plus className="h-4 w-4 mr-2" /> Yeni Takvim
                               </Button>
-                            </div>
-                          ))}
+                            </Link>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {((companyForm.customSettings?.workCalendars as WorkCalendar[]) || []).map((cal) => {
+                              const activeDays = Object.entries(cal.days)
+                                .filter(([_, d]) => (d as DaySchedule).isWorkingDay)
+                                .map(([k]) => k)
+                                .join(', ');
+                              return (
+                                <div key={cal.id} className="p-4 border rounded-lg">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <div className="font-medium">{cal.name || 'İsimsiz Takvim'}</div>
+                                      {cal.description && (
+                                        <div className="text-sm text-muted-foreground mt-1">{cal.description}</div>
+                                      )}
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        <span>{activeDays || 'Çalışma günü tanımlı değil'}</span>
                         </div>
                       </div>
+                                    <Link href={`/${workspaceSlug}/${companySlug}/settings/company/calendars/${cal.id}`} className="inline-flex items-center text-sm">
+                                      Detaylar <ChevronRight className="h-4 w-4 ml-1" />
+                                    </Link>
+                        </div>
+                                </div>
+                              );
+                            })}
+                                </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Şirket Özel Tatilleri ayrı kart olarak aşağıda */}
                     </>
                   )}
                 </form>
@@ -537,27 +422,69 @@ export default function CompanySettingsPage() {
             </Card>
           )}
 
-          {!selectedCompanyId && !contextLoading && (
+          {/* Şirket Özel Tatilleri - Ayrı Bölüm */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Şirket Özel Tatilleri</CardTitle>
+              <CardDescription>Bu şirkete özel tatilleri ekleyin ve yönetin</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-muted-foreground"></div>
+                <Button type="button" variant="outline" size="sm" onClick={() => addHoliday()} disabled={companySettingsLoading || !companySettings}>
+                  <Plus className="h-4 w-4 mr-2" /> Tatil Ekle
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(companyForm.publicHolidays || []).map((holiday, index) => (
+                  <div key={index} className="p-4 rounded-lg border">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`company-holiday-date-${index}`}>Tarih</Label>
+                          <Input id={`company-holiday-date-${index}`} type="date" value={holiday.date} onChange={(e) => updateHoliday(index, 'date', e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`company-holiday-name-${index}`}>Tatil Adı</Label>
+                          <Input id={`company-holiday-name-${index}`} placeholder="Örn: Şirket Kuruluş Günü" value={holiday.name || ''} onChange={(e) => updateHoliday(index, 'name', e.target.value)} />
+                        </div>
+                      </div>
+                      <Button type="button" variant="outline" size="icon" onClick={() => removeHoliday(index)} className="shrink-0" aria-label="Sil">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Embedded Platform Policies Section */}
             <Card>
-              <CardContent className="pt-6">
-                <div className="text-center py-8">
-                  {contextData?.companies && contextData.companies.length === 0 ? (
-                    <>
-                      <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">Henüz şirket bulunmuyor</h3>
-                      <p className="text-sm text-muted-foreground">Bu workspace'de henüz şirket oluşturulmamış</p>
-                    </>
-                  ) : (
-                    <>
-                      <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">Şirket seçin</h3>
-                      <p className="text-sm text-muted-foreground">Ayarlarını düzenlemek istediğiniz şirketi yukarıdan seçin</p>
-                    </>
-                  )}
+            <CardHeader>
+              <CardTitle>Platform Politikaları</CardTitle>
+              <CardDescription>Politikaları görüntüleyin ve yönetin</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-muted-foreground">Toplam {policies.length} politika</div>
+                <Link href={`/${workspaceSlug}/${companySlug}/settings/company/policies/new`}>
+                  <Button type="button">
+                    <Plus className="h-4 w-4 mr-2" /> Yeni Politika
+                  </Button>
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {policies.map((p: any) => (
+                  <Link key={p.id} href={`/${workspaceSlug}/${companySlug}/settings/company/policies/${p.id}`} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="font-medium">{p.title}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{p.type}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Durum: {p.status}</div>
+                  </Link>
+                ))}
                 </div>
               </CardContent>
             </Card>
-          )}
 
           {contextLoading && (
             <Card>

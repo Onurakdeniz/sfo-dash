@@ -35,6 +35,7 @@ interface PageWrapperProps {
   description?: string;
   breadcrumbs?: BreadcrumbItem[];
   actions?: React.ReactNode;
+  secondaryNav?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }
@@ -44,6 +45,7 @@ export function PageWrapper({
   description, 
   breadcrumbs = [], 
   actions, 
+  secondaryNav,
   children,
   className 
 }: PageWrapperProps) {
@@ -82,7 +84,7 @@ export function PageWrapper({
     <TooltipProvider>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex-shrink-0 bg-background border-b border-border px-6 py-3">
+        <div className="flex-shrink-0 bg-background px-4 md:px-6 py-2">
           <div className="flex items-center justify-between gap-4">
             <div className="flex flex-col space-y-2">
               {/* Title with Icon */}
@@ -121,13 +123,13 @@ export function PageWrapper({
                       <React.Fragment key={item.href || item.label}>
                         <BreadcrumbItem>
                           {item.isLast || !item.href ? (
-                            <BreadcrumbPage className="text-muted-foreground font-medium text-sm">
+                            <BreadcrumbPage className="text-muted-foreground font-medium text-xs">
                               {item.label}
                             </BreadcrumbPage>
                           ) : (
                             <BreadcrumbLink 
                               asChild
-                              className="text-muted-foreground hover:text-foreground transition-colors font-medium text-sm"
+                              className="text-muted-foreground hover:text-foreground transition-colors font-medium text-xs"
                             >
                               <Link href={item.href}>
                                 {item.label}
@@ -154,10 +156,17 @@ export function PageWrapper({
           </div>
         </div>
 
+        {/* Secondary navigation under header (e.g., tabs) */}
+        {secondaryNav && (
+          <div className="flex-shrink-0 bg-background px-4 md:px-6 pt-2 pb-2">
+            <div className="flex items-center">{secondaryNav}</div>
+          </div>
+        )}
+
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
-          <div className={cn("p-6", className)}>
+          <div className={cn("px-6 pb-6 pt-6", className)}>
             {children}
           </div>
         </ScrollArea>
@@ -202,7 +211,7 @@ function generateBreadcrumbs(pathname: string, workspaceSlug: string, companySlu
         const companyIdMatch = pathname.match(`${basePath}/companies/([^/]+)`);
         if (companyIdMatch) {
           breadcrumbs.push({
-            label: "Detaylar",
+            label: "Şirket Bilgileri",
             isLast: true
           });
         }

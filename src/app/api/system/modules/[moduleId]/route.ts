@@ -53,7 +53,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { code, name, displayName, description, icon, color, isCore, sortOrder, settings, metadata } = await request.json();
+    const { code, name, displayName, description, icon, color, sortOrder, settings, metadata } = await request.json();
 
     if (!name || !displayName) {
       return NextResponse.json(
@@ -83,7 +83,6 @@ export async function PUT(
         description,
         icon,
         color,
-        isCore,
         sortOrder,
         settings,
         metadata,
@@ -115,7 +114,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if module exists and is not core
+    // Check if module exists
     const existingModule = await db.select()
       .from(modules)
       .where(and(
@@ -126,10 +125,6 @@ export async function DELETE(
 
     if (existingModule.length === 0) {
       return NextResponse.json({ error: "Module not found" }, { status: 404 });
-    }
-
-    if (existingModule[0].isCore) {
-      return NextResponse.json({ error: "Cannot delete core modules" }, { status: 400 });
     }
 
     // Soft delete the module

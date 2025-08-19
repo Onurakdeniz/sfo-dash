@@ -61,6 +61,7 @@ export async function GET(
       .select({
         id: unit.id,
         name: unit.name,
+        code: unit.code,
         description: unit.description,
         staffCount: unit.staffCount,
         leadId: unit.leadId,
@@ -106,7 +107,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { name, description, staffCount, leadId } = body;
+    const { name, code, description, staffCount, leadId } = body;
 
     if (!name || name.trim() === "") {
       return NextResponse.json(
@@ -171,6 +172,27 @@ export async function POST(
       );
     }
 
+    // If code is provided, ensure it is unique within the department
+    if (code && String(code).trim()) {
+      const existingCode = await db
+        .select()
+        .from(unit)
+        .where(
+          and(
+            eq(unit.departmentId, departmentId),
+            eq(unit.code, String(code).trim()),
+            sql`${unit.deletedAt} IS NULL`
+          )
+        )
+        .limit(1);
+      if (existingCode.length > 0) {
+        return NextResponse.json(
+          { error: "Unit code already exists in this department" },
+          { status: 409 }
+        );
+      }
+    }
+
     // If leadId is provided, verify the user exists
     if (leadId) {
       const leadExists = await db
@@ -195,6 +217,7 @@ export async function POST(
         id: unitId,
         departmentId,
         name: name.trim(),
+        code: code?.trim() || null,
         description: description?.trim() || null,
         staffCount: staffCount || 0,
         leadId: leadId || null,
@@ -208,6 +231,7 @@ export async function POST(
       .select({
         id: unit.id,
         name: unit.name,
+        code: unit.code,
         description: unit.description,
         staffCount: unit.staffCount,
         leadId: unit.leadId,

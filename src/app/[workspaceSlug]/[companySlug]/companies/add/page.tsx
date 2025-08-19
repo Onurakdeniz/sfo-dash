@@ -190,7 +190,7 @@ export default function AddCompanyPage() {
       description="Şirket bilgilerini doldurarak yeni bir şirket oluşturun"
       actions={
         <Link href={`/${workspaceSlug}/${companySlug}/companies`}>
-          <Button variant="actionSecondary" size="sm">
+          <Button variant="shopifySecondary" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Geri Dön
           </Button>
@@ -448,13 +448,14 @@ export default function AddCompanyPage() {
       <div className="border-t bg-background px-4 sm:px-6 lg:px-8 py-4">
         <div className="flex justify-end gap-4">
           <Link href={`/${workspaceSlug}/${companySlug}/companies`}>
-            <Button type="button" variant="outline">
+            <Button type="button" variant="shopifySecondary">
               İptal
             </Button>
           </Link>
           <Button 
             type="submit"
             form="company-form"
+            variant="shopifyPrimary"
             disabled={createCompany.isPending || !formData.name.trim()}
             className="min-w-[120px]"
           >

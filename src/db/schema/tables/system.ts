@@ -87,10 +87,11 @@ export const modules = pgTable("modules", {
   name: varchar("name", { length: 100 }).notNull(),
   displayName: varchar("display_name", { length: 100 }).notNull(),
   description: text("description"),
+  // Category kept to align with existing database and API validations
+  category: varchar("category", { length: 20 }).notNull(),
   icon: varchar("icon", { length: 50 }), // Icon identifier for UI
   color: varchar("color", { length: 20 }), // Theme color for the module
   isActive: boolean("is_active").default(true).notNull(),
-  isCore: boolean("is_core").default(false).notNull(), // Core modules cannot be disabled
   sortOrder: integer("sort_order").default(0).notNull(),
   settings: jsonb("settings").$type<Record<string, any>>(), // Module-specific settings
   metadata: jsonb("metadata").$type<{
@@ -104,8 +105,27 @@ export const modules = pgTable("modules", {
   deletedAt: timestamp("deleted_at"), // Soft delete
 }, (table) => [
   index("modules_code_idx").on(table.code),
+  index("modules_category_idx").on(table.category),
   index("modules_active_idx").on(table.isActive),
   index("modules_sort_order_idx").on(table.sortOrder),
+]);
+
+// Company Modules - per-company enable/disable and settings for modules
+export const companyModules = pgTable("company_modules", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").references(() => company.id, { onDelete: "cascade" }).notNull(),
+  moduleId: text("module_id").references(() => modules.id, { onDelete: "cascade" }).notNull(),
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  settings: jsonb("settings").$type<Record<string, any>>(),
+  toggledBy: text("toggled_by").references(() => user.id),
+  toggledAt: timestamp("toggled_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("company_modules_company_idx").on(table.companyId),
+  index("company_modules_module_idx").on(table.moduleId),
+  index("company_modules_enabled_idx").on(table.isEnabled),
+  unique("company_modules_unique").on(table.companyId, table.moduleId),
 ]);
 
 // Module Resources - Specific resources/features within each module
@@ -143,6 +163,23 @@ export const moduleResources: any = pgTable("module_resources", {
   check("module_resources_type_check", sql`resource_type IN ('page', 'api', 'feature', 'report', 'action', 'widget', 'submodule')`),
 ]);
 
+// Company Module Resources - per-company enable/disable state for resources
+export const companyModuleResources = pgTable("company_module_resources", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").references(() => company.id, { onDelete: "cascade" }).notNull(),
+  resourceId: text("resource_id").references(() => moduleResources.id, { onDelete: "cascade" }).notNull(),
+  isEnabled: boolean("is_enabled").default(true).notNull(),
+  toggledBy: text("toggled_by").references(() => user.id),
+  toggledAt: timestamp("toggled_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("company_module_resources_company_idx").on(table.companyId),
+  index("company_module_resources_resource_idx").on(table.resourceId),
+  index("company_module_resources_enabled_idx").on(table.isEnabled),
+  unique("company_module_resources_unique").on(table.companyId, table.resourceId),
+]);
+
 // Module Permissions - Define what permissions are available for resources
 export const modulePermissions = pgTable("module_permissions", {
   id: text("id").primaryKey(),
@@ -165,7 +202,7 @@ export const modulePermissions = pgTable("module_permissions", {
   index("module_permissions_action_idx").on(table.action),
   index("module_permissions_active_idx").on(table.isActive),
   unique("module_permissions_resource_action_unique").on(table.resourceId, table.action),
-  check("module_permissions_action_check", sql`action IN ('view', 'create', 'edit', 'delete', 'execute', 'export', 'import', 'approve', 'manage')`),
+  check("module_permissions_action_check", sql`action IN ('view', 'edit', 'approve', 'manage')`),
 ]);
 
 // Role Module Permissions - Actual permission assignments to roles
@@ -174,6 +211,7 @@ export const roleModulePermissions = pgTable("role_module_permissions", {
   roleId: text("role_id").references(() => roles.id, { onDelete: "cascade" }).notNull(),
   permissionId: text("permission_id").references(() => modulePermissions.id, { onDelete: "cascade" }).notNull(),
   workspaceId: text("workspace_id").references(() => workspace.id, { onDelete: "cascade" }).notNull(),
+  companyId: text("company_id").references(() => company.id, { onDelete: "cascade" }),
   isGranted: boolean("is_granted").default(true).notNull(), // Can be used to explicitly deny
   grantedBy: text("granted_by").notNull().references(() => user.id), // User who granted this permission
   grantedAt: timestamp("granted_at").defaultNow().notNull(),
@@ -191,8 +229,9 @@ export const roleModulePermissions = pgTable("role_module_permissions", {
   index("role_module_permissions_role_idx").on(table.roleId),
   index("role_module_permissions_permission_idx").on(table.permissionId),
   index("role_module_permissions_workspace_idx").on(table.workspaceId),
+  index("role_module_permissions_company_idx").on(table.companyId),
   index("role_module_permissions_expires_idx").on(table.expiresAt),
-  unique("role_module_permissions_unique").on(table.roleId, table.permissionId, table.workspaceId),
+  unique("role_module_permissions_unique").on(table.roleId, table.permissionId, table.workspaceId, table.companyId),
 ]);
 
 // Module Access Log - Track access to sensitive resources
@@ -212,4 +251,50 @@ export const moduleAccessLog = pgTable("module_access_log", {
   index("module_access_log_resource_idx").on(table.resourceId),
   index("module_access_log_accessed_at_idx").on(table.accessedAt),
   index("module_access_log_action_idx").on(table.action),
+]);
+
+// User Roles - Assign system roles to specific users in a given scope
+export const userRoles = pgTable("user_roles", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }).notNull(),
+  roleId: text("role_id").references(() => roles.id, { onDelete: "cascade" }).notNull(),
+  workspaceId: text("workspace_id").references(() => workspace.id, { onDelete: "cascade" }).notNull(),
+  companyId: text("company_id").references(() => company.id, { onDelete: "cascade" }),
+  isActive: boolean("is_active").default(true).notNull(),
+  assignedBy: text("assigned_by").references(() => user.id),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("user_roles_user_idx").on(table.userId),
+  index("user_roles_role_idx").on(table.roleId),
+  index("user_roles_workspace_idx").on(table.workspaceId),
+  index("user_roles_company_idx").on(table.companyId),
+  unique("user_roles_unique").on(table.userId, table.roleId, table.workspaceId, table.companyId),
+]);
+
+// User Module Permissions - Direct permission grants to users
+export const userModulePermissions = pgTable("user_module_permissions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }).notNull(),
+  permissionId: text("permission_id").references(() => modulePermissions.id, { onDelete: "cascade" }).notNull(),
+  workspaceId: text("workspace_id").references(() => workspace.id, { onDelete: "cascade" }).notNull(),
+  companyId: text("company_id").references(() => company.id, { onDelete: "cascade" }),
+  isGranted: boolean("is_granted").default(true).notNull(),
+  grantedBy: text("granted_by").references(() => user.id),
+  grantedAt: timestamp("granted_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  conditions: jsonb("conditions").$type<{
+    scope?: "own" | "department" | "company" | "workspace";
+    fields?: string[];
+    customConditions?: Record<string, any>;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("user_module_permissions_user_idx").on(table.userId),
+  index("user_module_permissions_perm_idx").on(table.permissionId),
+  index("user_module_permissions_workspace_idx").on(table.workspaceId),
+  index("user_module_permissions_company_idx").on(table.companyId),
+  unique("user_module_permissions_unique").on(table.userId, table.permissionId, table.workspaceId, table.companyId),
 ]);

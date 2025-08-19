@@ -17,6 +17,52 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const workspaceId = searchParams.get('workspaceId');
+    const companyId = searchParams.get('companyId');
+
+    // If companyId is provided, only return policies assigned to that company
+    if (companyId) {
+      const assigned = await db
+        .select()
+        .from(policyAssignments)
+        .where(eq(policyAssignments.companyId, companyId));
+
+      const assignedPolicyIds = new Set(assigned.map(a => a.policyId));
+
+      const allPolicies = await db
+        .select({
+          id: policies.id,
+          title: policies.title,
+          type: policies.type,
+          content: policies.content,
+          status: policies.status,
+          isActive: policies.isActive,
+          createdAt: policies.createdAt,
+          updatedAt: policies.updatedAt,
+          createdBy: policies.createdBy,
+        })
+        .from(policies)
+        .orderBy(desc(policies.updatedAt));
+
+      const filtered = allPolicies.filter(p => assignedPolicyIds.has(p.id));
+
+      const withCounts = await Promise.all(
+        filtered.map(async (policy) => {
+          const assignments = await db
+            .select()
+            .from(policyAssignments)
+            .where(eq(policyAssignments.policyId, policy.id));
+          const workspaceCount = assignments.filter(a => a.workspaceId).length;
+          const companyCount = assignments.filter(a => a.companyId).length;
+          return { ...policy, assignedWorkspaces: workspaceCount, assignedCompanies: companyCount };
+        })
+      );
+
+      return NextResponse.json(withCounts);
+    }
+
+    // Default: return all policies with counts
     const allPolicies = await db
       .select({
         id: policies.id,
@@ -32,26 +78,19 @@ export async function GET(request: NextRequest) {
       .from(policies)
       .orderBy(desc(policies.updatedAt));
 
-    // Get assignment counts for each policy
-    const policiesWithCounts = await Promise.all(
+    const withCounts = await Promise.all(
       allPolicies.map(async (policy) => {
         const assignments = await db
           .select()
           .from(policyAssignments)
           .where(eq(policyAssignments.policyId, policy.id));
-
         const workspaceCount = assignments.filter(a => a.workspaceId).length;
         const companyCount = assignments.filter(a => a.companyId).length;
-
-        return {
-          ...policy,
-          assignedWorkspaces: workspaceCount,
-          assignedCompanies: companyCount
-        };
+        return { ...policy, assignedWorkspaces: workspaceCount, assignedCompanies: companyCount };
       })
     );
 
-    return NextResponse.json(policiesWithCounts);
+    return NextResponse.json(withCounts);
   } catch (error) {
     console.error("Error fetching policies:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -70,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, type, content, status = "draft" } = body;
+    const { title, type, content, status = "draft", workspaceId, companyId } = body;
 
     if (!title || !type) {
       return NextResponse.json(
@@ -96,6 +135,17 @@ export async function POST(request: NextRequest) {
         createdBy: session.user.id,
       })
       .returning();
+
+    // If companyId or workspaceId provided, assign the policy
+    if (companyId || workspaceId) {
+      await db.insert(policyAssignments).values({
+        id: nanoid(),
+        policyId,
+        workspaceId: workspaceId || null,
+        companyId: companyId || null,
+        assignedBy: session.user.id,
+      });
+    }
 
     return NextResponse.json(newPolicy, { status: 201 });
   } catch (error) {

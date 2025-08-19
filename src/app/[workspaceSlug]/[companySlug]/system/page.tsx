@@ -16,6 +16,7 @@ import {
   Puzzle
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
+import SystemScopeTabs from "./system-tabs";
 import { RoleGuard } from "@/components/layouts/role-guard";
 
 const systemModules = [
@@ -63,15 +64,6 @@ const additionalFeatures = [
     description: "API anahtarları ve şifre politikalarını yönetin",
     icon: Key,
     disabled: true
-  },
-  {
-    title: "Sözleşme Yönetimi",
-    description: "Organizasyon politikalarını ve sözleşmelerini yönetin",
-    icon: Puzzle,
-    href: "policies",
-    color: "text-indigo-500",
-    bgColor: "bg-indigo-50 dark:bg-indigo-950",
-    disabled: false
   }
 ];
 
@@ -82,6 +74,7 @@ function SystemPageContent() {
     <PageWrapper
       title="Sistem Yönetimi"
       description="Sisteminiz için modülleri, kaynakları, rolleri ve izinleri yapılandırın"
+      secondaryNav={<SystemScopeTabs />}
     >
       <div className="space-y-8">
 
@@ -121,11 +114,11 @@ function SystemPageContent() {
             <Card 
               key={feature.title} 
               className={feature.disabled ? "opacity-50" : "hover:shadow-lg transition-shadow cursor-pointer"}
-              onClick={() => !feature.disabled && feature.href && router.push(`system/${feature.href}`)}
+              onClick={() => !feature.disabled && (feature as any).href && router.push(`system/${(feature as any).href}`)}
             >
               <CardHeader>
-                <div className={`w-12 h-12 rounded-lg ${feature.disabled ? 'bg-gray-100 dark:bg-gray-900' : (feature.bgColor || 'bg-gray-100 dark:bg-gray-900')} flex items-center justify-center mb-4`}>
-                  <feature.icon className={`w-6 h-6 ${feature.disabled ? 'text-gray-500' : (feature.color || 'text-gray-500')}`} />
+                <div className={`w-12 h-12 rounded-lg ${feature.disabled ? 'bg-gray-100 dark:bg-gray-900' : ((feature as any).bgColor || 'bg-gray-100 dark:bg-gray-900')} flex items-center justify-center mb-4`}>
+                  <feature.icon className={`w-6 h-6 ${feature.disabled ? 'text-gray-500' : ((feature as any).color || 'text-gray-500')}`} />
                 </div>
                 <CardTitle className="text-lg">{feature.title}</CardTitle>
                 <CardDescription>{feature.description}</CardDescription>

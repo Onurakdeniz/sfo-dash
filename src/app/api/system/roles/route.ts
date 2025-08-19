@@ -20,20 +20,15 @@ export async function GET(request: NextRequest) {
     const workspaceId = searchParams.get('workspaceId');
     const companyId = searchParams.get('companyId');
 
-    let whereCondition = isNull(roles.deletedAt);
+    const conditions = [isNull(roles.deletedAt)];
+    if (workspaceId) conditions.push(eq(roles.workspaceId, workspaceId));
+    if (companyId) conditions.push(eq(roles.companyId, companyId));
 
-    if (workspaceId) {
-      whereCondition = and(whereCondition, eq(roles.workspaceId, workspaceId));
-    }
-
-    if (companyId) {
-      whereCondition = and(whereCondition, eq(roles.companyId, companyId));
-    }
-
-    const allRoles = await db.select()
-    .from(roles)
-    .where(whereCondition)
-    .orderBy(roles.sortOrder, roles.name);
+    const allRoles = await db
+      .select()
+      .from(roles)
+      .where(and(...conditions))
+      .orderBy(roles.sortOrder, roles.name);
 
     return NextResponse.json(allRoles);
   } catch (error) {

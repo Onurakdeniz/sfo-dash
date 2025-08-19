@@ -245,7 +245,7 @@ CREATE TABLE "module_permissions" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "module_permissions_resource_action_unique" UNIQUE("resource_id","action"),
-	CONSTRAINT "module_permissions_action_check" CHECK (action IN ('view', 'create', 'edit', 'delete', 'execute', 'export', 'import', 'approve', 'manage'))
+	CONSTRAINT "module_permissions_action_check" CHECK (action IN ('view', 'edit', 'approve', 'manage'))
 );
 --> statement-breakpoint
 CREATE TABLE "module_resources" (

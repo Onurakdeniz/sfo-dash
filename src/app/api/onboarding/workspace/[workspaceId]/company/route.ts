@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { company, workspace, workspaceCompany } from "@/db/schema";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 import { eq } from "drizzle-orm";
 
 export async function POST(
@@ -96,13 +97,8 @@ export async function POST(
       addedBy: session.user.id,
     });
 
-    // Generate slug from name (consistent with GET endpoint)
-    const slug = newCompany.name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/-+/g, '-') // Replace multiple hyphens with single
-      .trim();
+    // Generate slug from only the first word transliterated to ASCII
+    const slug = slugifyCompanyFirstWord(newCompany.name || '');
 
     return NextResponse.json({
       id: newCompany.id,

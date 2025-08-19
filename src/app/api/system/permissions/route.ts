@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const resourceId = searchParams.get('resourceId');
 
-    let conditions = [];
+    const conditions: any[] = [];
     
     if (resourceId) {
       conditions.push(eq(modulePermissions.resourceId, resourceId));
@@ -93,9 +93,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Allow any action, but suggest common ones
-    const commonActions = ['view', 'create', 'update', 'delete', 'export', 'import', 'approve', 'reject', 'manage', 'execute'];
-    // No validation - allow custom actions
+    // Restrict actions to the allowed set
+    const allowedActions = ['view', 'edit', 'manage', 'approve'];
+    if (!allowedActions.includes(action)) {
+      return NextResponse.json(
+        { error: `Action must be one of: ${allowedActions.join(', ')}` },
+        { status: 400 }
+      );
+    }
 
     // Check if resource exists
     const resourceExists = await db.select()

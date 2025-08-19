@@ -1,12 +1,18 @@
 "use client";
 
-import { Button } from "@lunamanager/ui/button";
-import { Input } from "@lunamanager/ui/input";
-import { Label } from "@lunamanager/ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
-import { createApiUtils } from "@lunamanager/api/client";
+// NOTE: Replaced external UI imports; stub API utils for examples
+// import { createApiUtils } from "@lunamanager/api/client";
+const createApiUtils = (...args: any[]) => ({
+  auth: {
+    resetPassword: async (_: any) => ({ message: "OK" }),
+  },
+});
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';

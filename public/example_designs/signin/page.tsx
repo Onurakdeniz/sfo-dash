@@ -1,8 +1,8 @@
 "use client";
 
-import { Button } from "@lunamanager/ui/button";
-import { Input } from "@lunamanager/ui/input";
-import { Label } from "@lunamanager/ui/label";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";

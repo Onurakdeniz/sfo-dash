@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceCompany, company, workspaceMember } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { workspace, workspaceCompany, company, workspaceMember, department } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 
 // GET individual company
 export async function GET(
@@ -332,6 +332,25 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Company not found in this workspace" },
         { status: 404 }
+      );
+    }
+
+    // Prevent deleting a company that still has departments
+    const existingDepartments = await db
+      .select()
+      .from(department)
+      .where(
+        and(
+          eq(department.companyId, companyId),
+          sql`${department.deletedAt} IS NULL`
+        )
+      )
+      .limit(1);
+
+    if (existingDepartments.length > 0) {
+      return NextResponse.json(
+        { error: "Cannot delete company with existing departments. Please delete its departments first." },
+        { status: 400 }
       );
     }
 

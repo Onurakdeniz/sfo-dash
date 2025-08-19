@@ -147,6 +147,33 @@ function UsersPageContent() {
 
   const isLoading = isLoadingWorkspaces || isLoadingMembers;
 
+  // Assign existing workspace user to current company (auto-create employee profile)
+  const assignUserToCompany = useMutation({
+    mutationFn: async (userId: string) => {
+      if (!workspace?.id) throw new Error('Workspace not found');
+      if (!currentCompany?.id) throw new Error('Company not found');
+      const res = await fetch(`/api/workspaces/${workspace.id}/companies/${currentCompany.id}/employees/${userId}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      if (!res.ok && res.status !== 201) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Kullanıcı şirkete atanamadı');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success('Kullanıcı şirkete atandı ve çalışan profili oluşturuldu');
+      // Çalışan listesi sayfalarında kullanılmak üzere geçerli sorgular varsa tazelensin
+      queryClient.invalidateQueries({ queryKey: ['company-employees', workspace?.id, currentCompany?.id] });
+    },
+    onError: (error: any) => {
+      toast.error(error?.message || 'İşlem başarısız oldu');
+    },
+  });
+
   // Fetch workspace invitations
   const { data: invitationsData = [], isLoading: isLoadingInvitations } = useQuery({
     queryKey: ['workspace-invitations', workspace?.id],
@@ -418,7 +445,7 @@ function UsersPageContent() {
       title="Takım Yönetimi"
       description="Çalışma alanınızdaki üyeleri ve davetleri yönetin"
       actions={
-        <Button variant="action" size="sm" onClick={() => setShowCreateModal(true)}>
+        <Button variant="shopifyPrimary" size="sm" onClick={() => setShowCreateModal(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
           Üye Davet Et
         </Button>
@@ -621,6 +648,20 @@ function UsersPageContent() {
                               <Edit className="mr-2 h-4 w-4" />
                               Rol Düzenle
                             </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!currentCompany?.id) {
+                                  toast.error('Geçerli şirket bulunamadı');
+                                  return;
+                                }
+                                assignUserToCompany.mutate(user.id);
+                              }}
+                              disabled={assignUserToCompany.isPending || !currentCompany?.id}
+                            >
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              Şirkete Ata
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
                               className="text-red-600"
@@ -721,7 +762,7 @@ function UsersPageContent() {
                         {!searchQuery && (
                           <Button 
                             onClick={() => setShowCreateModal(true)}
-                            variant="outline"
+                            variant="shopifyPrimary"
                             size="sm"
                           >
                             <UserPlus className="mr-2 h-4 w-4" />
@@ -932,10 +973,10 @@ function UsersPageContent() {
                 </div>
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
+                <Button type="button" variant="shopifySecondary" onClick={() => setShowCreateModal(false)}>
                   İptal
                 </Button>
-                <Button type="submit" disabled={inviteUser.isPending}>
+                <Button type="submit" variant="shopifyPrimary" disabled={inviteUser.isPending}>
                   {inviteUser.isPending ? 'Gönderiliyor...' : 'Davetiye Gönder'}
                 </Button>
               </DialogFooter>

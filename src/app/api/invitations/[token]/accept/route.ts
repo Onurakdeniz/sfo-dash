@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { invitation, user, workspace, workspaceMember, company, workspaceCompany } from "@/db/schema";
+import { invitation, user, workspace, workspaceMember, company, workspaceCompany, verification } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth/server";
 
@@ -10,13 +10,30 @@ export async function POST(
 ) {
   try {
     const { token } = await params;
-    const { name, password } = await request.json();
+    const { name, password, phone } = await request.json();
 
     if (!token || !name || !password) {
       return NextResponse.json(
         { error: "Token, name, and password are required" },
         { status: 400 }
       );
+    }
+
+    // Enforce phone verification if phone provided
+    if (phone) {
+      const phoneRecord = await db
+        .select()
+        .from(verification)
+        .where(and(eq(verification.identifier, phone), eq(verification.value, "verified")))
+        .limit(1);
+      if (phoneRecord.length === 0 || new Date() > new Date(phoneRecord[0].expiresAt)) {
+        return NextResponse.json(
+          { error: "Telefon doğrulaması gerekli" },
+          { status: 400 }
+        );
+      }
+      // Consume verification so it can't be reused
+      await db.delete(verification).where(eq(verification.id, phoneRecord[0].id));
     }
 
     // Find invitation by token
@@ -65,6 +82,7 @@ export async function POST(
       .limit(1);
 
     let userId: string;
+    let createdNewUser = false;
 
     if (existingUserResult.length > 0) {
       // User already exists
@@ -109,6 +127,7 @@ export async function POST(
         }
         
         userId = newUser.user.id;
+        createdNewUser = true;
         
         // Auto-verify the user since they're accepting an invitation
         await db
@@ -116,18 +135,10 @@ export async function POST(
           .set({ emailVerified: true })
           .where(eq(user.id, userId));
         
-        // Create a session for the user to auto-login them
-        try {
-          const session = await auth.api.signInEmail({
-            body: {
-              email: invitationData.email,
-              password,
-            }
-          });
-          console.log("✅ Session created for invited user:", session?.user?.email);
-        } catch (sessionError) {
-          console.log("⚠️ Session creation failed, user will need to sign in manually:", sessionError);
-        }
+        // Optionally store phone in user profile if you have such a column in your schema
+        // If not, skip or extend schema accordingly
+        
+        // Note: client will handle sign-in for new users; existing users will be redirected to sign-in
         
       } catch (userCreationError) {
         console.error("Error creating user:", userCreationError);
@@ -275,6 +286,7 @@ export async function POST(
         email: invitationData.email,
         name,
       },
+      createdNewUser,
       workspace: workspaceData,
       company: companyData,
     });

@@ -16,6 +16,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 import { Building2, Briefcase, Check, Loader2, Users, Shield, Zap, AlertCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { useSession } from "@/lib/auth/client";
 import { useOnboardingStore } from "@/stores/onboarding-store";
@@ -341,19 +342,9 @@ export default function OnboardingPage() {
       
       toast.success("Şirket başarıyla oluşturuldu!");
       
-      // Create company slug from company name (convert to lowercase, replace spaces with hyphens)
-      const createSlug = (name: string) => {
-        return name
-          .toLowerCase()
-          .replace(/[^\w\s-]/g, '') // Remove special characters
-          .replace(/\s+/g, '-') // Replace spaces with hyphens
-          .replace(/-+/g, '-') // Replace multiple hyphens with single
-          .trim();
-      };
-      
-      // Get workspace slug and create company slug
+      // Get workspace slug and create company slug from first word
       const workspaceSlug = workspaceData.slug;
-      const companySlug = createSlug(companyData.name) || result.id; // Fallback to ID if name is invalid
+      const companySlug = slugifyCompanyFirstWord(companyData.name) || result.id; // Fallback to ID if name is invalid
       
       // Complete onboarding - clear persisted data
       resetAll();

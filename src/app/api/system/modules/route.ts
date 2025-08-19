@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { modules } from "@/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { modules, companyModules } from "@/db/schema";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function GET(request: NextRequest) {
@@ -16,7 +16,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const allModules = await db.select()
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get('companyId');
+
+    // If company is provided, include company-specific enablement info
+    if (companyId) {
+      const rows = await db.select({
+        id: modules.id,
+        code: modules.code,
+        name: modules.name,
+        displayName: modules.displayName,
+        description: modules.description,
+        category: modules.category,
+        icon: modules.icon,
+        color: modules.color,
+        isActive: modules.isActive,
+        sortOrder: modules.sortOrder,
+        settings: modules.settings,
+        metadata: modules.metadata,
+        createdAt: modules.createdAt,
+        updatedAt: modules.updatedAt,
+        deletedAt: modules.deletedAt,
+        isEnabledForCompany: sql<boolean>`COALESCE(${companyModules.isEnabled}, ${modules.isActive})`,
+        companyModuleSettings: companyModules.settings,
+      })
+        .from(modules)
+        .leftJoin(
+          companyModules,
+          and(
+            eq(companyModules.moduleId, modules.id),
+            eq(companyModules.companyId, companyId)
+          )
+        )
+        .where(isNull(modules.deletedAt))
+        .orderBy(modules.sortOrder, modules.name);
+
+      return NextResponse.json(rows);
+    }
+
+    // Fallback: return global modules list
+    const allModules = await db
+      .select()
       .from(modules)
       .where(isNull(modules.deletedAt))
       .orderBy(modules.sortOrder, modules.name);
@@ -41,7 +81,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { code, name, displayName, description, icon, color, isCore, sortOrder, settings, metadata } = await request.json();
+    const { code, name, displayName, description, category = "system", icon, color, sortOrder, settings, metadata } = await request.json();
 
     if (!code || !name || !displayName) {
       return NextResponse.json(
@@ -69,9 +109,9 @@ export async function POST(request: NextRequest) {
       name,
       displayName,
       description,
+      category,
       icon,
       color,
-      isCore: isCore || false,
       sortOrder: sortOrder || 0,
       settings,
       metadata,

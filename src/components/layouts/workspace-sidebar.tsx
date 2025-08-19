@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,17 +19,28 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { 
   Building2, 
   ChevronDown,
+  Clock,
   User,
+  Users,
+  BarChart3,
   Plus,
   Check,
   Shield,
+  Calendar,
+  UserPlus,
   Settings,
-  LogOut
+  LogOut,
+  Briefcase,
+  FileText,
+  Handshake
 } from "lucide-react";
 
 interface Workspace {
@@ -81,6 +93,24 @@ export function WorkspaceSidebar({
   getUserInitials,
   router
 }: WorkspaceSidebarProps) {
+  const hrBaseHref = `/${workspaceSlug}/${companySlug}/hr`;
+  const personelHref = `${hrBaseHref}/employees`;
+  const attendanceHref = `${hrBaseHref}/attendance`;
+  const leavesHref = `${hrBaseHref}/leaves`;
+  const performanceHref = `${hrBaseHref}/performance`;
+  const recruitmentHref = `${hrBaseHref}/recruitment`;
+  const canManagePersonnel = !!(userWorkspaceRole?.isOwner || userWorkspaceRole?.role === 'admin');
+  const [adminGroupOpen, setAdminGroupOpen] = useState(true);
+  const [hrOpen, setHrOpen] = useState(Boolean(pathname && pathname.startsWith(hrBaseHref)));
+
+  useEffect(() => {
+    if (pathname && pathname.startsWith(hrBaseHref)) {
+      setHrOpen(true);
+    }
+  }, [pathname, hrBaseHref]);
+  
+  const fullCompanyName = company?.name || "Şirket Seçin";
+  const shortCompanyName = fullCompanyName.length > 16 ? `${fullCompanyName.slice(0, 16)}…` : fullCompanyName;
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
@@ -152,9 +182,16 @@ export function WorkspaceSidebar({
                     </TooltipContent>
                   </Tooltip>
                   <div className="text-left overflow-hidden group-data-[collapsible=icon]:hidden">
-                    <p className="text-sm font-medium truncate">
-                      {company?.name || "Şirket Seçin"}
-                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-sm font-medium truncate">
+                          {shortCompanyName}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" sideOffset={8}>
+                        <p>{fullCompanyName}</p>
+                      </TooltipContent>
+                    </Tooltip>
                     <p className="text-xs text-muted-foreground">
                       {workspace?.name || `${companies?.length || 0} şirket`}
                     </p>
@@ -210,13 +247,27 @@ export function WorkspaceSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            {userWorkspaceRole?.isOwner || userWorkspaceRole?.role === 'admin' 
-              ? 'Yönetici Paneli' 
-              : 'Üye Paneli'
-            }
+          <SidebarGroupLabel asChild className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAdminGroupOpen((v) => !v)}
+              aria-expanded={adminGroupOpen}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              <Shield className="h-4 w-4" />
+              {userWorkspaceRole?.isOwner || userWorkspaceRole?.role === 'admin' 
+                ? 'Yönetici Paneli' 
+                : 'Üye Paneli'
+              }
+              <ChevronDown
+                className={cn(
+                  "ml-auto h-4 w-4 text-muted-foreground transition-transform group-data-[collapsible=icon]:hidden",
+                  adminGroupOpen ? "rotate-0" : "-rotate-90"
+                )}
+              />
+            </button>
           </SidebarGroupLabel>
+          {adminGroupOpen && (
           <SidebarGroupContent>
             <SidebarMenu className="group-data-[collapsible=icon]:items-center">
               {navigation.map((item) => {
@@ -246,8 +297,8 @@ export function WorkspaceSidebar({
                         <div className={cn(
                           "w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0",
                           isActive 
-                            ? "bg-primary/20 text-black group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:text-black" 
-                            : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            ? "text-primary group-data-[collapsible=icon]:text-primary" 
+                            : "text-muted-foreground"
                         )}>
                           <item.icon className="h-4 w-4" />
                         </div>
@@ -271,6 +322,7 @@ export function WorkspaceSidebar({
               })}
             </SidebarMenu>
           </SidebarGroupContent>
+          )}
         </SidebarGroup>
 
         <SidebarGroup>
@@ -279,9 +331,166 @@ export function WorkspaceSidebar({
             Modüller
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <div className="px-2 py-4 text-sm text-muted-foreground italic group-data-[collapsible=icon]:hidden">
-              Henüz modül yok
-            </div>
+            {canManagePersonnel ? (
+              <SidebarMenu className="group-data-[collapsible=icon]:items-center">
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    isActive={pathname.startsWith(hrBaseHref)}
+                    tooltip="İnsan Kaynakları"
+                    aria-expanded={hrOpen}
+                    className="relative transition-all duration-200 hover:bg-sidebar-accent/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10"
+                    onClick={() => setHrOpen((v) => !v)}
+                  >
+                    <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                      <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <span className="font-medium transition-colors duration-200 group-data-[collapsible=icon]:hidden">
+                        İnsan Kaynakları
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "ml-auto h-4 w-4 text-muted-foreground transition-transform group-data-[collapsible=icon]:hidden",
+                          hrOpen ? "rotate-0" : "-rotate-90"
+                        )}
+                      />
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {/* Submenu for HR module */}
+                {hrOpen && (
+                <SidebarMenuItem>
+                  <SidebarMenuSub>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.startsWith(personelHref)}
+                        className={cn(
+                          pathname.startsWith(personelHref) && "bg-primary/15 text-primary font-medium"
+                        )}
+                      >
+                        <Link href={personelHref} aria-current={pathname.startsWith(personelHref) ? "page" : undefined}>
+                          <Users className="h-4 w-4" />
+                          <span>Personel Yönetimi</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.startsWith(attendanceHref)}
+                        className={cn(
+                          pathname.startsWith(attendanceHref) && "bg-primary/15 text-primary font-medium"
+                        )}
+                      >
+                        <Link href={attendanceHref} aria-current={pathname.startsWith(attendanceHref) ? "page" : undefined}>
+                          <Clock className="h-4 w-4" />
+                          <span>Mesai Yönetimi</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.startsWith(leavesHref)}
+                        className={cn(
+                          pathname.startsWith(leavesHref) && "bg-primary/15 text-primary font-medium"
+                        )}
+                      >
+                        <Link href={leavesHref} aria-current={pathname.startsWith(leavesHref) ? "page" : undefined}>
+                          <Calendar className="h-4 w-4" />
+                          <span>İzin Yönetimi</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.startsWith(performanceHref)}
+                        className={cn(
+                          pathname.startsWith(performanceHref) && "bg-primary/15 text-primary font-medium"
+                        )}
+                      >
+                        <Link href={performanceHref} aria-current={pathname.startsWith(performanceHref) ? "page" : undefined}>
+                          <BarChart3 className="h-4 w-4" />
+                          <span>Performans Yönetimi</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname.startsWith(recruitmentHref)}
+                        className={cn(
+                          pathname.startsWith(recruitmentHref) && "bg-primary/15 text-primary font-medium"
+                        )}
+                      >
+                        <Link href={recruitmentHref} aria-current={pathname.startsWith(recruitmentHref) ? "page" : undefined}>
+                          <UserPlus className="h-4 w-4" />
+                          <span>İşe Alım</span>
+                        </Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                </SidebarMenuItem>
+                )}
+                {/* Static module entries styled like İnsan Kaynakları */}
+                <SidebarMenuItem>
+                  <SidebarMenuButton className="relative transition-all duration-200 hover:bg-sidebar-accent/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10">
+                    <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                      <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                      </div>
+                      <span className="font-medium transition-colors duration-200 group-data-[collapsible=icon]:hidden">İş ve Süreçler</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton className="relative transition-all duration-200 hover:bg-sidebar-accent/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10">
+                    <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                      <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                        <BarChart3 className="h-4 w-4" />
+                      </div>
+                      <span className="font-medium transition-colors duration-200 group-data-[collapsible=icon]:hidden">Raporlar</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton className="relative transition-all duration-200 hover:bg-sidebar-accent/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10">
+                    <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                      <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                      <span className="font-medium transition-colors duration-200 group-data-[collapsible=icon]:hidden">Ofis Yönetimi</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton className="relative transition-all duration-200 hover:bg-sidebar-accent/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10">
+                    <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                      <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <span className="font-medium transition-colors duration-200 group-data-[collapsible=icon]:hidden">Belge Yönetimi</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton className="relative transition-all duration-200 hover:bg-sidebar-accent/50 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10">
+                    <div className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                      <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
+                        <Handshake className="h-4 w-4" />
+                      </div>
+                      <span className="font-medium transition-colors duration-200 group-data-[collapsible=icon]:hidden">Müşteri İlişkileri</span>
+                    </div>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            ) : (
+              <div className="px-2 py-4 text-sm text-muted-foreground italic group-data-[collapsible=icon]:hidden">
+                Henüz modül yok
+              </div>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

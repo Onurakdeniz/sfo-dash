@@ -98,25 +98,30 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (contextData && (contextData as any).redirectTo) {
       const redirectSlug = (contextData as any).redirectTo as string;
       if (redirectSlug && redirectSlug !== companySlug) {
-        router.replace(`/${workspaceSlug}/${redirectSlug}`);
+        const basePrefix = `/${workspaceSlug}/${companySlug}`;
+        const currentPath = pathname || basePrefix;
+        const suffix = currentPath.startsWith(basePrefix) ? currentPath.slice(basePrefix.length) : '';
+        router.replace(`/${workspaceSlug}/${redirectSlug}${suffix}`);
       }
     }
-  }, [contextData, companySlug, workspaceSlug, router]);
+  }, [contextData, companySlug, workspaceSlug, pathname, router]);
 
   const workspace = contextData?.workspace || null;
   const company = contextData?.currentCompany || null;
   const companies = contextData?.companies || [];
   const userWorkspaceRole = contextData?.user || null;
   
-  // Debug logging (after all variables are initialized)
-  console.log('Dashboard Layout Debug:', {
-    workspaceSlug,
-    companySlug,
-    contextData,
-    workspace,
-    companies,
-    company
-  });
+  // Debug logging (after all variables are initialized and not loading)
+  if (!contextLoading) {
+    console.log('Dashboard Layout Debug:', {
+      workspaceSlug,
+      companySlug,
+      contextData,
+      workspace,
+      companies,
+      company
+    });
+  }
 
   // Show loading state while fetching context
   if (contextLoading) {
@@ -144,8 +149,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  // Show error state if context failed to load
-  if (contextError || !workspace || !company) {
+  // Show error state only on explicit query error
+  if (contextError) {
     return (
       <div className="flex h-screen items-center justify-center bg-background p-6">
         <Card variant="elevated" className="w-full max-w-md">
@@ -187,7 +192,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const adminNavigation = [
       { name: "Şirketler", href: `/${workspaceSlug}/${companySlug}/companies`, icon: Building2 },
       { name: "Kullanıcılar", href: `/${workspaceSlug}/${companySlug}/users`, icon: Users },
-      { name: "Personel", href: `/${workspaceSlug}/${companySlug}/hr/employees`, icon: Users },
       { name: "Sistem", href: `/${workspaceSlug}/${companySlug}/system`, icon: Server },
       { name: "Ayarlar", href: `/${workspaceSlug}/${companySlug}/settings`, icon: Settings },
     ];

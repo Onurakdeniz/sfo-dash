@@ -1,40 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PageWrapper } from "@/components/page-wrapper";
+import CompanyPageLayout from "@/components/layouts/company-page-layout";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { UploadCloud, Trash2, Eye, FileText, ArrowLeft } from "lucide-react";
+import { FileText, Plus, Download } from "lucide-react";
+import CompanyTabs from "../company-tabs";
 
 interface Workspace { id: string; slug: string; name: string }
-interface CompanyFile {
-  id: string;
-  companyId: string;
-  uploadedBy?: string | null;
-  name: string;
-  blobUrl: string;
-  blobPath?: string | null;
-  contentType?: string | null;
-  size: number;
-  metadata?: any;
-  createdAt: string;
-}
+interface Company { id: string; name: string }
+  interface TemplateListItem {
+    id: string;
+    companyId: string;
+    code?: string | null;
+    name: string;
+    category?: string | null;
+    description?: string | null;
+    updatedAt: string;
+    currentVersion?: {
+      id: string;
+      version?: string | null;
+      contentType?: string | null;
+      size: number;
+      createdAt: string;
+    } | null;
+  }
 
 export default function CompanyFilesPage() {
+  const router = useRouter();
   const params = useParams();
   const workspaceSlug = params.workspaceSlug as string;
   const companySlug = params.companySlug as string;
   const companyId = params.companyId as string;
 
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [search, setSearch] = useState("");
 
   const { data: workspacesData } = useQuery({
@@ -50,7 +57,7 @@ export default function CompanyFilesPage() {
     return workspacesData?.workspaces?.find((w: Workspace) => w.slug === workspaceSlug) || null;
   }, [workspacesData, workspaceSlug]);
 
-  const { data: files = [], isLoading } = useQuery<CompanyFile[]>({
+  const { data: templates = [], isLoading } = useQuery<TemplateListItem[]>({
     queryKey: ["company-files", workspace?.id, companyId, search],
     queryFn: async () => {
       if (!workspace?.id) return [];
@@ -63,98 +70,50 @@ export default function CompanyFilesPage() {
     enabled: !!workspace?.id && !!companyId,
   });
 
-  const deleteFileMutation = useMutation({
-    mutationFn: async (fileId: string) => {
-      if (!workspace?.id) throw new Error("Workspace not found");
-      const res = await fetch(`/api/workspaces/${workspace.id}/companies/${companyId}/files/${fileId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to delete file");
+  const { data: companyData } = useQuery<Company | null>({
+    queryKey: ["company", workspace?.id, companyId],
+    queryFn: async () => {
+      if (!workspace?.id) return null;
+      const res = await fetch(`/api/workspaces/${workspace.id}/companies/${companyId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
     },
-    onSuccess: () => {
-      toast.success("Dosya silindi");
-      queryClient.invalidateQueries({ queryKey: ["company-files", workspace?.id, companyId] });
-    },
-    onError: () => toast.error("Silme başarısız"),
+    enabled: !!workspace?.id && !!companyId,
   });
 
-  const onFileChosen = async (file: File) => {
-    if (!workspace?.id) return;
-    try {
-      // Ask server for a signed upload URL
-      const res = await fetch(`/api/workspaces/${workspace.id}/companies/${companyId}/files/upload-url`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, contentType: file.type, access: "public" }),
-      });
-      if (!res.ok) throw new Error("Upload URL alınamadı");
-      const { uploadUrl, pathname, key } = await res.json();
+  const breadcrumbs = [
+    { label: companyData?.name || "Şirket", href: `/${workspaceSlug}/${companySlug}/companies/${companyId}`, isLast: false },
+    { label: "Dosyalar", isLast: true },
+  ];
 
-      // Upload directly to Blob
-      const uploadRes = await fetch(uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
-      if (!uploadRes.ok) throw new Error("Blob yükleme başarısız");
-      const blob = await uploadRes.json();
+  // Delete kept only on the detail page per UX change
 
-      // Persist metadata
-      const metaRes = await fetch(`/api/workspaces/${workspace.id}/companies/${companyId}/files`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: file.name,
-          blobUrl: blob.url,
-          blobPath: blob.pathname ?? pathname ?? key,
-          contentType: file.type,
-          size: file.size,
-          metadata: { lastModified: file.lastModified },
-        }),
-      });
-      if (!metaRes.ok) throw new Error("Failed to save metadata");
-
-      toast.success("Dosya yüklendi");
-      queryClient.invalidateQueries({ queryKey: ["company-files", workspace.id, companyId] });
-    } catch (err) {
-      console.error(err);
-      toast.error("Yükleme başarısız");
-    }
-  };
+  
 
   return (
-    <PageWrapper
+    <CompanyPageLayout
       title="Şirket Dosyaları"
-      description="Vercel Blob ile şirket dosyalarını yönetin"
-      actions={
-        <div className="flex gap-2">
-          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}`}>
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Geri
-            </Button>
-          </Link>
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onFileChosen(f);
-              if (fileInputRef.current) fileInputRef.current.value = "";
-            }}
-          />
-          <Button onClick={() => fileInputRef.current?.click()}>
-            <UploadCloud className="mr-2 h-4 w-4" /> Dosya Yükle
-          </Button>
+      breadcrumbs={breadcrumbs}
+      actions={(
+        <div className="flex items-center gap-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/files/add`}>
+                <Button variant="default" size="sm">
+                  <Plus className="mr-2 h-4 w-4" /> Yeni Dosya
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>Yeni Dosya</TooltipContent>
+          </Tooltip>
         </div>
-      }
+      )}
+      tabs={<CompanyTabs />}
     >
       <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Dosyalar</CardTitle>
-            <CardDescription>Şirkete ait yüklenen dosyalar</CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Card className="border-none shadow-none ring-0 bg-transparent" padding="none">
+          <CardHeader className="p-0 hidden" />
+          <CardContent className="p-0">
             <div className="flex items-center gap-3 mb-4">
               <Input
                 placeholder="Ara..."
@@ -164,60 +123,54 @@ export default function CompanyFilesPage() {
               />
             </div>
             <div className="overflow-x-auto">
-              <Table>
+              <Table unstyledContainer>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Dosya</TableHead>
-                    <TableHead>Tür</TableHead>
-                    <TableHead>Boyut</TableHead>
-                    <TableHead>Yüklenme</TableHead>
-                    <TableHead className="text-right">İşlem</TableHead>
+                    <TableHead>Dosya Adı</TableHead>
+                    <TableHead>Versiyon</TableHead>
+                    <TableHead>Kod</TableHead>
+                    <TableHead>Kategori</TableHead>
+                    <TableHead className="text-right">İndir</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(files || []).map((f) => (
-                    <TableRow key={f.id}>
+                  {(templates || []).map((t) => (
+                    <TableRow
+                      key={t.id}
+                      className="cursor-pointer hover:bg-accent/50"
+                      onClick={() => router.push(`/${workspaceSlug}/${companySlug}/companies/${companyId}/files/${t.id}`)}
+                    >
                       <TableCell className="py-4">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-muted-foreground" />
-                          <a href={f.blobUrl} target="_blank" rel="noreferrer" className="hover:underline">
-                            {f.name}
-                          </a>
+                          <span>{t.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell>{f.contentType || "-"}</TableCell>
-                      <TableCell>{Math.ceil((f.size || 0) / 1024)} KB</TableCell>
-                      <TableCell>{new Date(f.createdAt).toLocaleString("tr-TR")}</TableCell>
+                      <TableCell className="py-4">{t?.currentVersion?.version ?? "-"}</TableCell>
+                      <TableCell>{t?.code ?? "-"}</TableCell>
+                      <TableCell>{t?.category ?? "-"}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/files/${f.id}`}>
+                        {t?.currentVersion?.id && (
+                          <Link href={`/${workspaceSlug}/${companySlug}/companies/${companyId}/files/${t.id}`} onClick={(e) => e.stopPropagation()}>
                             <Button size="sm" variant="outline">
-                              <Eye className="mr-2 h-4 w-4" /> Detay
+                              <Download className="mr-2 h-4 w-4" /> Görüntüle
                             </Button>
                           </Link>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive"
-                            onClick={() => deleteFileMutation.mutate(f.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Sil
-                          </Button>
-                        </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
               {isLoading && <div className="py-6 text-sm text-muted-foreground">Yükleniyor...</div>}
-              {!isLoading && files?.length === 0 && (
+              {!isLoading && templates?.length === 0 && (
                 <div className="py-10 text-center text-sm text-muted-foreground">Henüz dosya yok</div>
               )}
             </div>
           </CardContent>
         </Card>
       </div>
-    </PageWrapper>
+    </CompanyPageLayout>
   );
 }
 

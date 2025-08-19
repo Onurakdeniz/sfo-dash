@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { moduleResources, modules } from "@/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { moduleResources, modules, companyModuleResources } from "@/db/schema";
+import { eq, and, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function GET(request: NextRequest) {
@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const moduleId = searchParams.get('moduleId');
     const resourceType = searchParams.get('resourceType');
+    const companyId = searchParams.get('companyId');
 
     let conditions = [isNull(moduleResources.deletedAt)];
     
@@ -29,7 +30,8 @@ export async function GET(request: NextRequest) {
       conditions.push(eq(moduleResources.resourceType, resourceType));
     }
 
-    const resourcesWithModules = await db.select({
+    // Build select and optional join conditionally
+    const selectShape: any = {
       id: moduleResources.id,
       moduleId: moduleResources.moduleId,
       code: moduleResources.code,
@@ -52,11 +54,26 @@ export async function GET(request: NextRequest) {
         name: modules.name,
         displayName: modules.displayName
       }
-    })
-    .from(moduleResources)
-    .leftJoin(modules, eq(moduleResources.moduleId, modules.id))
-    .where(and(...conditions))
-    .orderBy(moduleResources.sortOrder, moduleResources.name);
+    };
+    if (companyId) {
+      // Fall back to global resource active state when there is no company-specific override
+      (selectShape as any).isEnabledForCompany = sql<boolean>`COALESCE(${companyModuleResources.isEnabled}, ${moduleResources.isActive})`;
+    }
+
+    let query = db.select(selectShape)
+      .from(moduleResources)
+      .leftJoin(modules, eq(moduleResources.moduleId, modules.id))
+      .where(and(...conditions))
+      .orderBy(moduleResources.sortOrder, moduleResources.name);
+
+    if (companyId) {
+      query = query.leftJoin(
+        companyModuleResources,
+        and(eq(companyModuleResources.resourceId, moduleResources.id), eq(companyModuleResources.companyId, companyId as any))
+      );
+    }
+
+    const resourcesWithModules = await query;
 
     return NextResponse.json(resourcesWithModules);
   } catch (error) {
@@ -87,6 +104,7 @@ export async function POST(request: NextRequest) {
       resourceType, 
       path, 
       parentResourceId, 
+      isActive,
       isPublic, 
       requiresApproval, 
       sortOrder, 
@@ -149,6 +167,7 @@ export async function POST(request: NextRequest) {
       resourceType,
       path,
       parentResourceId,
+      isActive: typeof isActive === 'boolean' ? isActive : undefined,
       isPublic: isPublic || false,
       requiresApproval: requiresApproval || false,
       sortOrder: sortOrder || 0,

@@ -9,3 +9,4 @@ export * from "./invitation";
 export * from "./policies";
 export * from "./settings";
 export * from "./system";
+export * from "./hr";

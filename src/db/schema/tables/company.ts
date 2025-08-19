@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, primaryKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { companyStatusEnum, companyTypeEnum } from "..";
 import { user } from "./user";
@@ -84,6 +84,9 @@ export const department = pgTable('departments', {
   // Link to the user managing the department
   managerId: text('manager_id').references(() => user.id),
 
+  // Optional assignment of department to a company location
+  locationId: text('location_id').references(() => companyLocation.id),
+
   mailAddress: varchar('mail_address', { length: 255 }), 
   notes: text('notes'), 
   createdAt: timestamp('created_at').defaultNow().notNull(), 
@@ -95,6 +98,7 @@ export const department = pgTable('departments', {
   index('departments_code_idx').on(table.code),
   index('departments_name_idx').on(table.name),
   index('departments_manager_idx').on(table.managerId),
+  index('departments_location_idx').on(table.locationId),
 
   unique('departments_company_name_unique').on(table.companyId, table.name),
   unique('departments_company_code_unique').on(table.companyId, table.code),
@@ -107,6 +111,8 @@ export const unit = pgTable('units', {
 
   name: varchar('name', { length: 255 }).notNull(), 
   description: text('description'), 
+  // Optional short code for integrations and reporting within a department
+  code: varchar('code', { length: 20 }),
   staffCount: integer('staff_count').default(0).notNull(),
 
   // Link to the user leading the unit
@@ -118,9 +124,53 @@ export const unit = pgTable('units', {
 }, (table) => [
   index('units_department_idx').on(table.departmentId),
   index('units_name_idx').on(table.name),
+  index('units_code_idx').on(table.code),
   index('units_lead_idx').on(table.leadId),
   // Unique constraint for unit name within department
   unique('units_department_name_unique').on(table.departmentId, table.name),
+  // Unique constraint for unit code within department (if provided)
+  unique('units_department_code_unique').on(table.departmentId, table.code),
+]);
+
+// Company locations table - physical offices/branches for a company
+export const companyLocation = pgTable('company_locations', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id').references(() => company.id, { onDelete: 'cascade' }).notNull(),
+
+  // Optional short code for branch/office
+  code: varchar('code', { length: 50 }),
+
+  // Human friendly name for the location (e.g., Headquarters, Maslak Office)
+  name: varchar('name', { length: 255 }).notNull(),
+
+  // Optional categorisation (e.g., office, warehouse, factory)
+  locationType: varchar('location_type', { length: 50 }),
+
+  // Contact & address
+  phone: varchar('phone', { length: 20 }),
+  email: varchar('email', { length: 255 }),
+  address: text('address'),
+  district: varchar('district', { length: 100 }),
+  city: varchar('city', { length: 100 }),
+  postalCode: varchar('postal_code', { length: 10 }),
+  country: varchar('country', { length: 100 }).default('Türkiye').notNull(),
+
+  // Flags & metadata
+  isHeadquarters: boolean('is_headquarters').default(false).notNull(),
+  notes: text('notes'),
+  metadata: jsonb('metadata'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+}, (table) => [
+  index('company_locations_company_idx').on(table.companyId),
+  index('company_locations_city_idx').on(table.city),
+  index('company_locations_hq_idx').on(table.isHeadquarters),
+  unique('company_locations_company_name_unique').on(table.companyId, table.name),
+  unique('company_locations_company_code_unique').on(table.companyId, table.code),
+  check('company_locations_email_check', sql`email IS NULL OR email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`),
+  check('company_locations_phone_check', sql`phone IS NULL OR phone ~* '^\\+?[1-9]\\d{1,14}$'`),
 ]);
 
 // Company files table - metadata for files stored in Vercel Blob and associated with a company
@@ -128,6 +178,10 @@ export const companyFile = pgTable('company_files', {
   id: text('id').primaryKey(),
   companyId: text('company_id').references(() => company.id, { onDelete: 'cascade' }).notNull(),
   uploadedBy: text('uploaded_by').references(() => user.id),
+  // Explicit versioning/audit fields
+  code: varchar('code', { length: 100 }),
+  version: varchar('version', { length: 50 }),
+  updatedBy: text('updated_by').references(() => user.id),
   name: varchar('name', { length: 255 }).notNull(),
   blobUrl: text('blob_url').notNull(),
   blobPath: text('blob_path'),
@@ -140,9 +194,66 @@ export const companyFile = pgTable('company_files', {
 }, (table) => [
   index('company_files_company_idx').on(table.companyId),
   index('company_files_created_idx').on(table.createdAt),
+  index('company_files_code_idx').on(table.code),
 ]);
+
+// New normalized file template/version/attachment tables
+export const companyFileTemplate = pgTable('company_file_templates', {
+  id: text('id').primaryKey(),
+  companyId: text('company_id').references(() => company.id, { onDelete: 'cascade' }).notNull(),
+  code: varchar('code', { length: 100 }),
+  name: varchar('name', { length: 255 }).notNull(),
+  category: varchar('category', { length: 100 }),
+  description: text('description'),
+  createdBy: text('created_by').references(() => user.id),
+  updatedBy: text('updated_by').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+}, (table) => [
+  index('cft_company_idx').on(table.companyId),
+  unique('cft_company_code_unique').on(table.companyId, table.code),
+]);
+
+export const companyFileVersion = pgTable('company_file_versions', {
+  id: text('id').primaryKey(),
+  templateId: text('template_id').references(() => companyFileTemplate.id, { onDelete: 'cascade' }).notNull(),
+  version: varchar('version', { length: 50 }),
+  name: varchar('name', { length: 255 }).notNull(),
+  blobUrl: text('blob_url').notNull(),
+  blobPath: text('blob_path'),
+  contentType: varchar('content_type', { length: 255 }),
+  size: integer('size').default(0).notNull(),
+  metadata: jsonb('metadata'),
+  isCurrent: boolean('is_current').default(false).notNull(),
+  createdBy: text('created_by').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('cfv_template_idx').on(table.templateId),
+  unique('cfv_template_version_unique').on(table.templateId, table.version),
+]);
+
+export const companyFileAttachment = pgTable('company_file_attachments', {
+  id: text('id').primaryKey(),
+  versionId: text('version_id').references(() => companyFileVersion.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar('name', { length: 255 }).notNull(),
+  blobUrl: text('blob_url').notNull(),
+  blobPath: text('blob_path'),
+  contentType: varchar('content_type', { length: 255 }),
+  size: integer('size').default(0).notNull(),
+  createdBy: text('created_by').references(() => user.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('cfa_version_idx').on(table.versionId),
+]);
+
+export type CompanyFileTemplateType = typeof companyFileTemplate.$inferSelect;
+export type CompanyFileVersionType = typeof companyFileVersion.$inferSelect;
+export type CompanyFileAttachmentType = typeof companyFileAttachment.$inferSelect;
 
 export type CompanyType = typeof company.$inferSelect;
 export type DepartmentType = typeof department.$inferSelect;
 export type UnitType = typeof unit.$inferSelect;
 export type CompanyFileType = typeof companyFile.$inferSelect;
+export type CompanyLocationType = typeof companyLocation.$inferSelect;

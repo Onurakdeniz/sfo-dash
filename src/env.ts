@@ -8,6 +8,11 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   NEXT_PUBLIC_BASE_URL: z.string().optional().default("http://localhost:3000"),
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
+  TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),
+  TWILIO_VERIFY_SERVICE_SID: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);
