@@ -4,7 +4,7 @@ import { talepStatusEnum, talepPriorityEnum, talepTypeEnum, talepCategoryEnum } 
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
-import { customer, customerContact } from "./customers";
+import { businessEntity, businessEntityContact } from "./businessEntity";
 
 // Main talep (request) table - stores request information with Turkish business context
 export const talep = pgTable('talep', {
@@ -24,9 +24,9 @@ export const talep = pgTable('talep', {
   status: talepStatusEnum('status').default('new').notNull(),
   priority: talepPriorityEnum('priority').default('medium').notNull(),
 
-  /* Customer association */
-  customerId: text('customer_id').references(() => customer.id, { onDelete: 'cascade' }).notNull(),
-  customerContactId: text('customer_contact_id').references(() => customerContact.id, { onDelete: 'set null' }),
+  /* Business entity association (customer) */
+  entityId: text('entity_id').references(() => businessEntity.id, { onDelete: 'cascade' }).notNull(),
+  entityContactId: text('entity_contact_id').references(() => businessEntityContact.id, { onDelete: 'set null' }),
 
   /* Assignment */
   assignedTo: text('assigned_to').references(() => user.id),
@@ -72,8 +72,8 @@ export const talep = pgTable('talep', {
   index('talep_type_idx').on(table.type),
   index('talep_category_idx').on(table.category),
   index('talep_priority_idx').on(table.priority),
-  index('talep_customer_idx').on(table.customerId),
-  index('talep_customer_contact_idx').on(table.customerContactId),
+  index('talep_entity_idx').on(table.entityId),
+  index('talep_entity_contact_idx').on(table.entityContactId),
   index('talep_assigned_to_idx').on(table.assignedTo),
   index('talep_assigned_by_idx').on(table.assignedBy),
   index('talep_deadline_idx').on(table.deadline),
@@ -85,9 +85,9 @@ export const talep = pgTable('talep', {
   index('talep_status_created_idx').on(table.status, table.createdAt),
   index('talep_type_status_idx').on(table.type, table.status),
   index('talep_priority_status_idx').on(table.priority, table.status),
-  index('talep_customer_status_idx').on(table.customerId, table.status),
+  index('talep_entity_status_idx').on(table.entityId, table.status),
   index('talep_assigned_deadline_idx').on(table.assignedTo, table.deadline),
-  index('talep_customer_type_idx').on(table.customerId, table.type),
+  index('talep_entity_type_idx').on(table.entityId, table.type),
 
   // Validation constraints
   check('talep_email_check', sql`contact_email IS NULL OR contact_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`),
@@ -106,7 +106,7 @@ export const talepNote = pgTable('talep_notes', {
 
   // Visibility and importance
   isInternal: boolean('is_internal').default(true).notNull(),
-  isVisibleToCustomer: boolean('is_visible_to_customer').default(false).notNull(),
+  isVisibleToEntity: boolean('is_visible_to_entity').default(false).notNull(),
   priority: talepPriorityEnum('priority').default('medium'),
 
   // Related entities
@@ -126,7 +126,7 @@ export const talepNote = pgTable('talep_notes', {
   index('talep_notes_created_by_idx').on(table.createdBy),
   index('talep_notes_created_at_idx').on(table.createdAt),
   index('talep_notes_internal_idx').on(table.isInternal),
-  index('talep_notes_visible_customer_idx').on(table.isVisibleToCustomer),
+  index('talep_notes_visible_entity_idx').on(table.isVisibleToEntity),
 ]);
 
 // Talep files table - documents associated with requests
@@ -144,7 +144,7 @@ export const talepFile = pgTable('talep_files', {
 
   // Additional metadata
   description: text('description'),
-  isVisibleToCustomer: boolean('is_visible_to_customer').default(false).notNull(),
+  isVisibleToEntity: boolean('is_visible_to_entity').default(false).notNull(),
   metadata: jsonb('metadata'),
 
   // Audit fields
@@ -159,7 +159,7 @@ export const talepFile = pgTable('talep_files', {
   index('talep_files_talep_idx').on(table.talepId),
   index('talep_files_category_idx').on(table.category),
   index('talep_files_created_at_idx').on(table.createdAt),
-  index('talep_files_visible_customer_idx').on(table.isVisibleToCustomer),
+  index('talep_files_visible_entity_idx').on(table.isVisibleToEntity),
 ]);
 
 // Talep activities table - audit log of all activities on a request

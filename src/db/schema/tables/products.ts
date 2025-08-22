@@ -5,6 +5,7 @@ import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
 import { supplier } from "./suppliers";
+import { businessEntity } from "./businessEntity";
 
 // Products table - stores product information with comprehensive details
 export const product = pgTable('products', {
@@ -188,30 +189,30 @@ export const productVariant = pgTable('product_variants', {
   unique('product_variants_sku_unique').on(table.productId, table.variantSku),
 ]);
 
-// Supplier products table - products offered by suppliers
-export const supplierProduct = pgTable('supplier_products', {
+// Business entity products table - products offered by business entities (suppliers)
+export const businessEntityProduct = pgTable('business_entity_products', {
   id: text('id').primaryKey(),
-  supplierId: text('supplier_id').references(() => supplier.id, { onDelete: 'cascade' }).notNull(),
+  entityId: text('entity_id').references(() => businessEntity.id, { onDelete: 'cascade' }).notNull(),
   productId: text('product_id').references(() => product.id, { onDelete: 'cascade' }).notNull(),
   
-  /* Supplier specific codes */
-  supplierSku: varchar('supplier_sku', { length: 100 }),
-  supplierProductName: varchar('supplier_product_name', { length: 255 }),
+  /* Entity specific codes */
+  entitySku: varchar('entity_sku', { length: 100 }),
+  entityProductName: varchar('entity_product_name', { length: 255 }),
   
   /* Pricing */
-  purchasePrice: decimal('purchase_price', { precision: 15, scale: 2 }),
+  price: decimal('price', { precision: 15, scale: 2 }),
   currency: varchar('currency', { length: 3 }).default('TRY').notNull(),
   priceValidFrom: date('price_valid_from'),
   priceValidTo: date('price_valid_to'),
   
-  /* Supply terms */
+  /* Supply/Purchase terms */
   minimumOrderQuantity: integer('minimum_order_quantity').default(1),
   orderIncrement: integer('order_increment').default(1),
   leadTimeDays: integer('lead_time_days'),
   
-  /* Packaging from supplier */
-  supplierPackagingUnit: productUnitEnum('supplier_packaging_unit'),
-  unitsPerSupplierPackage: integer('units_per_supplier_package'),
+  /* Packaging from entity */
+  packagingUnit: productUnitEnum('packaging_unit'),
+  unitsPerPackage: integer('units_per_package'),
   
   /* Status and priority */
   isActive: boolean('is_active').default(true).notNull(),
@@ -240,13 +241,13 @@ export const supplierProduct = pgTable('supplier_products', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
 }, (table) => [
-  index('supplier_products_supplier_idx').on(table.supplierId),
-  index('supplier_products_product_idx').on(table.productId),
-  index('supplier_products_active_idx').on(table.isActive),
-  index('supplier_products_preferred_idx').on(table.isPreferred),
-  index('supplier_products_priority_idx').on(table.priority),
+  index('business_entity_products_entity_idx').on(table.entityId),
+  index('business_entity_products_product_idx').on(table.productId),
+  index('business_entity_products_active_idx').on(table.isActive),
+  index('business_entity_products_preferred_idx').on(table.isPreferred),
+  index('business_entity_products_priority_idx').on(table.priority),
   
-  unique('supplier_products_unique').on(table.supplierId, table.productId),
+  unique('business_entity_products_unique').on(table.entityId, table.productId),
 ]);
 
 // Product price history table - tracks price changes over time
@@ -269,8 +270,8 @@ export const productPriceHistory = pgTable('product_price_history', {
   effectiveFrom: timestamp('effective_from').notNull(),
   effectiveTo: timestamp('effective_to'),
   
-  /* Related supplier (for purchase prices) */
-  supplierId: text('supplier_id').references(() => supplier.id),
+  /* Related business entity (for purchase/sale prices) */
+  entityId: text('entity_id').references(() => businessEntity.id),
   
   /* Metadata */
   metadata: jsonb('metadata'),
@@ -285,7 +286,7 @@ export const productPriceHistory = pgTable('product_price_history', {
   index('product_price_history_variant_idx').on(table.variantId),
   index('product_price_history_type_idx').on(table.priceType),
   index('product_price_history_effective_idx').on(table.effectiveFrom),
-  index('product_price_history_supplier_idx').on(table.supplierId),
+  index('product_price_history_entity_idx').on(table.entityId),
 ]);
 
 // Product inventory table - tracks current stock levels
@@ -347,6 +348,6 @@ export const productInventory = pgTable('product_inventory', {
 // Type exports
 export type ProductType = typeof product.$inferSelect;
 export type ProductVariantType = typeof productVariant.$inferSelect;
-export type SupplierProductType = typeof supplierProduct.$inferSelect;
+export type BusinessEntityProductType = typeof businessEntityProduct.$inferSelect;
 export type ProductPriceHistoryType = typeof productPriceHistory.$inferSelect;
 export type ProductInventoryType = typeof productInventory.$inferSelect;

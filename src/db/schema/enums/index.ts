@@ -6,3 +6,5 @@ export * from "./customer";
 export * from "./talep";
 export * from "./supplier";
 export * from "./product";
+export * from "./businessEntity";
+export * from "./order";
