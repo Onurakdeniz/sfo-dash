@@ -142,7 +142,7 @@ export default function TalepDetayPage() {
   const [editData, setEditData] = useState({
     status: '',
     priority: '',
-    assignedTo: '',
+    assignedTo: 'unassigned',
     resolution: '',
     actualHours: '',
     actualCost: '',
@@ -181,7 +181,7 @@ export default function TalepDetayPage() {
       setEditData({
         status: data.talep.status,
         priority: data.talep.priority,
-        assignedTo: data.talep.assignedTo || '',
+        assignedTo: data.talep.assignedTo || 'unassigned',
         resolution: data.talep.resolution || '',
         actualHours: data.talep.actualHours?.toString() || '',
         actualCost: data.talep.actualCost?.toString() || '',
@@ -296,7 +296,7 @@ export default function TalepDetayPage() {
       const updatePayload = {
         status: editData.status,
         priority: editData.priority,
-        assignedTo: editData.assignedTo || null,
+        assignedTo: editData.assignedTo === 'unassigned' ? null : editData.assignedTo || null,
         resolution: editData.resolution || null,
         actualHours: editData.actualHours ? parseFloat(editData.actualHours) : null,
         actualCost: editData.actualCost ? parseFloat(editData.actualCost) : null,
@@ -859,7 +859,7 @@ export default function TalepDetayPage() {
                         <SelectValue placeholder="Kullanıcı seçin" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Atanmamış</SelectItem>
+                        <SelectItem value="unassigned">Atanmamış</SelectItem>
                         {users.map((user) => (
                           <SelectItem key={user.id} value={user.id}>
                             {user.name || user.email}
