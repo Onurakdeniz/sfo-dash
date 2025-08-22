@@ -5,3 +5,4 @@ export * from "./invitation";
 export * from "./customer";
 export * from "./talep";
 export * from "./supplier";
+export * from "./product";
