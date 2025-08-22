@@ -12,6 +12,7 @@ import { roles, modules, moduleResources, modulePermissions, roleModulePermissio
 import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
 import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
 import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
+import { product, productVariant, supplierProduct, productPriceHistory, productInventory } from "./tables/products";
 
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -695,6 +696,7 @@ export const supplierRelations = relations(supplier, ({ one, many }) => ({
   files: many(supplierFile),
   notes: many(supplierNote),
   performance: many(supplierPerformance),
+  supplierProducts: many(supplierProduct),
   createdByUser: one(user, {
     fields: [supplier.createdBy],
     references: [user.id],
@@ -785,6 +787,104 @@ export const supplierPerformanceRelations = relations(supplierPerformance, ({ on
   }),
   updatedByUser: one(user, {
     fields: [supplierPerformance.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Product Relations
+export const productRelations = relations(product, ({ one, many }) => ({
+  workspace: one(workspace, {
+    fields: [product.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [product.companyId],
+    references: [company.id],
+  }),
+  createdByUser: one(user, {
+    fields: [product.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [product.updatedBy],
+    references: [user.id],
+  }),
+  variants: many(productVariant),
+  supplierProducts: many(supplierProduct),
+  priceHistory: many(productPriceHistory),
+  inventory: many(productInventory),
+}));
+
+// Product Variant Relations
+export const productVariantRelations = relations(productVariant, ({ one, many }) => ({
+  product: one(product, {
+    fields: [productVariant.productId],
+    references: [product.id],
+  }),
+  createdByUser: one(user, {
+    fields: [productVariant.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [productVariant.updatedBy],
+    references: [user.id],
+  }),
+  priceHistory: many(productPriceHistory),
+  inventory: many(productInventory),
+}));
+
+// Supplier Product Relations
+export const supplierProductRelations = relations(supplierProduct, ({ one }) => ({
+  supplier: one(supplier, {
+    fields: [supplierProduct.supplierId],
+    references: [supplier.id],
+  }),
+  product: one(product, {
+    fields: [supplierProduct.productId],
+    references: [product.id],
+  }),
+  createdByUser: one(user, {
+    fields: [supplierProduct.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [supplierProduct.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Product Price History Relations
+export const productPriceHistoryRelations = relations(productPriceHistory, ({ one }) => ({
+  product: one(product, {
+    fields: [productPriceHistory.productId],
+    references: [product.id],
+  }),
+  variant: one(productVariant, {
+    fields: [productPriceHistory.variantId],
+    references: [productVariant.id],
+  }),
+  supplier: one(supplier, {
+    fields: [productPriceHistory.supplierId],
+    references: [supplier.id],
+  }),
+  changedByUser: one(user, {
+    fields: [productPriceHistory.changedBy],
+    references: [user.id],
+  }),
+}));
+
+// Product Inventory Relations
+export const productInventoryRelations = relations(productInventory, ({ one }) => ({
+  product: one(product, {
+    fields: [productInventory.productId],
+    references: [product.id],
+  }),
+  variant: one(productVariant, {
+    fields: [productInventory.variantId],
+    references: [productVariant.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [productInventory.updatedBy],
     references: [user.id],
   }),
 }));
