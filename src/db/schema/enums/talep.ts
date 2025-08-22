@@ -17,16 +17,23 @@ export const talepPriorityEnum = pgEnum("talep_priority", [
 ]);
 
 export const talepTypeEnum = pgEnum("talep_type", [
-  // Satın alma ve satış odaklı talepler
+  // Defense industry specific
+  "rfq",                 // Request for Quotation
+  "rfi",                 // Request for Information
+  "rfp",                 // Request for Proposal
   "product_inquiry",     // Ürün Sorgusu
   "price_request",       // Fiyat Talebi
-  "quotation_request",   // Teklif Talebi (RFQ)
+  "quotation_request",   // Teklif Talebi
   "order_request",       // Sipariş Talebi
   "sample_request",      // Numune Talebi
+  "certification_req",   // Sertifika Talebi
+  "compliance_inquiry",  // Uygunluk Sorgusu
+  "export_license",      // İhracat Lisansı
+  "end_user_cert",       // Son Kullanıcı Sertifikası
+  
+  // Existing types
   "delivery_status",     // Teslimat Durumu
   "return_request",      // İade Talebi
-
-  // Mevcut ve destekleyici tipler
   "billing",             // Fatura
   "technical_support",   // Teknik Destek
   "general_inquiry",     // Genel Soru
@@ -40,6 +47,21 @@ export const talepTypeEnum = pgEnum("talep_type", [
 ]);
 
 export const talepCategoryEnum = pgEnum("talep_category", [
+  // Defense industry categories
+  "weapon_systems",      // Silah Sistemleri
+  "ammunition",          // Mühimmat
+  "avionics",           // Aviyonik
+  "radar_systems",      // Radar Sistemleri
+  "communication",      // Haberleşme Sistemleri
+  "electronic_warfare", // Elektronik Harp
+  "naval_systems",      // Deniz Sistemleri
+  "land_systems",       // Kara Sistemleri
+  "air_systems",        // Hava Sistemleri
+  "cyber_security",     // Siber Güvenlik
+  "simulation",         // Simülasyon
+  "c4isr",             // Command, Control, Communications, Computers, Intelligence, Surveillance, and Reconnaissance
+  
+  // General categories (kept for compatibility)
   "hardware",            // Donanım
   "software",            // Yazılım
   "network",             // Ağ

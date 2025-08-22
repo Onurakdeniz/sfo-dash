@@ -10,7 +10,7 @@ import { policies, policyAssignments } from "./tables/policies";
 import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
 import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog, userRoles, userModulePermissions } from "./tables/system";
 import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
-import { talep, talepNote, talepFile, talepActivity } from "./tables/talep";
+import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
 import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
 
 export const userRelations = relations(user, ({ many, one }) => ({
@@ -569,6 +569,10 @@ export const talepRelations = relations(talep, ({ one, many }) => ({
     fields: [talep.customerId],
     references: [customer.id],
   }),
+  customerContact: one(customerContact, {
+    fields: [talep.customerContactId],
+    references: [customerContact.id],
+  }),
   assignedToUser: one(user, {
     fields: [talep.assignedTo],
     references: [user.id],
@@ -590,6 +594,8 @@ export const talepRelations = relations(talep, ({ one, many }) => ({
   notes: many(talepNote),
   files: many(talepFile),
   activities: many(talepActivity),
+  products: many(talepProduct),
+  actions: many(talepAction),
 }));
 
 // Talep Note Relations
@@ -632,6 +638,34 @@ export const talepActivityRelations = relations(talepActivity, ({ one }) => ({
   }),
   performedByUser: one(user, {
     fields: [talepActivity.performedBy],
+    references: [user.id],
+  }),
+}));
+
+// Talep Product Relations
+export const talepProductRelations = relations(talepProduct, ({ one }) => ({
+  talep: one(talep, {
+    fields: [talepProduct.talepId],
+    references: [talep.id],
+  }),
+  createdByUser: one(user, {
+    fields: [talepProduct.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [talepProduct.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Talep Action Relations
+export const talepActionRelations = relations(talepAction, ({ one }) => ({
+  talep: one(talep, {
+    fields: [talepAction.talepId],
+    references: [talep.id],
+  }),
+  performedByUser: one(user, {
+    fields: [talepAction.performedBy],
     references: [user.id],
   }),
 }));

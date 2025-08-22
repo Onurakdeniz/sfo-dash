@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { FileText, Activity } from "lucide-react";
+import { FileText, Activity, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function TalepTabs({ className }: { className?: string }) {
@@ -23,6 +23,14 @@ export function TalepTabs({ className }: { className?: string }) {
       icon: FileText,
       href: `${basePath}/detay`,
       isActive: pathname.endsWith("/detay"),
+    },
+    {
+      key: "aksiyonlar",
+      label: "Aksiyonlar",
+      shortLabel: "Aksiyonlar",
+      icon: Zap,
+      href: `${basePath}/aksiyonlar`,
+      isActive: pathname.endsWith("/aksiyonlar"),
     },
     {
       key: "aktiviteler",

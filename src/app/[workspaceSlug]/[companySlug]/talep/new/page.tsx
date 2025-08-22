@@ -17,7 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { PageWrapper } from '@/components/page-wrapper';
-import { ArrowLeft, Save, User, Phone, Mail } from 'lucide-react';
+import { ArrowLeft, Save, User, Package, Plus } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -26,6 +26,18 @@ interface Customer {
   customerType: 'individual' | 'corporate';
   email: string | null;
   phone: string | null;
+}
+
+interface CustomerContact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  isPrimary: boolean;
+  isActive: boolean;
 }
 
 interface User {
@@ -41,8 +53,10 @@ export default function NewTalepPage() {
 
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -50,6 +64,7 @@ export default function NewTalepPage() {
     category: '',
     priority: 'medium',
     customerId: '',
+    customerContactId: '',
     assignedTo: 'unassigned',
     contactName: '',
     contactPhone: '',
@@ -97,16 +112,66 @@ export default function NewTalepPage() {
     fetchData();
   }, [workspaceSlug, companySlug]);
 
-  const handleCustomerSelect = (customerId: string) => {
+  const fetchCustomerContacts = async (customerId: string) => {
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceSlug}/companies/${companySlug}/customers/${customerId}/contacts`,
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCustomerContacts(data.contacts || []);
+        
+        // Auto-select primary contact if available
+        const primaryContact = data.contacts?.find((c: CustomerContact) => c.isPrimary);
+        if (primaryContact) {
+          setFormData(prev => ({
+            ...prev,
+            customerContactId: primaryContact.id,
+            contactName: `${primaryContact.firstName} ${primaryContact.lastName}`,
+            contactEmail: primaryContact.email || '',
+            contactPhone: primaryContact.phone || primaryContact.mobile || '',
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching customer contacts:', error);
+      setCustomerContacts([]);
+    }
+  };
+
+  const handleCustomerSelect = async (customerId: string) => {
     const customer = customers.find(c => c.id === customerId);
     setSelectedCustomer(customer || null);
     setFormData(prev => ({
       ...prev,
       customerId,
+      customerContactId: '',
       contactName: customer?.name || '',
       contactEmail: customer?.email || '',
       contactPhone: customer?.phone || '',
     }));
+    
+    // Fetch contacts for the selected customer
+    if (customerId) {
+      await fetchCustomerContacts(customerId);
+    } else {
+      setCustomerContacts([]);
+    }
+  };
+
+  const handleContactSelect = (contactId: string) => {
+    const contact = customerContacts.find(c => c.id === contactId);
+    if (contact) {
+      setFormData(prev => ({
+        ...prev,
+        customerContactId: contactId,
+        contactName: `${contact.firstName} ${contact.lastName}`,
+        contactEmail: contact.email || '',
+        contactPhone: contact.phone || contact.mobile || '',
+      }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -255,11 +320,18 @@ export default function NewTalepPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="rfq">RFQ (Teklif Talebi)</SelectItem>
+                    <SelectItem value="rfi">RFI (Bilgi Talebi)</SelectItem>
+                    <SelectItem value="rfp">RFP (Teklif Çağrısı)</SelectItem>
                     <SelectItem value="quotation_request">Teklif Talebi</SelectItem>
                     <SelectItem value="price_request">Fiyat Talebi</SelectItem>
                     <SelectItem value="product_inquiry">Ürün Sorgusu</SelectItem>
                     <SelectItem value="order_request">Sipariş Talebi</SelectItem>
                     <SelectItem value="sample_request">Numune Talebi</SelectItem>
+                    <SelectItem value="certification_req">Sertifika Talebi</SelectItem>
+                    <SelectItem value="compliance_inquiry">Uygunluk Sorgusu</SelectItem>
+                    <SelectItem value="export_license">İhracat Lisansı</SelectItem>
+                    <SelectItem value="end_user_cert">Son Kullanıcı Sertifikası</SelectItem>
                     <SelectItem value="delivery_status">Teslimat Durumu</SelectItem>
                     <SelectItem value="return_request">İade Talebi</SelectItem>
                     <SelectItem value="billing">Fatura</SelectItem>
@@ -286,6 +358,18 @@ export default function NewTalepPage() {
                     <SelectValue placeholder="Kategori seçin" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="weapon_systems">Silah Sistemleri</SelectItem>
+                    <SelectItem value="ammunition">Mühimmat</SelectItem>
+                    <SelectItem value="avionics">Aviyonik</SelectItem>
+                    <SelectItem value="radar_systems">Radar Sistemleri</SelectItem>
+                    <SelectItem value="communication">Haberleşme Sistemleri</SelectItem>
+                    <SelectItem value="electronic_warfare">Elektronik Harp</SelectItem>
+                    <SelectItem value="naval_systems">Deniz Sistemleri</SelectItem>
+                    <SelectItem value="land_systems">Kara Sistemleri</SelectItem>
+                    <SelectItem value="air_systems">Hava Sistemleri</SelectItem>
+                    <SelectItem value="cyber_security">Siber Güvenlik</SelectItem>
+                    <SelectItem value="simulation">Simülasyon</SelectItem>
+                    <SelectItem value="c4isr">C4ISR</SelectItem>
                     <SelectItem value="hardware">Donanım</SelectItem>
                     <SelectItem value="software">Yazılım</SelectItem>
                     <SelectItem value="network">Ağ</SelectItem>
@@ -334,12 +418,32 @@ export default function NewTalepPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="contactName">İletişim Kişisi</Label>
-                  <Input
-                    id="contactName"
-                    value={formData.contactName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, contactName: e.target.value }))}
-                    placeholder="İletişim kişisi adı"
-                  />
+                  {customerContacts.length > 0 ? (
+                    <Select
+                      value={formData.customerContactId}
+                      onValueChange={handleContactSelect}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="İletişim kişisi seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customerContacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.firstName} {contact.lastName}
+                            {contact.title && ` - ${contact.title}`}
+                            {contact.isPrimary && ' (Birincil)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="contactName"
+                      value={formData.contactName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, contactName: e.target.value }))}
+                      placeholder="İletişim kişisi adı"
+                    />
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="assignedTo">Atanan Kişi</Label>
@@ -386,6 +490,19 @@ export default function NewTalepPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Products Section - Basic version */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Ürünler
+            </CardTitle>
+            <CardDescription>
+              Talep edilen ürünler talep oluşturulduktan sonra eklenebilir
+            </CardDescription>
+          </CardHeader>
+        </Card>
 
         {/* Scheduling and Financial */}
         <Card>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { talep, workspace, workspaceCompany, workspaceMember, company, customer, user } from "@/db/schema";
+import { talep, workspace, workspaceCompany, workspaceMember, company, customer, user, customerContact } from "@/db/schema";
 import { eq, and, or, like, desc, asc, sql, isNull, inArray } from "drizzle-orm";
 import { DatabaseErrorHandler } from "@/lib/database-errors";
 import { z } from "zod";
@@ -14,15 +14,22 @@ const createTalepSchema = z.object({
   title: z.string().min(1, "Talep başlığı gerekli").max(255),
   description: z.string().min(1, "Talep açıklaması gerekli"),
   type: z.enum([
-    // Satın alma/satış odaklı
+    // Defense industry specific
+    "rfq",
+    "rfi",
+    "rfp",
     "product_inquiry",
     "price_request",
     "quotation_request",
     "order_request",
     "sample_request",
+    "certification_req",
+    "compliance_inquiry",
+    "export_license",
+    "end_user_cert",
+    // Existing types
     "delivery_status",
     "return_request",
-    // Destekleyici tipler
     "billing",
     "technical_support",
     "general_inquiry",
@@ -33,8 +40,22 @@ const createTalepSchema = z.object({
     "training",
     "maintenance",
     "other"
-  ]).default("quotation_request"),
+  ]).default("general_inquiry"),
   category: z.enum([
+    // Defense industry categories
+    "weapon_systems",
+    "ammunition",
+    "avionics",
+    "radar_systems",
+    "communication",
+    "electronic_warfare",
+    "naval_systems",
+    "land_systems",
+    "air_systems",
+    "cyber_security",
+    "simulation",
+    "c4isr",
+    // General categories
     "hardware",
     "software",
     "network",
@@ -51,6 +72,7 @@ const createTalepSchema = z.object({
 
   // Customer and assignment
   customerId: z.string().min(1, "Müşteri seçimi gerekli"),
+  customerContactId: z.string().optional().nullable(),
   assignedTo: z.string().optional().nullable(),
   assignedBy: z.string().optional().nullable(),
 
@@ -76,6 +98,7 @@ function normalizeTalepBody(input: any) {
   return {
     ...input,
     category: input?.category === 'select' ? null : emptyToNull(input?.category),
+    customerContactId: emptyToNull(input?.customerContactId),
     contactName: emptyToNull(input?.contactName),
     contactPhone: emptyToNull(input?.contactPhone),
     contactEmail: emptyToNull(input?.contactEmail),
@@ -269,6 +292,7 @@ export async function GET(
       status: talep.status,
       priority: talep.priority,
       customerId: talep.customerId,
+      customerContactId: talep.customerContactId,
       assignedTo: talep.assignedTo,
       assignedBy: talep.assignedBy,
       contactName: talep.contactName,
@@ -285,13 +309,21 @@ export async function GET(
       tags: talep.tags,
       createdAt: talep.createdAt,
       updatedAt: talep.updatedAt,
-      createdBy: talep.createdBy,
-      updatedBy: talep.updatedBy,
       customer: {
         id: customer.id,
         name: customer.name,
+        fullName: customer.fullName,
         email: customer.email,
         phone: customer.phone,
+      },
+      customerContact: {
+        id: customerContact.id,
+        firstName: customerContact.firstName,
+        lastName: customerContact.lastName,
+        title: customerContact.title,
+        email: customerContact.email,
+        phone: customerContact.phone,
+        mobile: customerContact.mobile,
       },
       assignedToUser: {
         id: user.id,
@@ -300,20 +332,22 @@ export async function GET(
       },
     };
 
+    // Determine sort field and direction
+    let orderExpr: any;
     const orderDirection = sortOrder === 'asc' ? asc : desc;
-    let orderExpr: any = orderDirection(talep.createdAt);
+
     switch (sortBy) {
       case 'title':
         orderExpr = orderDirection(talep.title);
         break;
-      case 'createdAt':
-        orderExpr = orderDirection(talep.createdAt);
-        break;
-      case 'updatedAt':
-        orderExpr = orderDirection(talep.updatedAt);
+      case 'customer':
+        orderExpr = orderDirection(customer.name);
         break;
       case 'priority':
         orderExpr = orderDirection(talep.priority);
+        break;
+      case 'type':
+        orderExpr = orderDirection(talep.type);
         break;
       case 'status':
         orderExpr = orderDirection(talep.status);
@@ -325,6 +359,7 @@ export async function GET(
     const baseSelect = db.select(selectFields)
       .from(talep)
       .leftJoin(customer, eq(talep.customerId, customer.id))
+      .leftJoin(customerContact, eq(talep.customerContactId, customerContact.id))
       .leftJoin(user, eq(talep.assignedTo, user.id));
 
     const query = (baseSelect as any)

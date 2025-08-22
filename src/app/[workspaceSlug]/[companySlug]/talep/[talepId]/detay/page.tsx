@@ -22,7 +22,11 @@ import {
   Tag,
   Upload,
   FolderOpen,
-  Download
+  Download,
+  Package,
+  Zap,
+  Building2,
+  UserCircle
 } from 'lucide-react';
 import {
   Select,
@@ -35,6 +39,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+interface CustomerContact {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+}
+
 interface Talep {
   id: string;
   code?: string;
@@ -45,6 +59,7 @@ interface Talep {
   status: string;
   priority: string;
   customerId: string;
+  customerContactId: string | null;
   assignedTo: string | null;
   assignedBy: string | null;
   contactName: string | null;
@@ -70,6 +85,7 @@ interface Talep {
     phone: string | null;
     customerType: string;
   } | null;
+  customerContact: CustomerContact | null;
   assignedToUser: {
     id: string;
     name: string | null;
@@ -80,6 +96,38 @@ interface Talep {
     name: string | null;
     email: string | null;
   } | null;
+}
+
+interface TalepProduct {
+  id: string;
+  productName: string;
+  productCode?: string;
+  manufacturer?: string;
+  model?: string;
+  requestedQuantity: number;
+  unitOfMeasure: string;
+  targetPrice?: number;
+  currency: string;
+  status: string;
+  exportControlled: boolean;
+  itar: boolean;
+  certificationRequired?: string[];
+}
+
+interface TalepAction {
+  id: string;
+  actionType: string;
+  title: string;
+  description: string;
+  actionDate: string;
+  performedByUser?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+  };
+  outcome?: string;
+  followUpRequired: boolean;
+  followUpDate?: string;
 }
 
 export default function TalepDetayPage() {
@@ -103,6 +151,8 @@ export default function TalepDetayPage() {
   const [files, setFiles] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [products, setProducts] = useState<TalepProduct[]>([]);
+  const [recentActions, setRecentActions] = useState<TalepAction[]>([]);
 
   const fetchTalep = async () => {
     setLoading(true);
@@ -159,9 +209,35 @@ export default function TalepDetayPage() {
     }
   };
 
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/products`);
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data.products || []);
+      }
+    } catch (e) {
+      console.error('Error fetching products:', e);
+    }
+  };
+
+  const fetchRecentActions = async () => {
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/actions`);
+      if (res.ok) {
+        const data = await res.json();
+        setRecentActions(data.actions?.slice(0, 5) || []);
+      }
+    } catch (e) {
+      console.error('Error fetching actions:', e);
+    }
+  };
+
   useEffect(() => {
     fetchTalep();
     fetchFiles();
+    fetchProducts();
+    fetchRecentActions();
   }, [workspaceSlug, companySlug, talepId]);
 
   const handleUpdate = async () => {
@@ -310,44 +386,61 @@ export default function TalepDetayPage() {
   };
 
   const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'quotation_request':
-        return 'Teklif Talebi';
-      case 'price_request':
-        return 'Fiyat Talebi';
-      case 'product_inquiry':
-        return 'Ürün Sorgusu';
-      case 'order_request':
-        return 'Sipariş Talebi';
-      case 'sample_request':
-        return 'Numune Talebi';
-      case 'delivery_status':
-        return 'Teslimat Durumu';
-      case 'return_request':
-        return 'İade Talebi';
-      case 'technical_support':
-        return 'Teknik Destek';
-      case 'billing':
-        return 'Fatura';
-      case 'general_inquiry':
-        return 'Genel Soru';
-      case 'complaint':
-        return 'Şikayet';
-      case 'feature_request':
-        return 'Özellik Talebi';
-      case 'bug_report':
-        return 'Hata Bildirimi';
-      case 'installation':
-        return 'Kurulum';
-      case 'training':
-        return 'Eğitim';
-      case 'maintenance':
-        return 'Bakım';
-      case 'other':
-        return 'Diğer';
-      default:
-        return type;
-    }
+    const types: Record<string, string> = {
+      'quotation_request': 'Teklif Talebi',
+      'price_request': 'Fiyat Talebi',
+      'product_inquiry': 'Ürün Sorgusu',
+      'order_request': 'Sipariş Talebi',
+      'sample_request': 'Numune Talebi',
+      'delivery_status': 'Teslimat Durumu',
+      'return_request': 'İade Talebi',
+      'technical_support': 'Teknik Destek',
+      'billing': 'Fatura',
+      'general_inquiry': 'Genel Soru',
+      'complaint': 'Şikayet',
+      'feature_request': 'Özellik Talebi',
+      'bug_report': 'Hata Bildirimi',
+      'installation': 'Kurulum',
+      'training': 'Eğitim',
+      'maintenance': 'Bakım',
+      'rfq': 'RFQ (Fiyat Talebi)',
+      'rfi': 'RFI (Bilgi Talebi)',
+      'rfp': 'RFP (Teklif Talebi)',
+      'certification_req': 'Sertifika Talebi',
+      'compliance_inquiry': 'Uygunluk Sorgulama',
+      'export_license': 'İhracat Lisansı',
+      'end_user_cert': 'Son Kullanıcı Sertifikası',
+      'other': 'Diğer'
+    };
+    return types[type] || type;
+  };
+
+  const getCategoryLabel = (category: string) => {
+    const categories: Record<string, string> = {
+      'hardware': 'Donanım',
+      'software': 'Yazılım',
+      'network': 'Ağ',
+      'database': 'Veritabanı',
+      'security': 'Güvenlik',
+      'performance': 'Performans',
+      'integration': 'Entegrasyon',
+      'reporting': 'Raporlama',
+      'user_access': 'Kullanıcı Erişimi',
+      'weapon_systems': 'Silah Sistemleri',
+      'ammunition': 'Mühimmat',
+      'avionics': 'Aviyonik',
+      'radar_systems': 'Radar Sistemleri',
+      'communication': 'Haberleşme',
+      'electronic_warfare': 'Elektronik Harp',
+      'naval_systems': 'Deniz Sistemleri',
+      'land_systems': 'Kara Sistemleri',
+      'air_systems': 'Hava Sistemleri',
+      'cyber_security': 'Siber Güvenlik',
+      'simulation': 'Simülasyon',
+      'c4isr': 'C4ISR',
+      'other': 'Diğer'
+    };
+    return categories[category] || category;
   };
 
   const getPriorityLabel = (priority: string) => {
@@ -362,6 +455,21 @@ export default function TalepDetayPage() {
         return 'Acil';
       default:
         return priority;
+    }
+  };
+
+  const getOutcomeBadge = (outcome?: string) => {
+    switch (outcome) {
+      case 'successful':
+        return <Badge variant="default">Başarılı</Badge>;
+      case 'pending':
+        return <Badge variant="secondary">Beklemede</Badge>;
+      case 'failed':
+        return <Badge variant="destructive">Başarısız</Badge>;
+      case 'follow_up_required':
+        return <Badge variant="outline">Takip Gerekli</Badge>;
+      default:
+        return null;
     }
   };
 
@@ -436,7 +544,7 @@ export default function TalepDetayPage() {
                   </CardTitle>
                   <CardDescription>
                     {getTypeLabel(talep.type)}
-                    {talep.category && ` • ${talep.category}`}
+                    {talep.category && ` • ${getCategoryLabel(talep.category)}`}
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -484,6 +592,117 @@ export default function TalepDetayPage() {
                       Çözüldüğü tarih: {new Date(talep.resolutionDate).toLocaleString('tr-TR')}
                     </p>
                   )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Products Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Talep Edilen Ürünler
+                  </CardTitle>
+                  <CardDescription>Bu talep için istenen ürünler</CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep/${talepId}/urunler`)}
+                >
+                  Ürünleri Yönet
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {products.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Henüz ürün eklenmemiş.</p>
+              ) : (
+                <div className="space-y-3">
+                  {products.map((product) => (
+                    <div key={product.id} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h5 className="font-medium">{product.productName}</h5>
+                          {product.productCode && (
+                            <p className="text-sm text-muted-foreground">Kod: {product.productCode}</p>
+                          )}
+                          {product.manufacturer && (
+                            <p className="text-sm text-muted-foreground">Üretici: {product.manufacturer}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">{product.requestedQuantity} {product.unitOfMeasure}</p>
+                          {product.targetPrice && (
+                            <p className="text-sm text-muted-foreground">
+                              Hedef: {product.currency} {product.targetPrice}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {(product.exportControlled || product.itar) && (
+                        <div className="flex gap-2">
+                          {product.exportControlled && (
+                            <Badge variant="outline" className="text-xs">İhracat Kontrolü</Badge>
+                          )}
+                          {product.itar && (
+                            <Badge variant="outline" className="text-xs">ITAR</Badge>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Actions */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5" />
+                    Son Aksiyonlar
+                  </CardTitle>
+                  <CardDescription>Bu talep için yapılan son işlemler</CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep/${talepId}/aksiyonlar`)}
+                >
+                  Tüm Aksiyonlar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {recentActions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Henüz aksiyon kaydı yok.</p>
+              ) : (
+                <div className="space-y-3">
+                  {recentActions.map((action) => (
+                    <div key={action.id} className="border-l-2 border-muted pl-4 space-y-1">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h5 className="font-medium text-sm">{action.title}</h5>
+                          <p className="text-sm text-muted-foreground">{action.description}</p>
+                        </div>
+                        {getOutcomeBadge(action.outcome)}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>{action.performedByUser?.name || action.performedByUser?.email || 'Sistem'}</span>
+                        <span>{new Date(action.actionDate).toLocaleDateString('tr-TR')}</span>
+                        {action.followUpRequired && (
+                          <Badge variant="outline" className="text-xs">Takip Gerekli</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -667,7 +886,7 @@ export default function TalepDetayPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
+                <Building2 className="h-5 w-5" />
                 Müşteri Bilgileri
               </CardTitle>
             </CardHeader>
@@ -682,30 +901,91 @@ export default function TalepDetayPage() {
                 </Badge>
               </div>
 
-              <Separator />
-
-              {talep.contactName && (
-                <div>
-                  <p className="text-sm font-medium">İletişim Kişisi</p>
-                  <p className="text-sm text-muted-foreground">{talep.contactName}</p>
-                </div>
-              )}
-
-              {talep.contactPhone && (
+              {talep.customer?.phone && (
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm">{talep.contactPhone}</p>
+                  <p className="text-sm">{talep.customer.phone}</p>
                 </div>
               )}
 
-              {talep.contactEmail && (
+              {talep.customer?.email && (
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm">{talep.contactEmail}</p>
+                  <p className="text-sm">{talep.customer.email}</p>
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Contact Person Information */}
+          {(talep.customerContact || talep.contactName) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCircle className="h-5 w-5" />
+                  İletişim Kişisi
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {talep.customerContact ? (
+                  <>
+                    <div>
+                      <p className="font-medium">
+                        {[talep.customerContact.firstName, talep.customerContact.lastName].filter(Boolean).join(' ')}
+                      </p>
+                      {talep.customerContact.title && (
+                        <p className="text-sm text-muted-foreground">{talep.customerContact.title}</p>
+                      )}
+                    </div>
+
+                    {talep.customerContact.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm">{talep.customerContact.phone}</p>
+                      </div>
+                    )}
+
+                    {talep.customerContact.mobile && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm">{talep.customerContact.mobile} (Mobil)</p>
+                      </div>
+                    )}
+
+                    {talep.customerContact.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm">{talep.customerContact.email}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {talep.contactName && (
+                      <div>
+                        <p className="text-sm font-medium">İletişim Kişisi</p>
+                        <p className="text-sm text-muted-foreground">{talep.contactName}</p>
+                      </div>
+                    )}
+
+                    {talep.contactPhone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm">{talep.contactPhone}</p>
+                      </div>
+                    )}
+
+                    {talep.contactEmail && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm">{talep.contactEmail}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Assignment Information */}
           <Card>
