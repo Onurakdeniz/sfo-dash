@@ -4,7 +4,7 @@ import { talepStatusEnum, talepPriorityEnum, talepTypeEnum, talepCategoryEnum } 
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
-import { customer } from "./customers";
+import { customer, customerContact } from "./customers";
 
 // Main talep (request) table - stores request information with Turkish business context
 export const talep = pgTable('talep', {
@@ -26,6 +26,7 @@ export const talep = pgTable('talep', {
 
   /* Customer association */
   customerId: text('customer_id').references(() => customer.id, { onDelete: 'cascade' }).notNull(),
+  customerContactId: text('customer_contact_id').references(() => customerContact.id, { onDelete: 'set null' }),
 
   /* Assignment */
   assignedTo: text('assigned_to').references(() => user.id),
@@ -72,6 +73,7 @@ export const talep = pgTable('talep', {
   index('talep_category_idx').on(table.category),
   index('talep_priority_idx').on(table.priority),
   index('talep_customer_idx').on(table.customerId),
+  index('talep_customer_contact_idx').on(table.customerContactId),
   index('talep_assigned_to_idx').on(table.assignedTo),
   index('talep_assigned_by_idx').on(table.assignedBy),
   index('talep_deadline_idx').on(table.deadline),
@@ -184,8 +186,108 @@ export const talepActivity = pgTable('talep_activities', {
   index('talep_activities_created_at_idx').on(table.createdAt),
 ]);
 
+// Talep products table - products requested in a talep
+export const talepProduct = pgTable('talep_products', {
+  id: text('id').primaryKey(),
+  talepId: text('talep_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
+
+  // Product details
+  productCode: varchar('product_code', { length: 100 }),
+  productName: varchar('product_name', { length: 255 }).notNull(),
+  productDescription: text('product_description'),
+  manufacturer: varchar('manufacturer', { length: 255 }),
+  model: varchar('model', { length: 255 }),
+  partNumber: varchar('part_number', { length: 100 }),
+
+  // Specifications
+  specifications: jsonb('specifications'), // Technical specs as JSON
+  category: varchar('category', { length: 100 }), // Weapon systems, electronics, etc.
+  subCategory: varchar('sub_category', { length: 100 }),
+
+  // Quantity and pricing
+  requestedQuantity: integer('requested_quantity').default(1).notNull(),
+  unitOfMeasure: varchar('unit_of_measure', { length: 50 }).default('piece'), // piece, set, kg, etc.
+  targetPrice: decimal('target_price', { precision: 15, scale: 2 }),
+  currency: varchar('currency', { length: 3 }).default('USD'),
+
+  // Defense industry specific
+  exportControlled: boolean('export_controlled').default(false),
+  itar: boolean('itar').default(false), // International Traffic in Arms Regulations
+  endUseStatement: text('end_use_statement'),
+  certificationRequired: jsonb('certification_required'), // Array of required certifications
+
+  // Status and notes
+  status: varchar('status', { length: 50 }).default('requested'), // requested, quoted, approved, rejected
+  notes: text('notes'),
+
+  // Audit fields
+  createdBy: text('created_by').references(() => user.id),
+  updatedBy: text('updated_by').references(() => user.id),
+
+  // Timestamps
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('talep_products_talep_idx').on(table.talepId),
+  index('talep_products_code_idx').on(table.productCode),
+  index('talep_products_name_idx').on(table.productName),
+  index('talep_products_category_idx').on(table.category),
+  index('talep_products_status_idx').on(table.status),
+]);
+
+// Talep actions table - detailed actions taken for a talep
+export const talepAction = pgTable('talep_actions', {
+  id: text('id').primaryKey(),
+  talepId: text('talep_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
+
+  // Action details
+  actionType: varchar('action_type', { length: 100 }).notNull(), // email_sent, call_made, meeting_held, quote_requested, etc.
+  actionCategory: varchar('action_category', { length: 50 }), // communication, documentation, procurement, technical
+  title: varchar('title', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+
+  // Communication details (if applicable)
+  communicationType: varchar('communication_type', { length: 50 }), // email, phone, meeting, site_visit
+  contactPerson: varchar('contact_person', { length: 255 }),
+  contactCompany: varchar('contact_company', { length: 255 }),
+  contactEmail: varchar('contact_email', { length: 255 }),
+  contactPhone: varchar('contact_phone', { length: 20 }),
+
+  // Action outcome
+  outcome: varchar('outcome', { length: 100 }), // successful, pending, failed, follow_up_required
+  followUpRequired: boolean('follow_up_required').default(false),
+  followUpDate: timestamp('follow_up_date'),
+  followUpNotes: text('follow_up_notes'),
+
+  // Related entities
+  relatedProductIds: jsonb('related_product_ids').default([]), // Array of talepProduct ids
+  attachmentIds: jsonb('attachment_ids').default([]), // Array of file ids
+
+  // Time tracking
+  duration: integer('duration'), // Duration in minutes
+  actionDate: timestamp('action_date').defaultNow().notNull(),
+
+  // Additional metadata
+  metadata: jsonb('metadata'),
+
+  // Audit fields
+  performedBy: text('performed_by').references(() => user.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => [
+  index('talep_actions_talep_idx').on(table.talepId),
+  index('talep_actions_type_idx').on(table.actionType),
+  index('talep_actions_category_idx').on(table.actionCategory),
+  index('talep_actions_outcome_idx').on(table.outcome),
+  index('talep_actions_performed_by_idx').on(table.performedBy),
+  index('talep_actions_date_idx').on(table.actionDate),
+  index('talep_actions_follow_up_idx').on(table.followUpRequired, table.followUpDate),
+]);
+
 // Type exports
 export type TalepType = typeof talep.$inferSelect;
 export type TalepNoteType = typeof talepNote.$inferSelect;
 export type TalepFileType = typeof talepFile.$inferSelect;
 export type TalepActivityType = typeof talepActivity.$inferSelect;
+export type TalepProductType = typeof talepProduct.$inferSelect;
+export type TalepActionType = typeof talepAction.$inferSelect;

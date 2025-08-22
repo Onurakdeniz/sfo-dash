@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { talep, workspace, workspaceCompany, workspaceMember, company, customer, user, talepActivity } from "@/db/schema";
+import { talep, workspace, workspaceCompany, workspaceMember, company, customer, user, talepActivity, customerContact } from "@/db/schema";
 import { eq, and, or, desc, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { DatabaseErrorHandler } from "@/lib/database-errors";
@@ -31,6 +31,13 @@ const updateTalepSchema = z.object({
     "installation",
     "training",
     "maintenance",
+    "rfq",
+    "rfi",
+    "rfp",
+    "certification_req",
+    "compliance_inquiry",
+    "export_license",
+    "end_user_cert",
     "other"
   ]).optional(),
   category: z.enum([
@@ -43,6 +50,18 @@ const updateTalepSchema = z.object({
     "integration",
     "reporting",
     "user_access",
+    "weapon_systems",
+    "ammunition",
+    "avionics",
+    "radar_systems",
+    "communication",
+    "electronic_warfare",
+    "naval_systems",
+    "land_systems",
+    "air_systems",
+    "cyber_security",
+    "simulation",
+    "c4isr",
     "other"
   ]).optional().nullable(),
   status: z.enum(["new", "in_progress", "waiting", "resolved", "closed", "cancelled"]).optional(),
@@ -200,6 +219,7 @@ export async function GET(
       status: talep.status,
       priority: talep.priority,
       customerId: talep.customerId,
+      customerContactId: talep.customerContactId,
       assignedTo: talep.assignedTo,
       assignedBy: talep.assignedBy,
       contactName: talep.contactName,
@@ -227,6 +247,15 @@ export async function GET(
         phone: customer.phone,
         customerType: customer.customerType,
       },
+      customerContact: {
+        id: customerContact.id,
+        firstName: customerContact.firstName,
+        lastName: customerContact.lastName,
+        title: customerContact.title,
+        email: customerContact.email,
+        phone: customerContact.phone,
+        mobile: customerContact.mobile,
+      },
       assignedToUser: {
         id: assignedUser.id,
         name: assignedUser.name,
@@ -240,6 +269,7 @@ export async function GET(
     })
       .from(talep)
       .leftJoin(customer, eq(talep.customerId, customer.id))
+      .leftJoin(customerContact, eq(talep.customerContactId, customerContact.id))
       .leftJoin(assignedUser, eq(talep.assignedTo, assignedUser.id))
       .leftJoin(createdUser, eq(talep.createdBy, createdUser.id))
       .where(

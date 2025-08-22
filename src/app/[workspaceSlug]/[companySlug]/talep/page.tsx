@@ -36,11 +36,12 @@ interface Talep {
   id: string;
   title: string;
   description: string;
-  type: 'technical_support' | 'billing' | 'general_inquiry' | 'complaint' | 'feature_request' | 'bug_report' | 'installation' | 'training' | 'maintenance' | 'other';
-  category: 'hardware' | 'software' | 'network' | 'database' | 'security' | 'performance' | 'integration' | 'reporting' | 'user_access' | 'other' | null;
+  type: 'rfq' | 'rfi' | 'rfp' | 'product_inquiry' | 'price_request' | 'quotation_request' | 'order_request' | 'sample_request' | 'certification_req' | 'compliance_inquiry' | 'export_license' | 'end_user_cert' | 'delivery_status' | 'return_request' | 'billing' | 'technical_support' | 'general_inquiry' | 'complaint' | 'feature_request' | 'bug_report' | 'installation' | 'training' | 'maintenance' | 'other';
+  category: 'weapon_systems' | 'ammunition' | 'avionics' | 'radar_systems' | 'communication' | 'electronic_warfare' | 'naval_systems' | 'land_systems' | 'air_systems' | 'cyber_security' | 'simulation' | 'c4isr' | 'hardware' | 'software' | 'network' | 'database' | 'security' | 'performance' | 'integration' | 'reporting' | 'user_access' | 'other' | null;
   status: 'new' | 'in_progress' | 'waiting' | 'resolved' | 'closed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   customerId: string;
+  customerContactId?: string | null;
   assignedTo: string | null;
   deadline: string | null;
   estimatedHours: number | null;
@@ -51,8 +52,18 @@ interface Talep {
   customer: {
     id: string;
     name: string;
+    fullName?: string | null;
     email: string | null;
     phone: string | null;
+  } | null;
+  customerContact: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    title?: string | null;
+    email: string | null;
+    phone: string | null;
+    mobile?: string | null;
   } | null;
   assignedToUser: {
     id: string;
@@ -202,6 +213,12 @@ export default function TalepPage() {
 
   const getTypeLabel = (type: string) => {
     switch (type) {
+      case 'rfq':
+        return 'RFQ (Teklif Talebi)';
+      case 'rfi':
+        return 'RFI (Bilgi Talebi)';
+      case 'rfp':
+        return 'RFP (Teklif Çağrısı)';
       case 'quotation_request':
         return 'Teklif Talebi';
       case 'price_request':
@@ -212,6 +229,14 @@ export default function TalepPage() {
         return 'Sipariş Talebi';
       case 'sample_request':
         return 'Numune Talebi';
+      case 'certification_req':
+        return 'Sertifika Talebi';
+      case 'compliance_inquiry':
+        return 'Uygunluk Sorgusu';
+      case 'export_license':
+        return 'İhracat Lisansı';
+      case 'end_user_cert':
+        return 'Son Kullanıcı Sertifikası';
       case 'delivery_status':
         return 'Teslimat Durumu';
       case 'return_request':
@@ -303,11 +328,25 @@ export default function TalepPage() {
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Tip" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all" key="all">Tümü</SelectItem>
+                <SelectItem value="rfq" key="rfq">RFQ (Teklif Talebi)</SelectItem>
+                <SelectItem value="rfi" key="rfi">RFI (Bilgi Talebi)</SelectItem>
+                <SelectItem value="rfp" key="rfp">RFP (Teklif Çağrısı)</SelectItem>
+                <SelectItem value="quotation_request" key="quotation_request">Teklif Talebi</SelectItem>
+                <SelectItem value="price_request" key="price_request">Fiyat Talebi</SelectItem>
+                <SelectItem value="product_inquiry" key="product_inquiry">Ürün Sorgusu</SelectItem>
+                <SelectItem value="order_request" key="order_request">Sipariş Talebi</SelectItem>
+                <SelectItem value="sample_request" key="sample_request">Numune Talebi</SelectItem>
+                <SelectItem value="certification_req" key="certification_req">Sertifika Talebi</SelectItem>
+                <SelectItem value="compliance_inquiry" key="compliance_inquiry">Uygunluk Sorgusu</SelectItem>
+                <SelectItem value="export_license" key="export_license">İhracat Lisansı</SelectItem>
+                <SelectItem value="end_user_cert" key="end_user_cert">Son Kullanıcı Sertifikası</SelectItem>
+                <SelectItem value="delivery_status" key="delivery_status">Teslimat Durumu</SelectItem>
+                <SelectItem value="return_request" key="return_request">İade Talebi</SelectItem>
                 <SelectItem value="technical_support" key="technical_support">Teknik Destek</SelectItem>
                 <SelectItem value="billing" key="billing">Fatura</SelectItem>
                 <SelectItem value="general_inquiry" key="general_inquiry">Genel Soru</SelectItem>
@@ -367,6 +406,7 @@ export default function TalepPage() {
                   <TableRow>
                     <TableHead>Talep</TableHead>
                     <TableHead>Müşteri</TableHead>
+                    <TableHead>İletişim</TableHead>
                     <TableHead>Tip</TableHead>
                     <TableHead>Durum</TableHead>
                     <TableHead>Öncelik</TableHead>
@@ -414,6 +454,24 @@ export default function TalepPage() {
                             </div>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {talep.customerContact ? (
+                          <div>
+                            <div className="text-sm">{talep.customerContact.firstName} {talep.customerContact.lastName}</div>
+                            {talep.customerContact.title && (
+                              <div className="text-xs text-muted-foreground">{talep.customerContact.title}</div>
+                            )}
+                            {talep.customerContact.phone && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {talep.customerContact.phone}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-sm text-muted-foreground">-</div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
