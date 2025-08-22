@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceMember, product, productInventory, supplierProduct, productVariant, productPriceHistory } from "@/db/schema";
+import { workspace, workspaceMember, product, productInventory, businessEntityProduct, productVariant, productPriceHistory } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 
 export async function GET(
@@ -93,14 +93,14 @@ export async function GET(
 
     // Get suppliers
     const suppliers = await db.select()
-      .from(supplierProduct)
+      .from(businessEntityProduct)
       .where(
         and(
-          eq(supplierProduct.productId, productId),
-          sql`${supplierProduct.deletedAt} IS NULL`
+          eq(businessEntityProduct.productId, productId),
+          sql`${businessEntityProduct.deletedAt} IS NULL`
         )
       )
-      .orderBy(supplierProduct.priority);
+      .orderBy(businessEntityProduct.priority);
 
     // Get inventory details
     const inventory = await db.select()

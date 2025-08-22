@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceMember, product, productInventory, supplierProduct } from "@/db/schema";
+import { workspace, workspaceMember, product, productInventory, businessEntityProduct } from "@/db/schema";
 import { eq, and, desc, asc, like, or, count, sum, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -121,13 +121,13 @@ export async function GET(
       product: product,
       totalStock: sql<number>`COALESCE(SUM(${productInventory.quantityOnHand}), 0)`,
       availableStock: sql<number>`COALESCE(SUM(${productInventory.quantityAvailable}), 0)`,
-      supplierCount: sql<number>`COUNT(DISTINCT ${supplierProduct.supplierId})`,
+      supplierCount: sql<number>`COUNT(DISTINCT ${businessEntityProduct.entityId})`,
     })
     .from(product)
     .leftJoin(productInventory, eq(product.id, productInventory.productId))
-    .leftJoin(supplierProduct, and(
-      eq(product.id, supplierProduct.productId),
-      eq(supplierProduct.isActive, true)
+    .leftJoin(businessEntityProduct, and(
+      eq(product.id, businessEntityProduct.productId),
+      eq(businessEntityProduct.isActive, true)
     ))
     .where(and(...conditions))
     .groupBy(product.id)

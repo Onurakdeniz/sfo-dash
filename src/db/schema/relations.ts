@@ -12,7 +12,8 @@ import { roles, modules, moduleResources, modulePermissions, roleModulePermissio
 import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
 import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
 import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
-import { product, productVariant, supplierProduct, productPriceHistory, productInventory } from "./tables/products";
+import { product, productVariant, businessEntityProduct, productPriceHistory, productInventory } from "./tables/products";
+import { businessEntity, businessEntityContact } from "./tables/businessEntity";
 
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -566,13 +567,13 @@ export const talepRelations = relations(talep, ({ one, many }) => ({
     fields: [talep.companyId],
     references: [company.id],
   }),
-  customer: one(customer, {
-    fields: [talep.customerId],
-    references: [customer.id],
+  entity: one(businessEntity, {
+    fields: [talep.entityId],
+    references: [businessEntity.id],
   }),
-  customerContact: one(customerContact, {
-    fields: [talep.customerContactId],
-    references: [customerContact.id],
+  entityContact: one(businessEntityContact, {
+    fields: [talep.entityContactId],
+    references: [businessEntityContact.id],
   }),
   assignedToUser: one(user, {
     fields: [talep.assignedTo],
@@ -696,7 +697,7 @@ export const supplierRelations = relations(supplier, ({ one, many }) => ({
   files: many(supplierFile),
   notes: many(supplierNote),
   performance: many(supplierPerformance),
-  supplierProducts: many(supplierProduct),
+  // supplierProducts relation removed - should be handled through businessEntity
   createdByUser: one(user, {
     fields: [supplier.createdBy],
     references: [user.id],
@@ -810,7 +811,7 @@ export const productRelations = relations(product, ({ one, many }) => ({
     references: [user.id],
   }),
   variants: many(productVariant),
-  supplierProducts: many(supplierProduct),
+  businessEntityProducts: many(businessEntityProduct),
   priceHistory: many(productPriceHistory),
   inventory: many(productInventory),
 }));
@@ -833,22 +834,22 @@ export const productVariantRelations = relations(productVariant, ({ one, many })
   inventory: many(productInventory),
 }));
 
-// Supplier Product Relations
-export const supplierProductRelations = relations(supplierProduct, ({ one }) => ({
-  supplier: one(supplier, {
-    fields: [supplierProduct.supplierId],
-    references: [supplier.id],
+// Business Entity Product Relations
+export const businessEntityProductRelations = relations(businessEntityProduct, ({ one }) => ({
+  businessEntity: one(businessEntity, {
+    fields: [businessEntityProduct.entityId],
+    references: [businessEntity.id],
   }),
   product: one(product, {
-    fields: [supplierProduct.productId],
+    fields: [businessEntityProduct.productId],
     references: [product.id],
   }),
   createdByUser: one(user, {
-    fields: [supplierProduct.createdBy],
+    fields: [businessEntityProduct.createdBy],
     references: [user.id],
   }),
   updatedByUser: one(user, {
-    fields: [supplierProduct.updatedBy],
+    fields: [businessEntityProduct.updatedBy],
     references: [user.id],
   }),
 }));
@@ -863,9 +864,9 @@ export const productPriceHistoryRelations = relations(productPriceHistory, ({ on
     fields: [productPriceHistory.variantId],
     references: [productVariant.id],
   }),
-  supplier: one(supplier, {
-    fields: [productPriceHistory.supplierId],
-    references: [supplier.id],
+  entity: one(businessEntity, {
+    fields: [productPriceHistory.entityId],
+    references: [businessEntity.id],
   }),
   changedByUser: one(user, {
     fields: [productPriceHistory.changedBy],

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { workspace, workspaceMember, supplier, supplierContact, supplierAddress, supplierFile, supplierNote, supplierPerformance, supplierProduct } from "@/db/schema";
+import { workspace, workspaceMember, supplier, supplierContact, supplierAddress, supplierFile, supplierNote, supplierPerformance, businessEntityProduct } from "@/db/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 
 export async function GET(
@@ -133,14 +133,14 @@ export async function GET(
 
     // Get products from this supplier
     const products = await db.select()
-      .from(supplierProduct)
+      .from(businessEntityProduct)
       .where(
         and(
-          eq(supplierProduct.supplierId, supplierId),
-          sql`${supplierProduct.deletedAt} IS NULL`
+          eq(businessEntityProduct.entityId, supplierId),
+          sql`${businessEntityProduct.deletedAt} IS NULL`
         )
       )
-      .orderBy(supplierProduct.priority);
+      .orderBy(businessEntityProduct.priority);
 
     return NextResponse.json({
       ...supplierData[0],
@@ -373,12 +373,12 @@ export async function DELETE(
 
     // Check if supplier has active products
     const activeProducts = await db.select()
-      .from(supplierProduct)
+      .from(businessEntityProduct)
       .where(
         and(
-          eq(supplierProduct.supplierId, supplierId),
-          eq(supplierProduct.isActive, true),
-          sql`${supplierProduct.deletedAt} IS NULL`
+          eq(businessEntityProduct.entityId, supplierId),
+          eq(businessEntityProduct.isActive, true),
+          sql`${businessEntityProduct.deletedAt} IS NULL`
         )
       )
       .limit(1);
