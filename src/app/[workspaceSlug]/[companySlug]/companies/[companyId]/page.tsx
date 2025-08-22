@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // import { PageWrapper } from "@/components/page-wrapper";
 import CompanyPageLayout from "@/components/layouts/company-page-layout";
 import { toast } from "sonner";
+import { handleApiResponse, showErrorToast } from "@/lib/api-error-handler";
 import CompanyTabs from "./company-tabs";
 
 interface Company {
@@ -184,10 +185,21 @@ export default function CompanyDetailsPage() {
         },
         body: JSON.stringify(data)
       });
+
+      const responseData = await res.json();
+
+      // Handle API response with proper error parsing
       if (!res.ok) {
-        throw new Error('Failed to update company');
+        // If it's a database constraint violation, handleApiResponse will show the error toast
+        handleApiResponse(responseData, {
+          showSuccessToast: false, // We'll handle success toast manually
+        });
+
+        // Re-throw to trigger onError
+        throw new Error(responseData.error?.userMessage || 'Failed to update company');
       }
-      return res.json();
+
+      return responseData;
     },
     onSuccess: (updatedCompany) => {
       queryClient.setQueryData(['company', workspace?.id, companyId], updatedCompany);
@@ -198,7 +210,8 @@ export default function CompanyDetailsPage() {
       toast.success('Şirket başarıyla güncellendi');
     },
     onError: (error) => {
-      toast.error('Şirket güncelleme başarısız');
+      // Error toast is already shown by handleApiResponse in mutationFn
+      // This prevents duplicate error toasts
       console.error('Update company error:', error);
     },
   });
@@ -211,14 +224,20 @@ export default function CompanyDetailsPage() {
         method: 'DELETE',
         credentials: 'include'
       });
+
+      const responseData = await res.json();
+
+      // Handle API response with proper error parsing
       if (!res.ok) {
-        let message = 'Failed to delete company';
-        try {
-          const data = await res.json();
-          if (data?.error) message = data.error;
-        } catch {}
-        throw new Error(message);
+        handleApiResponse(responseData, {
+          showSuccessToast: false, // We'll handle success toast manually
+        });
+
+        // Re-throw to trigger onError
+        throw new Error(responseData.error?.userMessage || 'Failed to delete company');
       }
+
+      return responseData;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies', workspace?.id] });
@@ -226,7 +245,7 @@ export default function CompanyDetailsPage() {
       router.push(`/${workspaceSlug}/${companySlug}/companies`);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Şirket silme başarısız');
+      // Error toast is already shown by handleApiResponse in mutationFn
       console.error('Delete company error:', error);
     },
   });
@@ -771,39 +790,7 @@ export default function CompanyDetailsPage() {
               </CardContent>
             </Card>
 
-            {/* Metadata */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  Sistem Bilgileri
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Oluşturulma Tarihi</Label>
-                    <p className="text-sm py-2">{new Date(company.createdAt).toLocaleDateString('tr-TR', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Son Güncelleme</Label>
-                    <p className="text-sm py-2">{new Date(company.updatedAt).toLocaleDateString('tr-TR', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Metadata hidden per request: Sistem Bilgileri */}
       </div>
 
       {/* Delete Confirmation Dialog */}

@@ -10,3 +10,6 @@ export * from "./policies";
 export * from "./settings";
 export * from "./system";
 export * from "./hr";
+export * from "./customers";
+export * from "./talep";
+export * from "./suppliers";

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { Building2, Building, FolderOpen, Network, MapPin } from "lucide-react";
+import { Building2, Building, FolderOpen, Network, MapPin, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function CompanyTabs({ className }: { className?: string }) {
@@ -22,10 +22,19 @@ export function CompanyTabs({ className }: { className?: string }) {
       shortLabel: "Şirket Bilgileri",
       icon: Building2,
       href: basePath,
-      isActive: !pathname.includes(`${basePath}/departments`) && 
-                !pathname.includes(`${basePath}/files`) && 
+      isActive: !pathname.includes(`${basePath}/departments`) &&
+                !pathname.includes(`${basePath}/files`) &&
                 !pathname.includes(`${basePath}/org-chart`) &&
-                !pathname.includes(`${basePath}/locations`)
+                !pathname.includes(`${basePath}/locations`) &&
+                !pathname.includes(`${basePath}/customers`)
+    },
+    {
+      key: "customers",
+      label: "Müşteri Yönetimi",
+      shortLabel: "Müşteriler",
+      icon: Users,
+      href: `${basePath}/customers`,
+      isActive: pathname.includes(`${basePath}/customers`)
     },
     {
       key: "departments",

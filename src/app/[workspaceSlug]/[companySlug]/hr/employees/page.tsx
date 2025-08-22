@@ -13,15 +13,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, UserPlus, Filter, Columns, Download, CheckSquare, CalendarDays, FileSpreadsheet, X } from "lucide-react";
+import { Users, UserPlus, Filter, Columns, Download, CheckSquare, CalendarDays, FileSpreadsheet, X, Check } from "lucide-react";
 import { DataTable } from "@/components/ui/data-table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter, DrawerTrigger } from "@/components/ui/drawer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 interface WorkspaceContextData {
   workspace: { id: string; name: string; slug: string } | null;
@@ -101,8 +102,7 @@ function EmployeesListContent() {
     manager: false,
   });
 
-  // Department filter search
-  const [departmentQuery, setDepartmentQuery] = useState("");
+  // Department filter uses Command search within popover like attendance page
 
   const { data: contextData, isLoading: contextLoading } = useQuery<WorkspaceContextData>({
     queryKey: ["workspace-context", workspaceSlug, companySlug],
@@ -629,28 +629,83 @@ function EmployeesListContent() {
                     </div>
                     <div className="space-y-2">
                       <Label>Departman</Label>
-                      <div className="space-y-2">
-                        <Input
-                          placeholder="Departman ara..."
-                          value={departmentQuery}
-                          onChange={(e) => setDepartmentQuery(e.target.value)}
-                        />
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-auto p-1 rounded-md border">
-                          {(departments as any[])
-                            .filter((d: any) => d.name.toLowerCase().includes(departmentQuery.toLowerCase()))
-                            .map((d: any) => (
-                              <label key={d.id} className="flex items-center gap-2 text-sm">
-                                <Checkbox
-                                  checked={selectedDepartments.includes(d.id)}
-                                  onCheckedChange={(c) =>
-                                    setSelectedDepartments((prev) => (c ? [...prev, d.id] : prev.filter((x) => x !== d.id)))
-                                  }
-                                />
-                                {d.name}
-                              </label>
-                            ))}
-                        </div>
-                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start h-10 overflow-hidden">
+                            {selectedDepartments.length === 0 ? (
+                              <span className="text-muted-foreground">Tümü</span>
+                            ) : (
+                              <div className="flex items-center gap-1.5 flex-nowrap overflow-hidden">
+                                {selectedDepartments.slice(0, 3).map((id) => {
+                                  const dept = (departments as any[]).find((d: any) => d.id === id);
+                                  return (
+                                    <Badge key={id} variant="secondary" className="text-[10px] font-medium shrink-0">
+                                      <span className="truncate max-w-[120px]">{dept?.name || '-'}</span>
+                                    </Badge>
+                                  );
+                                })}
+                                {selectedDepartments.length > 3 && (
+                                  <Badge variant="secondary" className="text-[10px] font-medium shrink-0">+{selectedDepartments.length - 3}</Badge>
+                                )}
+                              </div>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="p-0 w-[360px] max-w-[calc(100vw-2rem)]">
+                          <div className="flex items-center justify-between px-3 py-2 border-b">
+                            <div className="text-xs text-muted-foreground">{selectedDepartments.length > 0 ? `${selectedDepartments.length} seçili` : "Tümü seçili"}</div>
+                            {selectedDepartments.length > 0 && (
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setSelectedDepartments([])}>
+                                Temizle
+                              </Button>
+                            )}
+                          </div>
+                          {selectedDepartments.length > 0 && (
+                            <div className="px-3 py-2 flex flex-wrap gap-1.5 border-b">
+                              {selectedDepartments.map((id) => {
+                                const dept = (departments as any[]).find((d: any) => d.id === id);
+                                return (
+                                  <Badge key={id} variant="secondary" className="text-[10px] font-medium pr-1.5">
+                                    <span className="truncate max-w-[140px]">{dept?.name || '-'}</span>
+                                    <button
+                                      type="button"
+                                      className="ml-1 rounded hover:bg-secondary/60 p-0.5"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        setSelectedDepartments((prev) => prev.filter((x) => x !== id));
+                                      }}
+                                      aria-label="Kaldır"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <Command>
+                            <CommandInput placeholder="Departman ara..." />
+                            <CommandList>
+                              <CommandEmpty>Sonuç yok</CommandEmpty>
+                              <CommandGroup>
+                                {(departments as any[]).map((dept: any) => {
+                                  const checked = selectedDepartments.includes(dept.id);
+                                  return (
+                                    <CommandItem
+                                      key={dept.id}
+                                      value={dept.name}
+                                      onSelect={() => setSelectedDepartments((prev) => checked ? prev.filter((x) => x !== dept.id) : [...prev, dept.id])}
+                                    >
+                                      <span className="flex-1 truncate">{dept.name}</span>
+                                      {checked && <Check className="h-4 w-4" />}
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-4">
                       <div className="space-y-2 flex-1">
@@ -690,114 +745,28 @@ function EmployeesListContent() {
                 </DrawerContent>
               </Drawer>
 
-              {/* Active Filter Chips */}
+              {/* Only show a single reset (X) icon when filters are active */}
               {areFiltersActive && (
-                <div className="flex flex-wrap items-center gap-1">
-                  {(() => {
-                    const allFilters: { type: string; label: string; value?: string }[] = [];
-                    
-                    // Helper function to truncate text (much shorter)
-                    const truncateText = (text: string, maxLength: number = 6) => {
-                      if (text.length <= maxLength) return text;
-                      return text.slice(0, maxLength) + '..';
-                    };
-                    
-                    // Collect all active filters (ultra-compact labels)
-                    selectedDepartments.forEach((deptId) => {
-                      const dept = departments.find((d: any) => d.id === deptId);
-                      const deptName = dept?.name || deptId;
-                      allFilters.push({ type: 'department', label: truncateText(deptName, 8), value: deptId });
-                    });
-                    
-                    if (selectedRole !== "all") {
-                      const roleLabel = selectedRole === "owner" ? "Sahip" : selectedRole === "admin" ? "Admin" : "Üye";
-                      allFilters.push({ type: 'role', label: roleLabel, value: selectedRole });
-                    }
-                    
-                    if (status !== "all") {
-                      allFilters.push({ type: 'status', label: status === "active" ? "Aktif" : "Pasif", value: status });
-                    }
-                    
-                    if (firstName.trim()) {
-                      allFilters.push({ type: 'firstName', label: truncateText(firstName, 6) });
-                    }
-                    
-                    if (lastName.trim()) {
-                      allFilters.push({ type: 'lastName', label: truncateText(lastName, 6) });
-                    }
-                    
-                    if (email.trim()) {
-                      allFilters.push({ type: 'email', label: truncateText(email, 6) });
-                    }
-                    
-                    if (employeeNo.trim()) {
-                      allFilters.push({ type: 'employeeNo', label: truncateText(employeeNo, 6) });
-                    }
-
-                    // Show only first 3 filters
-                    const visibleFilters = allFilters.slice(0, 3);
-                    const remainingCount = allFilters.length - 3;
-
-                    return (
-                      <>
-                        {visibleFilters.map((filter, index) => (
-                          <Badge key={`${filter.type}-${index}`} variant="secondary" className="text-xs max-w-[60px] truncate shrink-0 pr-1.5">
-                            {filter.label}
-                            <button
-                              type="button"
-                              className="ml-1 rounded hover:bg-secondary/60 p-0.5"
-                              aria-label="Kaldır"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                if (filter.type === 'department' && filter.value) {
-                                  setSelectedDepartments((prev) => prev.filter((x) => x !== filter.value));
-                                } else if (filter.type === 'role') {
-                                  setSelectedRole('all');
-                                } else if (filter.type === 'status') {
-                                  setStatus('all');
-                                } else if (filter.type === 'firstName') {
-                                  setFirstName('');
-                                } else if (filter.type === 'lastName') {
-                                  setLastName('');
-                                } else if (filter.type === 'email') {
-                                  setEmail('');
-                                } else if (filter.type === 'employeeNo') {
-                                  setEmployeeNo('');
-                                }
-                              }}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                        {remainingCount > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{remainingCount} daha
-                          </Badge>
-                        )}
-                      </>
-                    );
-                  })()}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 hover:bg-destructive/10"
-                    onClick={() => {
-                      setSearch("");
-                      setFirstName("");
-                      setLastName("");
-                      setEmail("");
-                      setEmployeeNo("");
-                      setSelectedDepartments([]);
-                      setSelectedRole("all");
-                      setStatus("all");
-                      setStartFrom("");
-                      setStartTo("");
-                    }}
-                  >
-                    <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 hover:bg-destructive/10"
+                  onClick={() => {
+                    setSearch("");
+                    setFirstName("");
+                    setLastName("");
+                    setEmail("");
+                    setEmployeeNo("");
+                    setSelectedDepartments([]);
+                    setSelectedRole("all");
+                    setStatus("all");
+                    setStartFrom("");
+                    setStartTo("");
+                  }}
+                  aria-label="Filtreleri temizle"
+                >
+                  <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                </Button>
               )}
 
               <Button variant="outline" size="sm" onClick={() => setSelectMode((v) => !v)}>
@@ -820,11 +789,6 @@ function EmployeesListContent() {
                 <Button size="sm" onClick={() => router.push(`/${workspaceSlug}/${companySlug}/users`)}>
                   <UserPlus className="h-4 w-4 mr-2" />
                   Ekle
-                </Button>
-
-                <Button size="sm" variant="outline" onClick={() => setAssignOpen(true)} disabled={!workspaceId || !companyId}>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Şirkete Ata
                 </Button>
 
                 <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>

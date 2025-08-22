@@ -77,7 +77,7 @@ export async function GET(
       .orderBy(desc(companyFileVersion.createdAt));
 
     const versionIds = versions.map(v => v.id);
-    let attachmentsByVersion: Record<string, any[]> = {};
+    const attachmentsByVersion: Record<string, any[]> = {};
     if (versionIds.length) {
       const atts = await db
         .select()

@@ -19,10 +19,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const workspaceId = searchParams.get('workspaceId');
     const companyId = searchParams.get('companyId');
+    const isSystemParam = searchParams.get('isSystem');
 
     const conditions = [isNull(roles.deletedAt)];
     if (workspaceId) conditions.push(eq(roles.workspaceId, workspaceId));
     if (companyId) conditions.push(eq(roles.companyId, companyId));
+    if (isSystemParam !== null) {
+      const isSystemBool = isSystemParam === 'true' || isSystemParam === '1';
+      conditions.push(eq(roles.isSystem, isSystemBool));
+    }
 
     const allRoles = await db
       .select()

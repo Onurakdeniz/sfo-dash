@@ -4,11 +4,14 @@ import { account } from "./tables/account";
 import { session } from "./tables/session";
 import { workspace, workspaceCompany, workspaceMember } from "./tables/workspace";
 import { company, department, unit, companyFile, companyFileTemplate, companyFileVersion, companyFileAttachment, companyLocation } from "./tables/company";
-import { employeeProfile, employeeFile } from "./tables/hr";
+import { employeeProfile, employeeFile, employeePositionChange } from "./tables/hr";
 import { invitation, invitationTemplate } from "./tables/invitation";
 import { policies, policyAssignments } from "./tables/policies";
 import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
 import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog, userRoles, userModulePermissions } from "./tables/system";
+import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
+import { talep, talepNote, talepFile, talepActivity } from "./tables/talep";
+import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
 
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -212,6 +215,10 @@ export const employeeProfileRelations = relations(employeeProfile, ({ one }) => 
     fields: [employeeProfile.departmentId],
     references: [department.id],
   }),
+  unit: one(unit, {
+    fields: [employeeProfile.unitId],
+    references: [unit.id],
+  }),
   manager: one(user, {
     fields: [employeeProfile.managerId],
     references: [user.id],
@@ -230,6 +237,42 @@ export const employeeFileRelations = relations(employeeFile, ({ one }) => ({
   }),
   user: one(user, {
     fields: [employeeFile.userId],
+    references: [user.id],
+  }),
+}));
+
+// Employee Position Change Relations
+export const employeePositionChangeRelations = relations(employeePositionChange, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [employeePositionChange.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [employeePositionChange.companyId],
+    references: [company.id],
+  }),
+  user: one(user, {
+    fields: [employeePositionChange.userId],
+    references: [user.id],
+  }),
+  previousDepartment: one(department, {
+    fields: [employeePositionChange.previousDepartmentId],
+    references: [department.id],
+  }),
+  newDepartment: one(department, {
+    fields: [employeePositionChange.newDepartmentId],
+    references: [department.id],
+  }),
+  previousUnit: one(unit, {
+    fields: [employeePositionChange.previousUnitId],
+    references: [unit.id],
+  }),
+  newUnit: one(unit, {
+    fields: [employeePositionChange.newUnitId],
+    references: [unit.id],
+  }),
+  createdByUser: one(user, {
+    fields: [employeePositionChange.createdBy],
     references: [user.id],
   }),
 }));
@@ -405,5 +448,309 @@ export const moduleAccessLogRelations = relations(moduleAccessLog, ({ one }) => 
   resource: one(moduleResources, {
     fields: [moduleAccessLog.resourceId],
     references: [moduleResources.id],
+  }),
+}));
+
+// ===== CUSTOMER RELATIONS =====
+
+// Customer Relations
+export const customerRelations = relations(customer, ({ one, many }) => ({
+  workspace: one(workspace, {
+    fields: [customer.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [customer.companyId],
+    references: [company.id],
+  }),
+  parentCustomer: one(customer, {
+    fields: [customer.parentCustomerId],
+    references: [customer.id],
+    relationName: "customerHierarchy",
+  }),
+  childCustomers: many(customer, {
+    relationName: "customerHierarchy",
+  }),
+  addresses: many(customerAddress),
+  contacts: many(customerContact),
+  files: many(customerFile),
+  notes: many(customerNote),
+  createdByUser: one(user, {
+    fields: [customer.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [customer.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Customer Address Relations
+export const customerAddressRelations = relations(customerAddress, ({ one }) => ({
+  customer: one(customer, {
+    fields: [customerAddress.customerId],
+    references: [customer.id],
+  }),
+  createdByUser: one(user, {
+    fields: [customerAddress.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [customerAddress.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Customer Contact Relations
+export const customerContactRelations = relations(customerContact, ({ one }) => ({
+  customer: one(customer, {
+    fields: [customerContact.customerId],
+    references: [customer.id],
+  }),
+  createdByUser: one(user, {
+    fields: [customerContact.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [customerContact.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Customer File Relations
+export const customerFileRelations = relations(customerFile, ({ one }) => ({
+  customer: one(customer, {
+    fields: [customerFile.customerId],
+    references: [customer.id],
+  }),
+  uploadedByUser: one(user, {
+    fields: [customerFile.uploadedBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [customerFile.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Customer Note Relations
+export const customerNoteRelations = relations(customerNote, ({ one }) => ({
+  customer: one(customer, {
+    fields: [customerNote.customerId],
+    references: [customer.id],
+  }),
+  relatedContact: one(customerContact, {
+    fields: [customerNote.relatedContactId],
+    references: [customerContact.id],
+  }),
+  createdByUser: one(user, {
+    fields: [customerNote.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [customerNote.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// ===== TALEP RELATIONS =====
+
+// Talep Relations
+export const talepRelations = relations(talep, ({ one, many }) => ({
+  workspace: one(workspace, {
+    fields: [talep.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [talep.companyId],
+    references: [company.id],
+  }),
+  customer: one(customer, {
+    fields: [talep.customerId],
+    references: [customer.id],
+  }),
+  assignedToUser: one(user, {
+    fields: [talep.assignedTo],
+    references: [user.id],
+    relationName: "assignedTo",
+  }),
+  assignedByUser: one(user, {
+    fields: [talep.assignedBy],
+    references: [user.id],
+    relationName: "assignedBy",
+  }),
+  createdByUser: one(user, {
+    fields: [talep.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [talep.updatedBy],
+    references: [user.id],
+  }),
+  notes: many(talepNote),
+  files: many(talepFile),
+  activities: many(talepActivity),
+}));
+
+// Talep Note Relations
+export const talepNoteRelations = relations(talepNote, ({ one }) => ({
+  talep: one(talep, {
+    fields: [talepNote.talepId],
+    references: [talep.id],
+  }),
+  createdByUser: one(user, {
+    fields: [talepNote.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [talepNote.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Talep File Relations
+export const talepFileRelations = relations(talepFile, ({ one }) => ({
+  talep: one(talep, {
+    fields: [talepFile.talepId],
+    references: [talep.id],
+  }),
+  uploadedByUser: one(user, {
+    fields: [talepFile.uploadedBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [talepFile.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Talep Activity Relations
+export const talepActivityRelations = relations(talepActivity, ({ one }) => ({
+  talep: one(talep, {
+    fields: [talepActivity.talepId],
+    references: [talep.id],
+  }),
+  performedByUser: one(user, {
+    fields: [talepActivity.performedBy],
+    references: [user.id],
+  }),
+}));
+
+// ===== SUPPLIER RELATIONS =====
+
+// Supplier Relations
+export const supplierRelations = relations(supplier, ({ one, many }) => ({
+  workspace: one(workspace, {
+    fields: [supplier.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [supplier.companyId],
+    references: [company.id],
+  }),
+  parentSupplier: one(supplier, {
+    fields: [supplier.parentSupplierId],
+    references: [supplier.id],
+    relationName: "supplierHierarchy",
+  }),
+  childSuppliers: many(supplier, {
+    relationName: "supplierHierarchy",
+  }),
+  addresses: many(supplierAddress),
+  contacts: many(supplierContact),
+  files: many(supplierFile),
+  notes: many(supplierNote),
+  performance: many(supplierPerformance),
+  createdByUser: one(user, {
+    fields: [supplier.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [supplier.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Supplier Address Relations
+export const supplierAddressRelations = relations(supplierAddress, ({ one }) => ({
+  supplier: one(supplier, {
+    fields: [supplierAddress.supplierId],
+    references: [supplier.id],
+  }),
+  createdByUser: one(user, {
+    fields: [supplierAddress.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [supplierAddress.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Supplier Contact Relations
+export const supplierContactRelations = relations(supplierContact, ({ one }) => ({
+  supplier: one(supplier, {
+    fields: [supplierContact.supplierId],
+    references: [supplier.id],
+  }),
+  createdByUser: one(user, {
+    fields: [supplierContact.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [supplierContact.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Supplier File Relations
+export const supplierFileRelations = relations(supplierFile, ({ one }) => ({
+  supplier: one(supplier, {
+    fields: [supplierFile.supplierId],
+    references: [supplier.id],
+  }),
+  uploadedByUser: one(user, {
+    fields: [supplierFile.uploadedBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [supplierFile.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Supplier Note Relations
+export const supplierNoteRelations = relations(supplierNote, ({ one }) => ({
+  supplier: one(supplier, {
+    fields: [supplierNote.supplierId],
+    references: [supplier.id],
+  }),
+  relatedContact: one(supplierContact, {
+    fields: [supplierNote.relatedContactId],
+    references: [supplierContact.id],
+  }),
+  createdByUser: one(user, {
+    fields: [supplierNote.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [supplierNote.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Supplier Performance Relations
+export const supplierPerformanceRelations = relations(supplierPerformance, ({ one }) => ({
+  supplier: one(supplier, {
+    fields: [supplierPerformance.supplierId],
+    references: [supplier.id],
+  }),
+  createdByUser: one(user, {
+    fields: [supplierPerformance.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [supplierPerformance.updatedBy],
+    references: [user.id],
   }),
 }));

@@ -107,7 +107,7 @@ export async function POST(
     }
 
     // Ensure only one HQ per company
-    let shouldSetHQ = Boolean(isHeadquarters);
+    const shouldSetHQ = Boolean(isHeadquarters);
     if (shouldSetHQ) {
       // clear existing HQ flag
       await db

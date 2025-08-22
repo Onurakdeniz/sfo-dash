@@ -826,126 +826,25 @@ export default function AttendancePage() {
                   {areFiltersActive ? `Filtrele (${activeFiltersCount})` : "Filtrele"}
                 </Button>
 
-                {/* Active Filter Chips */}
+                {/* Only show a single reset (X) icon when filters are active */}
                 {areFiltersActive && (
-                  <div className="flex flex-wrap items-center gap-1">
-                    {(() => {
-                      const allFilters: { type: string; label: string; value?: string }[] = [];
-                      
-                      // Helper function to truncate text (ultra short)
-                      const truncateText = (text: string, maxLength: number = 5) => {
-                        if (text.length <= maxLength) return text;
-                        return text.slice(0, maxLength) + '..';
-                      };
-                      
-                      // Collect selected employees (show max 1 employee name + summary)
-                      if (selectedEmployeeIds.length === 1) {
-                        const emp = employees.find((e) => e.id === selectedEmployeeIds[0]);
-                        const empName = emp?.name || emp?.email || selectedEmployeeIds[0];
-                        allFilters.push({ 
-                          type: 'employee', 
-                          label: truncateText(empName, 6),
-                          value: selectedEmployeeIds[0]
-                        });
-                      } else if (selectedEmployeeIds.length > 1) {
-                        allFilters.push({ 
-                          type: 'employees', 
-                          label: `${selectedEmployeeIds.length}kişi`,
-                          value: 'all'
-                        });
-                      }
-                      
-                      // Add status filter (ultra short labels)
-                      if (statusFilter !== "all") {
-                        const statusLabel = statusFilter === "late_in" ? "Geç↑" : 
-                                          statusFilter === "late_out" ? "Geç↓" : "Anormal";
-                        allFilters.push({ 
-                          type: 'status', 
-                          label: statusLabel,
-                          value: statusFilter
-                        });
-                      }
-                      
-                      // Add date filters (ultra compact format)
-                      if (viewMode === "daily" && !isDailyRangeDefault) {
-                        const startDay = startDate.split("-")[2]; // DD
-                        const endDay = endDate.split("-")[2]; // DD
-                        const month = startDate.split("-")[1]; // MM
-                        allFilters.push({ 
-                          type: 'dateRange', 
-                          label: `${startDay}-${endDay}.${month}`,
-                          value: 'dateRange' 
-                        });
-                      }
-                      
-                      if (viewMode === "weekly-person" && !isWeeklyDateDefault) {
-                        const weekStartDay = weekDays[0]?.split("-")[2]; // DD
-                        const weekMonth = weekDays[0]?.split("-")[1]; // MM
-                        allFilters.push({ 
-                          type: 'weekRange', 
-                          label: `H${weekStartDay}.${weekMonth}`,
-                          value: 'weekRange' 
-                        });
-                      }
-
-                      // Show only first 3 filters
-                      const visibleFilters = allFilters.slice(0, 3);
-                      const remainingCount = allFilters.length - 3;
-
-                      return (
-                        <>
-                          {visibleFilters.map((filter, index) => (
-                            <Badge key={`${filter.type}-${index}`} variant="secondary" className="text-xs max-w-[50px] truncate shrink-0 pr-1.5">
-                              {filter.label}
-                              <button
-                                type="button"
-                                className="ml-1 rounded hover:bg-secondary/60 p-0.5"
-                                aria-label="Kaldır"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  if (filter.type === 'employee' && filter.value) {
-                                    setSelectedEmployeeIds((prev) => prev.filter((x) => x !== filter.value));
-                                  } else if (filter.type === 'employees') {
-                                    setSelectedEmployeeIds([]);
-                                  } else if (filter.type === 'status') {
-                                    setStatusFilter('all');
-                                  } else if (filter.type === 'dateRange') {
-                                    setStartDate(defaultDailyStart);
-                                    setEndDate(defaultDailyEnd);
-                                  } else if (filter.type === 'weekRange') {
-                                    setSelectedDate(defaultWeeklySelectedDate);
-                                  }
-                                }}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                          {remainingCount > 0 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{remainingCount} daha
-                            </Badge>
-                          )}
-                        </>
-                      );
-                    })()}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 hover:bg-destructive/10"
-                      onClick={() => {
-                        setSelectedEmployeeIds([]);
-                        const today = startOfDayISO(new Date());
-                        const weekAgo = startOfDayISO(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-                        setStartDate(weekAgo);
-                        setEndDate(today);
-                        setSelectedDate(today);
-                        setStatusFilter("all");
-                      }}
-                    >
-                      <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 hover:bg-destructive/10"
+                    onClick={() => {
+                      setSelectedEmployeeIds([]);
+                      const today = startOfDayISO(new Date());
+                      const weekAgo = startOfDayISO(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+                      setStartDate(weekAgo);
+                      setEndDate(today);
+                      setSelectedDate(today);
+                      setStatusFilter("all");
+                    }}
+                    aria-label="Filtreleri temizle"
+                  >
+                    <X className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                  </Button>
                 )}
 
                 <Button variant="outline" size="sm" onClick={() => exportAttendanceExcel()}>
@@ -1480,18 +1379,26 @@ export default function AttendancePage() {
                     <Input 
                       type="time" 
                       value={editCheckIn}
-                      onChange={(e) => setEditCheckIn(e.target.value)} 
+                      onChange={(e) => setEditCheckIn(e.target.value)}
+                      disabled={editingRow.checkInSource !== "manual"}
                       className="w-full"
                     />
+                    {editingRow.checkInSource !== "manual" && (
+                      <p className="text-[11px] text-muted-foreground">Yalnızca manuel girişler için saat değiştirilebilir. Not ekleyebilirsiniz.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Çıkış Saati</label>
                     <Input 
                       type="time" 
                       value={editCheckOut}
-                      onChange={(e) => setEditCheckOut(e.target.value)} 
+                      onChange={(e) => setEditCheckOut(e.target.value)}
+                      disabled={editingRow.checkOutSource !== "manual"}
                       className="w-full"
                     />
+                    {editingRow.checkOutSource !== "manual" && (
+                      <p className="text-[11px] text-muted-foreground">Yalnızca manuel çıkışlar için saat değiştirilebilir. Not ekleyebilirsiniz.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Giriş Notu</label>
@@ -1518,16 +1425,22 @@ export default function AttendancePage() {
                 <Button onClick={() => {
                   if (!editingRow) { setEditModalOpen(false); return; }
                   const key = `${editingRow.employee.id}-${editingRow.date}`;
-                  setOverrides(prev => ({
-                    ...prev,
-                    [key]: {
-                      ...prev[key],
-                      checkIn: editCheckIn || null,
-                      checkOut: editCheckOut || null,
-                      checkInNote: editCheckInNote || null,
-                      checkOutNote: editCheckOutNote || null,
-                    }
-                  }));
+                  const canEditIn = editingRow.checkInSource === "manual";
+                  const canEditOut = editingRow.checkOutSource === "manual";
+                  setOverrides(prev => {
+                    const next = { ...(prev[key] || {}) } as Partial<typeof editingRow> as any;
+                    if (canEditIn) next.checkIn = editCheckIn || null;
+                    if (canEditOut) next.checkOut = editCheckOut || null;
+                    next.checkInNote = editCheckInNote || null;
+                    next.checkOutNote = editCheckOutNote || null;
+                    return {
+                      ...prev,
+                      [key]: {
+                        ...prev[key],
+                        ...next,
+                      }
+                    };
+                  });
                   setEditModalOpen(false);
                 }}>Kaydet</Button>
               </DialogFooter>

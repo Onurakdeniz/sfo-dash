@@ -18,6 +18,7 @@ import { pgTable, varchar, text, integer, boolean, timestamp, jsonb, index, uniq
 import { sql } from "drizzle-orm";
 import { workspace } from "./workspace";
 import { company } from "./company";
+import { user } from "./user";
 
 // Define string constants for better type safety and easier maintenance
 // Using const assertions and check constraints instead of PostgreSQL enums
@@ -48,6 +49,7 @@ export const PERMISSION_SCOPES = [
 export type FeatureCategory = typeof FEATURE_CATEGORIES[number];
 export type InvoiceNumberingType = typeof INVOICE_NUMBERING_TYPES[number];
 export type PermissionScope = typeof PERMISSION_SCOPES[number];
+export type UnifiedSettingsType = typeof unifiedSettings.$inferSelect;
 
 // Workspace Settings - Global settings for the entire workspace
 export const workspaceSettings = pgTable("workspace_settings", {
@@ -134,4 +136,47 @@ export const featureFlags = pgTable("feature_flags", {
   unique("feature_flags_company_name_unique").on(table.companyId, table.name),
   // Check constraint for category
   check("feature_flags_category_check", sql`category IN ('hr', 'finance', 'inventory', 'crm', 'project', 'document', 'reporting', 'integration', 'security', 'general')`),
+]);
+
+// Unified Settings - Consolidated settings management for workspaces, companies, and users
+export const unifiedSettings = pgTable("unified_settings", {
+  id: text("id").primaryKey(),
+
+  // Scope definition - determines which entity this setting applies to
+  scopeType: varchar("scope_type", { length: 20 }).notNull(), // 'workspace', 'company', 'user'
+  scopeId: text("scope_id").notNull(), // ID of the workspace, company, or user
+
+  // Setting definition
+  category: varchar("category", { length: 50 }).notNull(), // e.g., 'general', 'notifications', 'business', 'regional'
+  key: varchar("key", { length: 100 }).notNull(), // e.g., 'timezone', 'currency', 'fiscal_year_start'
+  value: jsonb("value").notNull(), // Flexible value storage
+
+  // Metadata
+  description: text("description"),
+  isSystem: boolean("is_system").default(false).notNull(), // System settings cannot be deleted
+  isEncrypted: boolean("is_encrypted").default(false).notNull(), // For sensitive data
+
+  // Audit
+  createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
+  updatedBy: text("updated_by").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"), // Soft delete
+}, (table) => [
+  // Indexes for performance
+  index("unified_settings_scope_idx").on(table.scopeType, table.scopeId),
+  index("unified_settings_category_idx").on(table.category),
+  index("unified_settings_key_idx").on(table.key),
+  index("unified_settings_scope_category_idx").on(table.scopeType, table.scopeId, table.category),
+  index("unified_settings_system_idx").on(table.isSystem),
+
+  // Unique constraint per scope and key
+  unique("unified_settings_scope_key_unique").on(table.scopeType, table.scopeId, table.key),
+
+  // Scope validation
+  check("unified_settings_scope_type_check", sql`scope_type IN ('workspace', 'company', 'user')`),
+  check("unified_settings_category_check", sql`category IN ('general', 'business', 'regional', 'notifications', 'security', 'appearance', 'custom')`),
+
+  // Ensure scope_id references valid entities (enforced by foreign keys in relations)
+  check("unified_settings_scope_id_not_empty", sql`length(scope_id) > 0`),
 ]);

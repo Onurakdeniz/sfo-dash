@@ -21,7 +21,13 @@ export const workspace = pgTable("workspaces", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   ownerId: text("owner_id").references(() => user.id).notNull(),
-});
+}, (table) => [
+  // Performance indexes for frequently queried columns
+  index("workspaces_name_idx").on(table.name),
+  index("workspaces_owner_idx").on(table.ownerId),
+  index("workspaces_created_at_idx").on(table.createdAt),
+  index("workspaces_updated_at_idx").on(table.updatedAt),
+]);
 
 // ----------------------------------------------------
 // Workspace ⇄ Company many-to-many junction

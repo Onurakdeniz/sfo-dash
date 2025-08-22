@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth/server";
 import { db } from "@/db";
-import { employeeProfile, workspace, workspaceCompany, company, user, workspaceMember } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { employeeProfile, workspace, workspaceCompany, company, user, workspaceMember, employeePositionChange } from "@/db/schema";
+import { and, desc, eq } from "drizzle-orm";
 
 // GET employee profile
 export async function GET(
@@ -122,6 +122,8 @@ export async function PUT(
       emergencyContactName: body?.emergencyContactName ?? null,
       emergencyContactPhone: body?.emergencyContactPhone ?? null,
       position: body?.position ?? null,
+      departmentId: body?.departmentId ?? null,
+      unitId: body?.unitId ?? null,
       employmentType: body?.employmentType ?? null,
       startDate: body?.startDate ? new Date(body.startDate) : null,
       endDate: body?.endDate ? new Date(body.endDate) : null,
@@ -139,10 +141,45 @@ export async function PUT(
       .limit(1);
 
     if (existing) {
+      // Fetch current values to detect changes for history
+      const [current] = await db
+        .select({
+          position: employeeProfile.position,
+          departmentId: employeeProfile.departmentId,
+          unitId: employeeProfile.unitId,
+        })
+        .from(employeeProfile)
+        .where(and(eq(employeeProfile.id, existing.id)))
+        .limit(1);
+
       await db
         .update(employeeProfile)
         .set(baseValues)
         .where(and(eq(employeeProfile.id, existing.id)));
+
+      // Record position/department/unit changes
+      const changedPosition = (current?.position || null) !== (baseValues.position || null);
+      const changedDepartment = (current?.departmentId || null) !== (baseValues.departmentId || null);
+      const changedUnit = (current?.unitId || null) !== (baseValues.unitId || null);
+      if (changedPosition || changedDepartment || changedUnit) {
+        const histId = `epc_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        await db.insert(employeePositionChange).values({
+          id: histId,
+          workspaceId,
+          companyId,
+          userId: employeeId,
+          previousPosition: current?.position ?? null,
+          newPosition: baseValues.position ?? null,
+          previousDepartmentId: current?.departmentId ?? null,
+          newDepartmentId: baseValues.departmentId ?? null,
+          previousUnitId: current?.unitId ?? null,
+          newUnitId: baseValues.unitId ?? null,
+          reason: (baseValues.metadata as any)?.positionChangeReason ?? null,
+          effectiveDate: baseValues.startDate ?? new Date(),
+          createdBy: session.user.id,
+        });
+      }
+
       return NextResponse.json({ id: existing.id, ...baseValues });
     } else {
       const insertValues = { id: newId, ...baseValues };

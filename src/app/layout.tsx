@@ -16,16 +16,16 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   metadataBase: new URL(
     env.VERCEL_ENV === "production"
-      ? "https://lunamanager.com"
+      ? "https://app.example.com"
       : "http://localhost:3000",
   ),
-  title: "LunaManager",
-  description: "LunaManager is a platform for managing your business",
+  title: "Management Platform",
+  description: "Modern platform for managing your business operations",
   openGraph: {
-    title: "LunaManager",
-    description: "LunaManager is a platform for managing your business",
-    url: "https://lunamanager.com",
-    siteName: "LunaManager",
+    title: "Management Platform",
+    description: "Modern platform for managing your business operations",
+    url: "https://app.example.com",
+    siteName: "Management Platform",
   },
   twitter: {
     card: "summary_large_image",

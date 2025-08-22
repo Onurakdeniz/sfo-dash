@@ -1,6 +1,6 @@
 import { pgTable, text, varchar, timestamp, jsonb, index, unique, integer } from "drizzle-orm/pg-core";
 import { workspace } from "./workspace";
-import { company, department } from "./company";
+import { company, department, unit } from "./company";
 import { user } from "./user";
 
 // Employee Profile table - stores extended HR profile information per user within a workspace & company
@@ -25,6 +25,7 @@ export const employeeProfile = pgTable("employee_profiles", {
   // Employment information
   position: varchar("position", { length: 255 }),
   departmentId: text("department_id").references(() => department.id),
+  unitId: text("unit_id").references(() => unit.id),
   managerId: text("manager_id").references(() => user.id),
   employmentType: varchar("employment_type", { length: 50 }), // full_time, part_time, contractor, intern, etc.
   startDate: timestamp("start_date"),
@@ -42,6 +43,7 @@ export const employeeProfile = pgTable("employee_profiles", {
   index("employee_profiles_company_idx").on(table.companyId),
   index("employee_profiles_user_idx").on(table.userId),
   index("employee_profiles_department_idx").on(table.departmentId),
+  index("employee_profiles_unit_idx").on(table.unitId),
 ]);
 
 export type EmployeeProfile = typeof employeeProfile.$inferSelect;
@@ -80,4 +82,35 @@ export const employeeFile = pgTable("employee_files", {
 
 export type EmployeeFile = typeof employeeFile.$inferSelect;
 
+
+// Employee position changes - audit log of position/department transitions per employee
+export const employeePositionChange = pgTable("employee_position_changes", {
+  id: text("id").primaryKey(),
+
+  workspaceId: text("workspace_id").references(() => workspace.id, { onDelete: "cascade" }).notNull(),
+  companyId: text("company_id").references(() => company.id, { onDelete: "cascade" }).notNull(),
+  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }).notNull(),
+
+  previousPosition: varchar("previous_position", { length: 255 }),
+  newPosition: varchar("new_position", { length: 255 }),
+
+  previousDepartmentId: text("previous_department_id").references(() => department.id),
+  newDepartmentId: text("new_department_id").references(() => department.id),
+
+  previousUnitId: text("previous_unit_id").references(() => unit.id),
+  newUnitId: text("new_unit_id").references(() => unit.id),
+
+  reason: text("reason"),
+  effectiveDate: timestamp("effective_date").defaultNow().notNull(),
+
+  createdBy: text("created_by").references(() => user.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("employee_pos_changes_workspace_idx").on(table.workspaceId),
+  index("employee_pos_changes_company_idx").on(table.companyId),
+  index("employee_pos_changes_user_idx").on(table.userId),
+  index("employee_pos_changes_effective_idx").on(table.effectiveDate),
+]);
+
+export type EmployeePositionChange = typeof employeePositionChange.$inferSelect;
 

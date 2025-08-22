@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { PageWrapper } from "@/components/page-wrapper";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -287,7 +288,7 @@ export default function EmployeeFilesPage() {
                       <TableCell className="py-4">
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-muted-foreground" />
-                          <a href={f.blobUrl} target="_blank" rel="noreferrer" className="hover:underline">{f.name}</a>
+                          <Link href={`/${workspaceSlug}/${companySlug}/hr/employees/${employeeId}/files/${f.id}`} className="hover:underline">{f.name}</Link>
                         </div>
                       </TableCell>
                       <TableCell>{f.category || "-"}</TableCell>

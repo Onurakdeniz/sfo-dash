@@ -132,12 +132,12 @@ export default function SignUpPage() {
                 name: email.split('@')[0], // Use email prefix as name
             });
             
-            setSuccessMessage("Hesabınız başarıyla oluşturuldu! Yönlendiriliyorsunuz...");
-            
-            // Redirect after a short delay to show success message
+            setSuccessMessage("✅ Hesabınız başarıyla oluşturuldu! E-posta adresinizi doğrulamak için lütfen gelen kutunuzu kontrol edin.");
+
+            // Redirect to verification page after a short delay
             setTimeout(() => {
-                router.push("/");
-            }, 1500);
+                router.push(`/verify-email?email=${encodeURIComponent(email.trim())}`);
+            }, 2000);
             
         } catch (error: any) {
             // Only log detailed errors in development, not in production
@@ -189,7 +189,7 @@ export default function SignUpPage() {
                             </svg>
                         </div>
                         <h1 className="text-3xl font-bold text-gray-900">
-                            Luna<span className="text-blue-600">Manager</span>
+                            Yönetim Sistemi
                         </h1>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Çalışma alanınızı düzenleyin,</h2>

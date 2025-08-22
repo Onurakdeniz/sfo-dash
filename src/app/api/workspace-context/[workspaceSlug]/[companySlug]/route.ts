@@ -116,6 +116,7 @@ export async function GET(
       id: c.company.id,
       name: c.company.name,
       fullName: c.company.fullName,
+      // Use consistent slug generation (same as onboarding completion)
       slug: slugifyCompanyFirstWord(c.company.name || ''),
     }));
 

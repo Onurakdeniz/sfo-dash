@@ -606,13 +606,13 @@ export default function PermissionsPage() {
           {isLoading ? (
             <Card>
               <CardContent className="text-center py-8">
-                Loading permissions...
+                İzinler yükleniyor...
               </CardContent>
             </Card>
           ) : Object.keys(permissionsByModule).length === 0 ? (
             <Card>
               <CardContent className="text-center py-8">
-                No permissions found
+                İzin bulunamadı
               </CardContent>
             </Card>
           ) : (
@@ -858,7 +858,7 @@ export default function PermissionsPage() {
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., users.create"
+                  placeholder="örn. users.create"
                   required
                     disabled
                 />
@@ -869,7 +869,7 @@ export default function PermissionsPage() {
                   id="displayName"
                   value={formData.displayName}
                   onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  placeholder="e.g., Create Users"
+                  placeholder="örn. Kullanıcı Oluştur"
                   required
                     disabled
                 />
@@ -912,10 +912,10 @@ export default function PermissionsPage() {
                   resetForm();
                 }}
               >
-                Cancel
+                İptal
               </Button>
               <Button type="submit" disabled={createPermissionMutation.isPending || updatePermissionMutation.isPending}>
-                {selectedPermission ? "Update" : "Create"} Permission
+                {selectedPermission ? "İzni Güncelle" : "İzin Oluştur"}
               </Button>
             </DialogFooter>
           </form>

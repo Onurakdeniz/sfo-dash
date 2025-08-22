@@ -51,16 +51,30 @@ export const company = pgTable('companies', {
   unique('companies_tax_number_unique').on(table.taxNumber),
   unique('companies_mersis_number_unique').on(table.mersisNumber),
 
-  // Performance indexes
+  // Performance indexes for frequently queried columns
   index('companies_name_idx').on(table.name),
   index('companies_email_idx').on(table.email),
   index('companies_status_idx').on(table.status),
   index('companies_parent_idx').on(table.parentCompanyId),
+  index('companies_industry_idx').on(table.industry),
+  index('companies_city_idx').on(table.city),
+  index('companies_company_type_idx').on(table.companyType),
+  index('companies_created_at_idx').on(table.createdAt),
+  index('companies_updated_at_idx').on(table.updatedAt),
+  // Composite indexes for common query patterns
+  index('companies_status_created_idx').on(table.status, table.createdAt),
+  index('companies_industry_status_idx').on(table.industry, table.status),
   
-  // Data validation constraints
+  // Enhanced data validation constraints
   check('companies_email_check', sql`email IS NULL OR email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`),
   check('companies_phone_check', sql`phone IS NULL OR phone ~* '^\\+?[1-9]\\d{1,14}$'`),
   check('companies_currency_check', sql`default_currency ~* '^[A-Z]{3}$'`),
+  // Temporarily removed tax number constraint due to existing data
+  // check('companies_tax_number_check', sql`tax_number IS NULL OR tax_number ~* '^[0-9]{10,11}$'`),
+  // check('companies_mersis_number_check', sql`mersis_number IS NULL OR mersis_number ~* '^[0-9]{16}$'`),
+  // check('companies_postal_code_check', sql`postal_code IS NULL OR postal_code ~* '^[0-9]{5}$'`),
+  // check('companies_website_check', sql`website IS NULL OR website ~* '^https?://.*\\..*'`),
+  // check('companies_phone_format_check', sql`phone IS NULL OR length(phone) >= 10`),
 ]);
 
 // Departments table - organizational divisions within companies with goals and responsibilities 
@@ -171,6 +185,8 @@ export const companyLocation = pgTable('company_locations', {
   unique('company_locations_company_code_unique').on(table.companyId, table.code),
   check('company_locations_email_check', sql`email IS NULL OR email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`),
   check('company_locations_phone_check', sql`phone IS NULL OR phone ~* '^\\+?[1-9]\\d{1,14}$'`),
+  check('company_locations_postal_code_check', sql`postal_code IS NULL OR postal_code ~* '^[0-9]{5}$'`),
+  check('company_locations_country_check', sql`country IS NOT NULL AND length(country) > 0`),
 ]);
 
 // Company files table - metadata for files stored in Vercel Blob and associated with a company

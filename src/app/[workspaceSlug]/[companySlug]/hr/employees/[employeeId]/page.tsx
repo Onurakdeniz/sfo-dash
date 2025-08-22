@@ -38,6 +38,8 @@ type ProfileForm = {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   position?: string | null;
+  departmentId?: string | null;
+  unitId?: string | null;
   employmentType?: string | null;
   startDate?: string | null;
   endDate?: string | null;
@@ -114,6 +116,30 @@ export default function EmployeeDetailPage() {
   const form = useForm<ProfileForm>({
     defaultValues: normalizedProfile ?? { metadata: { workHistory: [], educations: [], certificates: [] } } as any,
     values: normalizedProfile ?? { metadata: { workHistory: [], educations: [], certificates: [] } } as any,
+  });
+
+  // Departments and dependent units for selection
+  const { data: departments = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["departments", workspaceId, companyId],
+    queryFn: async () => {
+      if (!workspaceId || !companyId) return [];
+      const res = await fetch(`/api/workspaces/${workspaceId}/companies/${companyId}/departments`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!(workspaceId && companyId),
+  });
+
+  const watchedDepartmentId = form.watch("departmentId");
+  const { data: units = [] } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ["units", workspaceId, companyId, watchedDepartmentId],
+    queryFn: async () => {
+      if (!workspaceId || !companyId || !watchedDepartmentId) return [];
+      const res = await fetch(`/api/workspaces/${workspaceId}/companies/${companyId}/departments/${watchedDepartmentId}/units`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!(workspaceId && companyId && watchedDepartmentId),
   });
 
   const workHistoryArray = useFieldArray({ control: form.control as any, name: "metadata.workHistory" as any });
@@ -389,7 +415,7 @@ export default function EmployeeDetailPage() {
                   <span className="absolute inline-flex h-5 w-5 rounded-full ring-2 ring-amber-500/70" />
                   <Briefcase className="w-4 h-4 relative text-amber-700" />
                 </span>
-                İşe Alım Süreci ({completedOnboardingSteps}/{totalOnboardingSteps})
+                İşe Giriş & Çıkış Süreci ({completedOnboardingSteps}/{totalOnboardingSteps})
               </Button>
             )}
             <Button variant="outline" onClick={() => router.push(`/${workspaceSlug}/${companySlug}/hr/employees`)}>
@@ -401,7 +427,7 @@ export default function EmployeeDetailPage() {
             <Sheet open={isOnboardingOpen} onOpenChange={setIsOnboardingOpen}>
               <SheetContent side="right">
                 <SheetHeader>
-                  <SheetTitle>İşe Alım Süreci</SheetTitle>
+                  <SheetTitle>İşe Giriş & Çıkış Süreci</SheetTitle>
                   <SheetDescription>Adım adım tamamlayın</SheetDescription>
                 </SheetHeader>
                 <div className="px-4 pb-4 space-y-5">
@@ -812,6 +838,40 @@ export default function EmployeeDetailPage() {
                   editMode["employee-info"] ? (
                       <div className="space-y-6">
                         <div className="grid md:grid-cols-2 gap-4">
+                          <FormField name="departmentId" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Departman</FormLabel>
+                              <FormControl>
+                                <Select value={(field.value as string) ?? ''} onValueChange={(v) => { field.onChange(v); form.setValue('unitId', null as any); }}>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Departman seçin" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {departments.map((d) => (
+                                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                            </FormItem>
+                          )} />
+                          <FormField name="unitId" render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Birim</FormLabel>
+                              <FormControl>
+                                <Select value={(field.value as string) ?? ''} onValueChange={field.onChange} disabled={!watchedDepartmentId || units.length === 0}>
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder={watchedDepartmentId ? (units.length ? "Birim seçin" : "Bu departmanda birim yok") : "Önce departman seçin"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {units.map((u) => (
+                                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormControl>
+                            </FormItem>
+                          )} />
                           <FormField name="position" render={({ field }) => (
                             <FormItem>
                               <FormLabel>Pozisyon</FormLabel>
@@ -1169,6 +1229,28 @@ export default function EmployeeDetailPage() {
                       ) : (
                         <div className="space-y-6 text-sm">
                           <div className="grid md:grid-cols-2 gap-4">
+                            <div>
+                              <div className="text-xs text-muted-foreground">Departman</div>
+                              <div className="text-foreground">
+                                {(() => {
+                                  const val = form.getValues().departmentId as any;
+                                  if (!val) return <span className="text-muted-foreground/60 text-sm italic">Belirtilmemiş</span>;
+                                  const d = departments.find((x) => x.id === val);
+                                  return d?.name || val;
+                                })()}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground">Birim</div>
+                              <div className="text-foreground">
+                                {(() => {
+                                  const val = form.getValues().unitId as any;
+                                  if (!val) return <span className="text-muted-foreground/60 text-sm italic">Belirtilmemiş</span>;
+                                  const u = units.find((x) => x.id === val);
+                                  return u?.name || val;
+                                })()}
+                              </div>
+                            </div>
                             <div>
                               <div className="text-xs text-muted-foreground">Pozisyon</div>
                               <div className="text-foreground">

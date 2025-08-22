@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 // NOTE: Replaced external UI imports; stub API utils for examples
-// import { createApiUtils } from "@lunamanager/api/client";
 const createApiUtils = (...args: any[]) => ({
   auth: {
     resetPassword: async (_: any) => ({ message: "OK" }),

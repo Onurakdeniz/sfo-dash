@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { headers } from "next/headers";
 import { betterAuth } from "better-auth";
 import { username } from "better-auth/plugins";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -29,7 +30,7 @@ export const auth = betterAuth({
         await resend.emails.send({
           from: "noreply@transactions.weddingneonsign.com", // Use verified domain
           to: user.email,
-          subject: "Şifrenizi Sıfırlayın - LunaManager",
+          subject: "Şifrenizi Sıfırlayın - Yönetim Sistemi",
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
               <div style="text-align: center; margin-bottom: 30px;">
@@ -41,7 +42,7 @@ export const auth = betterAuth({
               <p style="color: #4b5563; line-height: 1.6;">Merhaba,</p>
               
               <p style="color: #4b5563; line-height: 1.6;">
-                LunaManager hesabınız için şifre sıfırlama isteği aldık. 
+                Yönetim Sistemi hesabınız için şifre sıfırlama isteği aldık.
                 Şifrenizi sıfırlamak için aşağıdaki butona tıklayın:
               </p>
               
@@ -75,7 +76,7 @@ export const auth = betterAuth({
               
               <div style="text-align: center; margin-top: 20px;">
                 <p style="color: #9ca3af; font-size: 11px;">
-                  © 2025 LunaManager - Tüm hakları saklıdır
+                  © 2025 Yönetim Sistemi - Tüm hakları saklıdır
                 </p>
               </div>
             </div>
@@ -140,3 +141,10 @@ export const auth = betterAuth({
   },
 
 });
+
+export async function getUserFromRequest(_: Request | any) {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+  return session?.user ?? null;
+}

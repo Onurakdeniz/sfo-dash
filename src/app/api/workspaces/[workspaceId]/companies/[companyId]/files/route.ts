@@ -41,7 +41,7 @@ export async function GET(
       .orderBy(desc(companyFileTemplate.updatedAt));
 
     const templateIds = templates.map(t => t.id);
-    let currentVersionsByTemplate: Record<string, any> = {};
+    const currentVersionsByTemplate: Record<string, any> = {};
     if (templateIds.length) {
       const currentVersions = await db
         .select()

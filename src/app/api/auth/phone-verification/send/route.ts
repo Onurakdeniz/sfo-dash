@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         const client = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
         const payload: any = {
           to: phone,
-          body: `LunaManager doğrulama kodunuz: ${token}`,
+          body: `Yönetim Sistemi doğrulama kodunuz: ${token}`,
         };
         if (env.TWILIO_MESSAGING_SERVICE_SID) {
           payload.messagingServiceSid = env.TWILIO_MESSAGING_SERVICE_SID;

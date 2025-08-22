@@ -50,6 +50,7 @@ export default function EmployeeSecondaryNav() {
     birthDate?: string | null;
     startDate?: string | null;
     departmentId?: string | null;
+    unitId?: string | null;
   } | null>({
     queryKey: ["employee-profile", workspaceId, companyId, employeeId],
     queryFn: async () => {
@@ -67,6 +68,7 @@ export default function EmployeeSecondaryNav() {
 
   // Optionally fetch department name
   const departmentId = (profile as any)?.departmentId as string | undefined;
+  const unitId = (profile as any)?.unitId as string | undefined;
   const { data: departmentData } = useQuery<{ name: string } | null>({
     queryKey: ["department", workspaceId, companyId, departmentId],
     queryFn: async () => {
@@ -79,6 +81,21 @@ export default function EmployeeSecondaryNav() {
       return res.json();
     },
     enabled: !!(workspaceId && companyId && departmentId),
+  });
+
+  const { data: unitData } = useQuery<{ name: string } | null>({
+    queryKey: ["unit", workspaceId, companyId, departmentId, unitId],
+    queryFn: async () => {
+      if (!workspaceId || !companyId || !departmentId || !unitId) return null;
+      const res = await fetch(
+        `/api/workspaces/${workspaceId}/companies/${companyId}/departments/${departmentId}/units/${unitId}`,
+        { credentials: "include" }
+      );
+      if (res.status === 404) return null;
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!(workspaceId && companyId && departmentId && unitId),
   });
 
   const formatDateTR = (value?: string | null) => {
@@ -112,9 +129,6 @@ export default function EmployeeSecondaryNav() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <CardTitle className="text-lg font-semibold leading-tight truncate">{employee?.user?.name || "-"}</CardTitle>
-                  {employee?.role && (
-                    <Badge variant="secondary" className="shrink-0">{employee.role}</Badge>
-                  )}
                 </div>
                 <CardDescription className="truncate">{employee?.user?.email || ""}</CardDescription>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs sm:text-sm">
@@ -126,11 +140,6 @@ export default function EmployeeSecondaryNav() {
                   {departmentData?.name ? (
                     <Badge variant="outline" className="gap-1">
                       <Building2 className="h-3.5 w-3.5" /> {departmentData.name}
-                    </Badge>
-                  ) : null}
-                  {(profile as any)?.startDate ? (
-                    <Badge variant="outline" className="gap-1">
-                      <Calendar className="h-3.5 w-3.5" /> {formatDateTR((profile as any)?.startDate)}
                     </Badge>
                   ) : null}
                 </div>
@@ -171,7 +180,7 @@ export default function EmployeeSecondaryNav() {
               <div className="flex items-center gap-1.5 text-muted-foreground">
                 <Briefcase className="h-4 w-4" />
                 <span className="w-24 text-foreground/70">Birim:</span>
-                <span className="text-foreground">-</span>
+                <span className="text-foreground">{unitData?.name || "-"}</span>
               </div>
             </div>
           </div>

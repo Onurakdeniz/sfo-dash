@@ -3,17 +3,13 @@
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
+import {
   Package,
-  Shield, 
+  Shield,
   Users,
   Key,
   ArrowRight,
-  Settings,
-  Activity,
-  Database,
-  Lock,
-  Puzzle
+  Settings
 } from "lucide-react";
 import { PageWrapper } from "@/components/page-wrapper";
 import SystemScopeTabs from "./system-tabs";
@@ -46,26 +42,7 @@ const systemModules = [
   }
 ];
 
-const additionalFeatures = [
-  {
-    title: "Sistem İzleme",
-    description: "Sistem sağlığını ve performansını izleyin",
-    icon: Activity,
-    disabled: true
-  },
-  {
-    title: "Veritabanı Yönetimi",
-    description: "Veritabanı işlemleri ve geçişleri",
-    icon: Database,
-    disabled: true
-  },
-  {
-    title: "API Key ve Password Yönetimi",
-    description: "API anahtarları ve şifre politikalarını yönetin",
-    icon: Key,
-    disabled: true
-  }
-];
+
 
 function SystemPageContent() {
   const router = useRouter();
@@ -106,62 +83,9 @@ function SystemPageContent() {
         </div>
       </div>
 
-      {/* Additional Features */}
-              <div>
-        <h2 className="text-xl font-semibold mb-4">Ek Özellikler</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {additionalFeatures.map((feature) => (
-            <Card 
-              key={feature.title} 
-              className={feature.disabled ? "opacity-50" : "hover:shadow-lg transition-shadow cursor-pointer"}
-              onClick={() => !feature.disabled && (feature as any).href && router.push(`system/${(feature as any).href}`)}
-            >
-              <CardHeader>
-                <div className={`w-12 h-12 rounded-lg ${feature.disabled ? 'bg-gray-100 dark:bg-gray-900' : ((feature as any).bgColor || 'bg-gray-100 dark:bg-gray-900')} flex items-center justify-center mb-4`}>
-                  <feature.icon className={`w-6 h-6 ${feature.disabled ? 'text-gray-500' : ((feature as any).color || 'text-gray-500')}`} />
-                </div>
-                <CardTitle className="text-lg">{feature.title}</CardTitle>
-                <CardDescription>{feature.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="ghost" className="w-full" disabled={feature.disabled}>
-                  {feature.disabled ? "Yakında" : "Yönet"}
-                </Button>
-            </CardContent>
-          </Card>
-          ))}
-        </div>
-      </div>
 
-      {/* System Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Sistem Genel Bakış</CardTitle>
-          <CardDescription>
-            Sistem yapılandırmanız hakkında hızlı istatistikler
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Aktif Modüller</p>
-              <p className="text-2xl font-bold">-</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Toplam Kaynaklar</p>
-              <p className="text-2xl font-bold">-</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Yapılandırılmış Roller</p>
-              <p className="text-2xl font-bold">-</p>
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Toplam İzinler</p>
-              <p className="text-2xl font-bold">-</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+
+
       </div>
     </PageWrapper>
   );

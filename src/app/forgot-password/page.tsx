@@ -96,7 +96,7 @@ export default function ForgotPasswordPage() {
                             </svg>
                         </div>
                         <h1 className="text-3xl font-bold text-gray-900">
-                            Luna<span className="text-blue-600">Manager</span>
+                            Yönetim Sistemi
                         </h1>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Şifrenizi Sıfırlayın</h2>

@@ -199,7 +199,7 @@ export async function POST(
               </p>
             </div>
             <div style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">
-              <p>Bu e-posta LunaManager tarafından gönderilmiştir.</p>
+              <p>Bu e-posta Yönetim Sistemi tarafından gönderilmiştir.</p>
             </div>
           </div>
         `,

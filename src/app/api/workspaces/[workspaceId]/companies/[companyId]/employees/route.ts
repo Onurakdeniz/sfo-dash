@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth/server";
 import { db } from "@/db";
-import { company, department, employeeProfile, user, workspaceCompany, workspaceMember } from "@/db/schema";
+import { company, department, unit, employeeProfile, user, workspaceCompany, workspaceMember } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 // List employees for a company within a workspace
@@ -33,6 +33,7 @@ export async function GET(
         user,
         profile: employeeProfile,
         department,
+        unit,
       })
       .from(employeeProfile)
       .innerJoin(
@@ -44,6 +45,7 @@ export async function GET(
       )
       .leftJoin(user, eq(workspaceMember.userId, user.id))
       .leftJoin(department, eq(employeeProfile.departmentId, department.id))
+      .leftJoin(unit, eq(employeeProfile.unitId, unit.id))
       .where(
         and(
           eq(employeeProfile.workspaceId, workspaceId),
@@ -65,6 +67,7 @@ export async function GET(
               startDate: r.profile.startDate,
               endDate: r.profile.endDate,
               departmentId: r.profile.departmentId,
+              unitId: (r.profile as any).unitId,
               managerId: r.profile.managerId,
             }
           : null,
@@ -72,6 +75,12 @@ export async function GET(
           ? {
               id: r.department.id,
               name: r.department.name,
+            }
+          : null,
+        unit: r.unit
+          ? {
+              id: r.unit.id,
+              name: r.unit.name,
             }
           : null,
       }));

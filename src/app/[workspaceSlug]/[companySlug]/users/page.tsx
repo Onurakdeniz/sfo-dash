@@ -147,33 +147,6 @@ function UsersPageContent() {
 
   const isLoading = isLoadingWorkspaces || isLoadingMembers;
 
-  // Assign existing workspace user to current company (auto-create employee profile)
-  const assignUserToCompany = useMutation({
-    mutationFn: async (userId: string) => {
-      if (!workspace?.id) throw new Error('Workspace not found');
-      if (!currentCompany?.id) throw new Error('Company not found');
-      const res = await fetch(`/api/workspaces/${workspace.id}/companies/${currentCompany.id}/employees/${userId}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({})
-      });
-      if (!res.ok && res.status !== 201) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Kullanıcı şirkete atanamadı');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      toast.success('Kullanıcı şirkete atandı ve çalışan profili oluşturuldu');
-      // Çalışan listesi sayfalarında kullanılmak üzere geçerli sorgular varsa tazelensin
-      queryClient.invalidateQueries({ queryKey: ['company-employees', workspace?.id, currentCompany?.id] });
-    },
-    onError: (error: any) => {
-      toast.error(error?.message || 'İşlem başarısız oldu');
-    },
-  });
-
   // Fetch workspace invitations
   const { data: invitationsData = [], isLoading: isLoadingInvitations } = useQuery({
     queryKey: ['workspace-invitations', workspace?.id],
@@ -647,20 +620,6 @@ function UsersPageContent() {
                             }}>
                               <Edit className="mr-2 h-4 w-4" />
                               Rol Düzenle
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (!currentCompany?.id) {
-                                  toast.error('Geçerli şirket bulunamadı');
-                                  return;
-                                }
-                                assignUserToCompany.mutate(user.id);
-                              }}
-                              disabled={assignUserToCompany.isPending || !currentCompany?.id}
-                            >
-                              <UserPlus className="mr-2 h-4 w-4" />
-                              Şirkete Ata
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 

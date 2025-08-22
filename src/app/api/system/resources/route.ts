@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const resourceType = searchParams.get('resourceType');
     const companyId = searchParams.get('companyId');
 
-    let conditions = [isNull(moduleResources.deletedAt)];
+    const conditions = [isNull(moduleResources.deletedAt)];
     
     if (moduleId) {
       conditions.push(eq(moduleResources.moduleId, moduleId));

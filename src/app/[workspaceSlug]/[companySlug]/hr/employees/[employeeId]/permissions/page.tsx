@@ -4,13 +4,13 @@ import { PageWrapper } from "@/components/page-wrapper";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import EmployeeSecondaryNav from "../employee-secondary-nav";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function EmployeePermissionsPage() {
   const params = useParams();
@@ -32,95 +32,7 @@ export default function EmployeePermissionsPage() {
   const workspaceId: string | undefined = workspaceContext?.workspace?.id;
   const companyId: string | undefined = workspaceContext?.currentCompany?.id;
 
-  const { data: companyRoles = [], isLoading: isCompanyRolesLoading } = useQuery({
-    enabled: !!companyId,
-    queryKey: ["roles", { scope: "company", companyId }],
-    queryFn: async () => {
-      const res = await fetch(`/api/system/roles?companyId=${companyId}`);
-      if (!res.ok) throw new Error("Şirket rolleri alınamadı");
-      return res.json();
-    }
-  });
-
-  const { data: assignedWorkspaceRoles = [], isLoading: isAssignedWsLoading } = useQuery({
-    enabled: !!workspaceId && !!employeeId,
-    queryKey: ["user-roles", { employeeId, scope: "workspace", workspaceId }],
-    queryFn: async () => {
-      const res = await fetch(`/api/users/${employeeId}/roles?workspaceId=${workspaceId}`);
-      if (!res.ok) throw new Error("Kullanıcı rolleri alınamadı");
-      return res.json();
-    }
-  });
-
-  const { data: assignedCompanyRoles = [], isLoading: isAssignedCompanyLoading } = useQuery({
-    enabled: !!workspaceId && !!companyId && !!employeeId,
-    queryKey: ["user-roles", { employeeId, scope: "company", workspaceId, companyId }],
-    queryFn: async () => {
-      const res = await fetch(`/api/users/${employeeId}/roles?workspaceId=${workspaceId}&companyId=${companyId}`);
-      if (!res.ok) throw new Error("Kullanıcı şirket rolleri alınamadı");
-      return res.json();
-    }
-  });
-
-  const assignedCompanyRoleIds: Set<string> = useMemo(() => new Set((assignedCompanyRoles as any[]).map((r) => r.roleId)), [assignedCompanyRoles]);
-
-  const assignRole = useMutation({
-    mutationFn: async ({ roleId, scope }: { roleId: string; scope: "workspace" | "company" }) => {
-      const body: any = { roleId, workspaceId };
-      if (scope === "company") body.companyId = companyId;
-      const res = await fetch(`/api/users/${employeeId}/roles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({} as any));
-        throw new Error(err.error || "Rol atama başarısız");
-      }
-      return res.json();
-    },
-    onSuccess: (_data, variables) => {
-      toast.success("Rol atandı");
-      if (variables.scope === "company") {
-        queryClient.invalidateQueries({ queryKey: ["user-roles", { employeeId, scope: "company", workspaceId, companyId }] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["user-roles", { employeeId, scope: "workspace", workspaceId }] });
-      }
-    },
-    onError: (error: any) => {
-      toast.error(error?.message || "Rol atama başarısız");
-    }
-  });
-
-  const unassignRole = useMutation({
-    mutationFn: async ({ roleId, scope }: { roleId: string; scope: "workspace" | "company" }) => {
-      const params = new URLSearchParams();
-      params.set("roleId", roleId);
-      if (workspaceId) params.set("workspaceId", workspaceId);
-      if (scope === "company" && companyId) params.set("companyId", companyId);
-      const res = await fetch(`/api/users/${employeeId}/roles?${params.toString()}`, {
-        method: "DELETE"
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({} as any));
-        throw new Error(err.error || "Rol kaldırma başarısız");
-      }
-      return res.json();
-    },
-    onSuccess: (_data, variables) => {
-      toast.success("Rol kaldırıldı");
-      if (variables.scope === "company") {
-        queryClient.invalidateQueries({ queryKey: ["user-roles", { employeeId, scope: "company", workspaceId, companyId }] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["user-roles", { employeeId, scope: "workspace", workspaceId }] });
-      }
-    },
-    onError: (error: any) => {
-      toast.error(error?.message || "Rol kaldırma başarısız");
-    }
-  });
-
-  const isLoading = isCtxLoading || isCompanyRolesLoading || isAssignedCompanyLoading;
+  // Role assignment UI removed per request; keep only direct permission assignments and effective permissions.
 
   // Effective permissions for current company (from assigned company roles + direct grants)
   const { data: effectivePermissions = [], isLoading: isPermsLoading } = useQuery({
@@ -200,11 +112,206 @@ export default function EmployeePermissionsPage() {
   });
 
   const isAdmin = !!(workspaceContext?.user?.isOwner || workspaceContext?.user?.role === "admin");
-  const hasNoCompanyRoles = (assignedCompanyRoleIds.size === 0);
-  const userRoleInCompany = useMemo(() => {
-    const list = (companyRoles as any[]);
-    return list.find((r) => String(r.code).toLowerCase() === "user");
-  }, [companyRoles]);
+  // Minimal role assignment widget state
+  const [assignScope, setAssignScope] = useState<"workspace" | "company">("company");
+  const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+
+  // Fetch roles to select from (by scope)
+  const { data: workspaceAssignableRoles = [], isLoading: isWsAssignRolesLoading } = useQuery({
+    enabled: !!workspaceId,
+    queryKey: ["assignable-roles", "workspace", workspaceId],
+    queryFn: async () => {
+      const res = await fetch(`/api/system/roles?workspaceId=${workspaceId}`);
+      if (!res.ok) throw new Error("Workspace rolleri alınamadı");
+      return res.json();
+    }
+  });
+  const { data: companyAssignableRoles = [], isLoading: isCompAssignRolesLoading } = useQuery({
+    enabled: !!companyId,
+    queryKey: ["assignable-roles", "company", companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/system/roles?companyId=${companyId}`);
+      if (!res.ok) throw new Error("Şirket rolleri alınamadı");
+      return res.json();
+    }
+  });
+
+  // Current assignments (for chosen scope)
+  const { data: assignedRolesWorkspace = [] } = useQuery({
+    enabled: !!workspaceId && !!employeeId,
+    queryKey: ["user-roles", { employeeId, scope: "workspace", workspaceId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${employeeId}/roles?workspaceId=${workspaceId}`);
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+  const { data: assignedRolesCompany = [] } = useQuery({
+    enabled: !!workspaceId && !!companyId && !!employeeId,
+    queryKey: ["user-roles", { employeeId, scope: "company", workspaceId, companyId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${employeeId}/roles?workspaceId=${workspaceId}&companyId=${companyId}`);
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+
+  const availableRoles = assignScope === "company" ? (companyAssignableRoles as any[]) : (workspaceAssignableRoles as any[]);
+  const assignedRoleIds = useMemo(() => new Set(((assignScope === "company" ? (assignedRolesCompany as any[]) : (assignedRolesWorkspace as any[])) || []).map((r: any) => r.roleId)), [assignScope, assignedRolesCompany, assignedRolesWorkspace]);
+  const isSelectedAssigned = !!selectedRoleId && assignedRoleIds.has(selectedRoleId);
+
+  // Mutations to assign/unassign a role
+  const assignUserRole = useMutation({
+    mutationFn: async () => {
+      if (!workspaceId || !selectedRoleId) throw new Error("Eksik bilgi");
+      const body: any = { roleId: selectedRoleId, workspaceId };
+      if (assignScope === "company") body.companyId = companyId;
+      const res = await fetch(`/api/users/${employeeId}/roles`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as any));
+        throw new Error(err.error || "Rol atama başarısız");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Rol atandı");
+      queryClient.invalidateQueries({ queryKey: ["user-roles", { employeeId, scope: assignScope, workspaceId, companyId }] });
+      queryClient.invalidateQueries({ queryKey: ["effective-permissions", employeeId, workspaceId, companyId] });
+    },
+    onError: (error: any) => toast.error(error?.message || "Rol atama başarısız")
+  });
+
+  const unassignUserRole = useMutation({
+    mutationFn: async () => {
+      if (!workspaceId || !selectedRoleId) throw new Error("Eksik bilgi");
+      const params = new URLSearchParams();
+      params.set("roleId", selectedRoleId);
+      params.set("workspaceId", workspaceId);
+      if (assignScope === "company" && companyId) params.set("companyId", companyId);
+      const res = await fetch(`/api/users/${employeeId}/roles?${params.toString()}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as any));
+        throw new Error(err.error || "Rol kaldırma başarısız");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast.success("Rol kaldırıldı");
+      queryClient.invalidateQueries({ queryKey: ["user-roles", { employeeId, scope: assignScope, workspaceId, companyId }] });
+      queryClient.invalidateQueries({ queryKey: ["effective-permissions", employeeId, workspaceId, companyId] });
+    },
+    onError: (error: any) => toast.error(error?.message || "Rol kaldırma başarısız")
+  });
+
+  // Custom user permissions (direct grants) state and queries
+  const [selectedModuleId, setSelectedModuleId] = useState<string>("all");
+  const [selectedResourceId, setSelectedResourceId] = useState<string>("all");
+  const [pendingChanges, setPendingChanges] = useState<Record<string, boolean>>({});
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  const { data: modules = [] } = useQuery({
+    queryKey: ["modules"],
+    queryFn: async () => {
+      const res = await fetch("/api/system/modules");
+      if (!res.ok) throw new Error("Modüller alınamadı");
+      return res.json();
+    },
+  });
+
+  const { data: resources = [] } = useQuery({
+    queryKey: ["resources", selectedModuleId, companyId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedModuleId !== "all") params.set("moduleId", selectedModuleId);
+      if (companyId) params.set("companyId", companyId);
+      const url = params.toString() ? `/api/system/resources?${params.toString()}` : "/api/system/resources";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Kaynaklar alınamadı");
+      return res.json();
+    },
+  });
+
+  const { data: allPermissions = [], isLoading: isAllPermissionsLoading } = useQuery({
+    queryKey: ["permissions", selectedResourceId, selectedModuleId],
+    queryFn: async () => {
+      const url = selectedResourceId === "all" ? "/api/system/permissions" : `/api/system/permissions?resourceId=${selectedResourceId}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("İzinler alınamadı");
+      return res.json();
+    },
+  });
+
+  const { data: userDirectPermissions = [], isLoading: isUserDirectLoading } = useQuery({
+    enabled: !!workspaceId && !!employeeId,
+    queryKey: ["user-direct-permissions", employeeId, workspaceId, companyId],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      const params = new URLSearchParams({ workspaceId });
+      if (companyId) params.set("companyId", companyId);
+      const res = await fetch(`/api/users/${employeeId}/permissions?${params.toString()}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const grantedPermissionIds = useMemo(
+    () => new Set((userDirectPermissions as any[]).map((up) => up.permissionId)),
+    [userDirectPermissions]
+  );
+
+  const handleTogglePending = (permissionId: string, nextChecked: boolean) => {
+    const current = grantedPermissionIds.has(permissionId);
+    setPendingChanges((prev) => {
+      const copy = { ...prev };
+      if (nextChecked === current) {
+        delete copy[permissionId];
+      } else {
+        copy[permissionId] = nextChecked;
+      }
+      return copy;
+    });
+  };
+
+  const handleSavePending = async () => {
+    if (!workspaceId) {
+      toast.error("workspaceId yok");
+      return;
+    }
+    const entries = Object.entries(pendingChanges);
+    if (entries.length === 0) return;
+    try {
+      setIsSaving(true);
+      const grants = entries
+        .map(([permissionId, desired]) => {
+          const current = grantedPermissionIds.has(permissionId);
+          if (desired === current) return null;
+          return { permissionId, isGranted: desired };
+        })
+        .filter(Boolean);
+
+      const res = await fetch(`/api/users/${employeeId}/permissions/bulk`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workspaceId, companyId, grants }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({} as any));
+        throw new Error(err.error || "Toplu kaydetme başarısız");
+      }
+      setPendingChanges({});
+      queryClient.invalidateQueries({ queryKey: ["user-direct-permissions", employeeId, workspaceId, companyId] });
+      queryClient.invalidateQueries({ queryKey: ["effective-permissions", employeeId, workspaceId, companyId] });
+      toast.success("Değişiklikler kaydedildi");
+    } catch (e: any) {
+      toast.error(e?.message || "Kaydetme sırasında hata oluştu");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <PageWrapper
@@ -213,88 +320,110 @@ export default function EmployeePermissionsPage() {
       secondaryNav={<EmployeeSecondaryNav />}
     >
       <div className="space-y-6">
+
+        {/* Role assignment UI removed */}
+
         <Card>
           <CardHeader>
-            <CardTitle>Şirket</CardTitle>
-            <CardDescription>Geçerli şirket bağlamı</CardDescription>
+            <CardTitle>Rol Ata</CardTitle>
+            <CardDescription>Sistem &gt; Roller sayfasında tanımlı bir rolü bu kullanıcıya ata</CardDescription>
           </CardHeader>
-          <CardContent>
-            {isCtxLoading ? <p>Yükleniyor...</p> : (
-              <div className="text-sm">
-                <div><span className="font-medium">Şirket:</span> {workspaceContext?.currentCompany?.name || workspaceContext?.currentCompany?.fullName}</div>
+          <CardContent className="space-y-3">
+            <div className="flex gap-3 flex-wrap items-center">
+              <Select value={assignScope} onValueChange={(v) => { setAssignScope(v as any); setSelectedRoleId(""); }}>
+                <SelectTrigger className="w-[200px]"><SelectValue placeholder="Kapsam" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="company">Şirket</SelectItem>
+                  <SelectItem value="workspace">Workspace</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
+                <SelectTrigger className="w-[280px]"><SelectValue placeholder="Rol seçin" /></SelectTrigger>
+                <SelectContent>
+                  {availableRoles.map((r: any) => (
+                    <SelectItem key={r.id} value={r.id}>{r.displayName || r.name} ({r.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={() => assignUserRole.mutate()}
+                disabled={!selectedRoleId || assignUserRole.isPending || isWsAssignRolesLoading || isCompAssignRolesLoading}
+              >
+                {assignUserRole.isPending ? "Atanıyor..." : "Rol Ata"}
+              </Button>
+                <Button
+                variant="outline"
+                onClick={() => unassignUserRole.mutate()}
+                disabled={!selectedRoleId || !isSelectedAssigned || unassignUserRole.isPending}
+              >
+                {unassignUserRole.isPending ? "Kaldırılıyor..." : "Rolden Kaldır"}
+                </Button>
               </div>
-            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Şirket Rolleri</CardTitle>
-            <CardDescription>Seçili şirket içinde geçerli roller</CardDescription>
+            <CardTitle>Özel Yetkiler</CardTitle>
+            <CardDescription>Şirkete özel, kullanıcıya doğrudan verilebilecek izinler</CardDescription>
           </CardHeader>
-          <CardContent>
-            {isAdmin && !isLoading && hasNoCompanyRoles && (
-              <div className="mb-4 p-3 rounded-md border bg-muted/30 flex items-center justify-between">
-                <div className="text-sm">
-                  Bu kullanıcının bu şirkette atanmış bir rolü yok. Temel kullanıcı rolünü atayabilirsiniz.
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const role = userRoleInCompany;
-                    if (!role) {
-                      toast.error("Şirkete ait 'user' kodlu rol bulunamadı. Lütfen Sistem > Roller bölümünden oluşturun.");
-                      return;
-                    }
-                    assignRole.mutate({ roleId: role.id, scope: "company" });
-                  }}
-                >
-                  Kullanıcı Rolü Ver
-                </Button>
-              </div>
-            )}
-            {isLoading ? (
-              <p>Yükleniyor...</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Rol</TableHead>
-                    <TableHead>Kod</TableHead>
-                    <TableHead className="text-right">Atanmış</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(companyRoles as any[]).map((role) => {
-                    const checked = assignedCompanyRoleIds.has(role.id);
-                    return (
-                      <TableRow key={role.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span>{role.displayName || role.name}</span>
-                            {role.isSystem ? <Badge variant="outline">Sistem</Badge> : null}
+          <CardContent className="space-y-4">
+            <div className="flex gap-3 flex-wrap">
+              <Select value={selectedModuleId} onValueChange={(v) => { setSelectedModuleId(v); setSelectedResourceId("all"); }}>
+                <SelectTrigger className="w-[220px]"><SelectValue placeholder="Modül" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Modüller</SelectItem>
+                  {(modules as any[]).map((m: any) => (
+                    <SelectItem key={m.id} value={m.id}>{m.displayName || m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedResourceId} onValueChange={setSelectedResourceId}>
+                <SelectTrigger className="w-[260px]"><SelectValue placeholder="Alt Modül" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm Alt Modüller</SelectItem>
+                  {(resources as any[]).map((r: any) => (
+                    <SelectItem key={r.id} value={r.id}>{r.displayName || r.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              {isAllPermissionsLoading || isUserDirectLoading ? (
+                <p>Yükleniyor...</p>
+              ) : (
+                (() => {
+                  const enabledResourceIds = new Set((resources as any[]).filter((r: any) => r.isEnabledForCompany !== false).map((r: any) => r.id));
+                  return (allPermissions as any[])
+                    .filter((p: any) => enabledResourceIds.size === 0 || enabledResourceIds.has(p.resourceId))
+                    .map((p: any) => {
+                      const baseChecked = grantedPermissionIds.has(p.id);
+                      const checked = (p.id in pendingChanges) ? pendingChanges[p.id] : baseChecked;
+                      const actionLabel = ({ view: "Görüntüle", edit: "Düzenle", manage: "Tüm Yetki", approve: "Onay" } as Record<string, string>)[p.action] || p.action;
+                      return (
+                        <div key={p.id} className="flex items-center justify-between gap-4 border rounded-md p-2">
+                          <div>
+                            <div className="text-sm font-medium">{p.displayName}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{p.name} • {actionLabel}</div>
                           </div>
-                        </TableCell>
-                        <TableCell>{role.code}</TableCell>
-                        <TableCell className="text-right">
-                          <Switch
+                          <Checkbox
                             checked={checked}
-                            onCheckedChange={(next) => {
-                              if (!workspaceId || !companyId) return;
-                              if (next) {
-                                assignRole.mutate({ roleId: role.id, scope: "company" });
-                              } else {
-                                unassignRole.mutate({ roleId: role.id, scope: "company" });
-                              }
-                            }}
+                            onCheckedChange={(v) => handleTogglePending(p.id, !!v)}
                           />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
+                        </div>
+                      );
+                    });
+                })()
+              )}
+              {(allPermissions as any[]).length === 0 && !isAllPermissionsLoading && (
+                <div className="text-sm text-muted-foreground">Gösterilecek izin yok</div>
+              )}
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSavePending} disabled={isSaving || Object.keys(pendingChanges).length === 0}>
+                {isSaving ? "Kaydediliyor..." : `Kaydet (${Object.keys(pendingChanges).length})`}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

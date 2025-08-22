@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { workspace, workspaceCompany, company, workspaceMember, department } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
+import { DatabaseErrorHandler } from "@/lib/database-errors";
 
 // GET individual company
 export async function GET(
@@ -272,8 +273,24 @@ export async function PATCH(
       createdAt: updatedCompany.createdAt,
       updatedAt: updatedCompany.updatedAt,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating company:", error);
+    console.log("Error code:", error?.code);
+    console.log("Error constraint:", error?.constraint);
+
+    // Parse database constraint violations
+    const parsedError = DatabaseErrorHandler.parseError(error);
+    console.log("Parsed error:", parsedError);
+
+    if (parsedError && DatabaseErrorHandler.isConstraintViolation(error)) {
+      console.log("Returning constraint violation error");
+      return NextResponse.json(
+        { success: false, error: parsedError },
+        { status: 400 }
+      );
+    }
+
+    console.log("Returning generic error");
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
@@ -370,6 +387,16 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting company:", error);
+
+    // Parse database constraint violations
+    const parsedError = DatabaseErrorHandler.parseError(error);
+    if (parsedError && DatabaseErrorHandler.isConstraintViolation(error)) {
+      return NextResponse.json(
+        { success: false, error: parsedError },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

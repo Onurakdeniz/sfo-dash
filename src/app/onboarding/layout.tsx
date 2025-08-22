@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Kurulum - Luna Manager",
+  title: "Kurulum - Yönetim Sistemi",
   description: "Hesap kurulumunuzu tamamlayın",
 };
 

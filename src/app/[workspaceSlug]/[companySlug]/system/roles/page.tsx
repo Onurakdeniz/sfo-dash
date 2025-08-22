@@ -84,6 +84,7 @@ export default function RolesPage() {
   const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [listFilter, setListFilter] = useState<string>("all");
   const [formData, setFormData] = useState({
     code: "",
     name: "",
@@ -167,24 +168,45 @@ export default function RolesPage() {
     }
   });
 
-  // Default behavior: show workspace roles; user can filter by company via the select below
+  // Fetch system-level roles (global)
+  const { data: systemRoles = [] } = useQuery({
+    queryKey: ["roles", "system"],
+    queryFn: async () => {
+      const response = await fetch(`/api/system/roles?isSystem=true`);
+      if (!response.ok) throw new Error("Failed to fetch system roles");
+      return response.json();
+    }
+  });
 
-  // Fetch roles scoped to current workspace/company
-  const { data: roles = [], isLoading } = useQuery({
-    queryKey: ["roles", workspaceContext?.workspace?.id, selectedCompanyId],
+  // Fetch workspace-level roles
+  const { data: workspaceRoles = [] } = useQuery({
+    queryKey: ["roles", workspaceContext?.workspace?.id, "workspace"],
     queryFn: async () => {
       if (!workspaceContext?.workspace?.id) return [];
-      const urlParams = new URLSearchParams();
-      if (selectedCompanyId && selectedCompanyId !== 'global') {
-        urlParams.set("companyId", selectedCompanyId);
-      } else {
-        urlParams.set("workspaceId", workspaceContext.workspace.id);
-      }
-      const response = await fetch(`/api/system/roles?${urlParams.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch roles");
+      const response = await fetch(`/api/system/roles?workspaceId=${workspaceContext.workspace.id}`);
+      if (!response.ok) throw new Error("Failed to fetch workspace roles");
       return response.json();
     },
     enabled: !!workspaceContext?.workspace?.id
+  });
+
+  // Fetch roles for all companies in the current workspace
+  const { data: allCompanyRoles = [] } = useQuery({
+    queryKey: ["roles", workspaceContext?.workspace?.id, "companies"],
+    queryFn: async () => {
+      if (!workspaceContext?.companies) return [];
+      const companies: any[] = workspaceContext.companies;
+      if (companies.length === 0) return [];
+      const results = await Promise.all(
+        companies.map(async (c) => {
+          const res = await fetch(`/api/system/roles?companyId=${c.id}`);
+          if (!res.ok) throw new Error("Failed to fetch company roles");
+          return res.json();
+        })
+      );
+      return results.flat();
+    },
+    enabled: Array.isArray(workspaceContext?.companies)
   });
 
   // Create role mutation
@@ -387,7 +409,36 @@ export default function RolesPage() {
     return "system";
   };
 
-  const filteredRoles = roles;
+  const getAssignmentName = (role: Role) => {
+    if (role.companyId) {
+      const comp = (workspaceContext?.companies || []).find((c: any) => c.id === role.companyId);
+      return comp?.name || comp?.fullName || role.companyId;
+    }
+    if (role.workspaceId) {
+      return workspaceContext?.workspace?.name || "Workspace";
+    }
+    return "Sistem";
+  };
+
+  const allRoles = useMemo(() => {
+    const combined = [...(systemRoles as any[]), ...(workspaceRoles as any[]), ...(allCompanyRoles as any[])];
+    const map = new Map<string, any>();
+    combined.forEach((r: any) => { if (r && r.id) map.set(r.id, r); });
+    const arr = Array.from(map.values());
+    return arr.sort((a: any, b: any) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name)));
+  }, [systemRoles, workspaceRoles, allCompanyRoles]);
+
+  const filteredRoles = useMemo(() => {
+    if (!Array.isArray(allRoles)) return [] as Role[];
+    if (listFilter === "all") return allRoles as Role[];
+    if (listFilter === "system") return (allRoles as Role[]).filter((r: any) => r.isSystem && !r.workspaceId && !r.companyId);
+    if (listFilter === "workspace") return (allRoles as Role[]).filter((r: any) => !!r.workspaceId);
+    if (listFilter.startsWith("company:")) {
+      const cid = listFilter.slice("company:".length);
+      return (allRoles as Role[]).filter((r: any) => r.companyId === cid);
+    }
+    return allRoles as Role[];
+  }, [allRoles, listFilter]);
 
   const breadcrumbs = [
     {
@@ -443,12 +494,29 @@ export default function RolesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="flex items-center justify-end mb-3 gap-2">
+            <Label>Kaynağa göre filtrele</Label>
+            <Select value={listFilter} onValueChange={setListFilter}>
+              <SelectTrigger className="w-[260px]">
+                <SelectValue placeholder="Kaynak seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Hepsi</SelectItem>
+                <SelectItem value="workspace">Workspace - {workspaceContext?.workspace?.name ?? "Workspace"}</SelectItem>
+                {(workspaceContext?.companies || []).map((c: any) => (
+                  <SelectItem key={c.id} value={`company:${c.id}`}>Şirket - {c.name || c.fullName}</SelectItem>
+                ))}
+                <SelectItem value="system">Sistem Rolleri</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Kod</TableHead>
                 <TableHead>İsim</TableHead>
                 <TableHead>Kapsam</TableHead>
+                <TableHead>Atandığı</TableHead>
                 <TableHead>Tür</TableHead>
                 <TableHead>Durum</TableHead>
                 <TableHead>Sıralama Düzeni</TableHead>
@@ -456,15 +524,15 @@ export default function RolesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {!(workspaceContext?.workspace?.id) ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
-                    Roller yükleniyoru...
+                  <TableCell colSpan={8} className="text-center">
+                    Bağlam yükleniyor...
                   </TableCell>
                 </TableRow>
               ) : filteredRoles.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center">
+                  <TableCell colSpan={8} className="text-center">
                     Rol bulunamadı
                   </TableCell>
                 </TableRow>
@@ -489,6 +557,9 @@ export default function RolesPage() {
                           {scopeInfo && <scopeInfo.icon className="w-4 h-4" />}
                           <span>{scopeInfo?.label}</span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {getAssignmentName(role)}
                       </TableCell>
                       <TableCell>
                         {role.isSystem ? (
@@ -594,7 +665,15 @@ export default function RolesPage() {
                 required
               />
             </div>
-            {/* Açıklama alanını şimdilik kaldırıldı */}
+            <div className="space-y-2">
+              <Label htmlFor="description">Açıklama</Label>
+              <Input
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Rol açıklaması (opsiyonel)"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="scope">Kapsam</Label>
@@ -621,7 +700,16 @@ export default function RolesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Sıralama Düzeni kaldırıldı */}
+              <div className="space-y-2">
+                <Label htmlFor="sortOrder">Sıralama Düzeni</Label>
+                <Input
+                  id="sortOrder"
+                  type="number"
+                  value={formData.sortOrder}
+                  onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })}
+                  placeholder="0"
+                />
+              </div>
             </div>
             {formData.scope === "company" && (
               <div className="space-y-2">
@@ -776,17 +864,38 @@ export default function RolesPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="overflow-y-auto space-y-6 max-h-[65vh] pr-1">
-              <PermissionsAssignment role={selectedRole} workspaceContext={workspaceContext} />
+              <PermissionsAssignment 
+                role={selectedRole} 
+                workspaceContext={workspaceContext}
+                onSave={() => {
+                  setIsPermissionsDialogOpen(false);
+                  setSelectedRole(null);
+                }}
+                onCancel={() => {}}
+              />
             </div>
             <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => {
+                  if ((window as any).permissionsAssignmentCancel) {
+                    (window as any).permissionsAssignmentCancel();
+                  }
                   setIsPermissionsDialogOpen(false);
                   setSelectedRole(null);
                 }}
               >
-                Kapat
+                İptal
+              </Button>
+              <Button
+                onClick={() => {
+                  if ((window as any).permissionsAssignmentSave) {
+                    (window as any).permissionsAssignmentSave();
+                  }
+                }}
+                disabled={(window as any).permissionsAssignmentState?.isPending}
+              >
+                {(window as any).permissionsAssignmentState?.isPending ? "Kaydediliyor..." : "Kaydet"}
               </Button>
             </DialogFooter>
           </DialogContent>

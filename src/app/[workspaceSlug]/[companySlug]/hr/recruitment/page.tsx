@@ -174,9 +174,9 @@ export default function RecruitmentPage() {
   };
 
   return (
-    <RoleGuard requiredRoles={["owner", "admin"]} fallbackMessage="İşe alım yönetimine erişmek için yönetici yetkisi gereklidir.">
+    <RoleGuard requiredRoles={["owner", "admin"]} fallbackMessage="İşe giriş & çıkış yönetimine erişmek için yönetici yetkisi gereklidir.">
       <PageWrapper
-        title="İşe Alım"
+        title="İşe Giriş & Çıkış"
         description="Aday süreçleri ve yeni personel onboarding adımları"
       >
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-4">

@@ -87,7 +87,7 @@ export default function SignInPage() {
         
         // Handle email verification specifically
         if (message.includes("email not verified") || message.includes("account not verified") || message.includes("verify")) {
-            return "E-posta adresiniz doğrulanmamış. Kayıt olduktan sonra gelen doğrulama e-postasını kontrol edin.";
+            return "E-posta adresiniz doğrulanmamış. Lütfen e-postanızı kontrol edin ve doğrulama bağlantısına tıklayın veya kodu girin.";
         }
         
         // Handle 429 Too Many Requests
@@ -210,7 +210,7 @@ export default function SignInPage() {
                             </svg>
                         </div>
                         <h1 className="text-3xl font-bold text-gray-900">
-                            Luna<span className="text-blue-600">Manager</span>
+                            Yönetim Sistemi
                         </h1>
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Tekrar hoş geldiniz</h2>
@@ -223,6 +223,11 @@ export default function SignInPage() {
                         <CardDescription className="text-center">
                             Hesabınıza erişmek için giriş yapın
                         </CardDescription>
+                        {!errors.general && (
+                            <div className="text-xs text-gray-500 mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                <strong>💡 İpucu:</strong> E-posta adresinizi doğrulamadıysanız, giriş yapmadan önce doğrulama e-postasındaki bağlantıya tıklayın.
+                            </div>
+                        )}
                     </CardHeader>
                     <CardContent>
                         {/* Success Message */}
@@ -241,6 +246,19 @@ export default function SignInPage() {
                                 <AlertCircle className="h-4 w-4 text-red-600" />
                                 <AlertDescription className="text-red-700">
                                     {errors.general}
+                                    {errors.general.includes("doğrulanmamış") && (
+                                        <div className="mt-3">
+                                            <Link
+                                                href={`/verify-email?email=${encodeURIComponent(email)}`}
+                                                className="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                </svg>
+                                                E-postamı Doğrula
+                                            </Link>
+                                        </div>
+                                    )}
                                     {attemptCount >= 3 && !errors.general.includes("doğrulanmamış") && (
                                         <div className="mt-2">
                                             <Link 

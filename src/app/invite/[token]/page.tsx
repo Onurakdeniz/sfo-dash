@@ -610,7 +610,7 @@ export default function InvitePage() {
             </div>
           </div>
           <p className="text-xs text-slate-400">
-            © 2024 LunaManager. Güvenli bağlantı ile korunmaktadır.
+            © 2024 Yönetim Sistemi. Güvenli bağlantı ile korunmaktadır.
           </p>
         </div>
       </div>

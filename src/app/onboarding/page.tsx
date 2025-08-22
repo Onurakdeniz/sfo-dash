@@ -423,18 +423,18 @@ export default function OnboardingPage() {
                 </svg>
               </div>
               <h1 className="text-4xl xl:text-5xl font-bold text-gray-900">
-                Luna<span className="text-blue-600">Manager</span>
+                Yönetim<span className="text-blue-600">Platformu</span>
               </h1>
             </div>
             <div className="w-16 h-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full"></div>
           </div>
-          
-          <h2 className="text-2xl xl:text-3xl font-semibold text-gray-900 mb-6 leading-tight">
+
+                    <h2 className="text-2xl xl:text-3xl font-semibold text-gray-900 mb-6 leading-tight">
             Hesabınızı kurarak güçlü yönetim deneyimine başlayın
           </h2>
-          
+
           <p className="text-lg text-gray-600 mb-10 leading-relaxed">
-            Luna Manager ile ekibinizi organize edin, projelerinizi yönetin ve hedeflerinize daha hızlı ulaşın. Kurulum sadece birkaç dakika sürer.
+            Ekibinizi organize edin, projelerinizi yönetin ve hedeflerinize daha hızlı ulaşın. Kurulum sadece birkaç dakika sürer.
           </p>
           
           {/* Progress Steps */}
@@ -531,7 +531,7 @@ export default function OnboardingPage() {
                 </svg>
               </div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Luna<span className="text-blue-600">Manager</span>
+                Yönetim<span className="text-blue-600">Platformu</span>
               </h1>
             </div>
           </div>

@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { invitation, user, workspace, workspaceMember, company, workspaceCompany, verification } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth/server";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 
 export async function POST(
   request: NextRequest,
@@ -249,7 +250,8 @@ export async function POST(
               id: companyRecord.id,
               name: companyRecord.name,
               fullName: companyRecord.fullName,
-              slug: (companyRecord.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+              // Use consistent slug generation with ID
+              slug: slugifyCompanyFirstWord(companyRecord.name || '') + '-' + companyRecord.id,
             };
           }
         } else {
@@ -271,7 +273,8 @@ export async function POST(
               id: companyRecord.id,
               name: companyRecord.name,
               fullName: companyRecord.fullName,
-              slug: (companyRecord.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+              // Use consistent slug generation with ID
+              slug: slugifyCompanyFirstWord(companyRecord.name || '') + '-' + companyRecord.id,
             };
           }
         }

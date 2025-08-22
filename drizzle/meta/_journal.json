@@ -1,48 +1,18 @@
 {
   "version": "7",
-  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
       "version": "7",
-      "when": 1754149038462,
-      "tag": "0000_slim_the_fallen",
+      "when": 1755701980485,
+      "tag": "0000_adorable_bloodstrike",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1754230190582,
-      "tag": "0001_certain_lionheart",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1754242613828,
-      "tag": "0002_uneven_grim_reaper",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1754247862101,
-      "tag": "0003_great_the_hunter",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1754388462319,
-      "tag": "0004_new_skaar",
-      "breakpoints": true
-    }
-    ,
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1754488462319,
-      "tag": "0005_add_submodule_type",
+      "when": 1755732237076,
+      "tag": "0001_opposite_stone_men",
       "breakpoints": true
     }
   ]
