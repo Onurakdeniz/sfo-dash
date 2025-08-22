@@ -386,11 +386,12 @@ export function WorkspaceSidebar({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname.startsWith(`/${workspaceSlug}/${companySlug}/customers`)}
+                    isActive={pathname.startsWith(`/${workspaceSlug}/${companySlug}/business-entities`) && 
+                      pathname.includes('type=customer')}
                     tooltip="Müşteri Yönetimi"
                     className="relative transition-all duration-200 hover:bg-sidebar-accent/50 cursor-pointer group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10"
                   >
-                    <Link href={`/${workspaceSlug}/${companySlug}/customers`} className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                    <Link href={`/${workspaceSlug}/${companySlug}/business-entities?type=customer`} className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
                       <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
                         <Users className="h-4 w-4" />
                       </div>
@@ -401,11 +402,12 @@ export function WorkspaceSidebar({
                 <SidebarMenuItem>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname.startsWith(`/${workspaceSlug}/${companySlug}/suppliers`)}
+                    isActive={pathname.startsWith(`/${workspaceSlug}/${companySlug}/business-entities`) && 
+                      pathname.includes('type=supplier')}
                     tooltip="Tedarikçi Yönetimi"
                     className="relative transition-all duration-200 hover:bg-sidebar-accent/50 cursor-pointer group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:w-10 group-data-[collapsible=icon]:h-10"
                   >
-                    <Link href={`/${workspaceSlug}/${companySlug}/suppliers`} className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
+                    <Link href={`/${workspaceSlug}/${companySlug}/business-entities?type=supplier`} className="flex items-center gap-3 w-full group-data-[collapsible=icon]:justify-center">
                       <div className="w-7 h-7 rounded-md transition-all duration-200 flex items-center justify-center flex-shrink-0 text-muted-foreground">
                         <Package className="h-4 w-4" />
                       </div>

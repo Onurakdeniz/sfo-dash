@@ -4,7 +4,6 @@ import { productStatusEnum, productTypeEnum, productCategoryEnum, productUnitEnu
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
-import { supplier } from "./suppliers";
 import { businessEntity } from "./businessEntity";
 
 // Products table - stores product information with comprehensive details

@@ -9,9 +9,7 @@ import { invitation, invitationTemplate } from "./tables/invitation";
 import { policies, policyAssignments } from "./tables/policies";
 import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
 import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog, userRoles, userModulePermissions } from "./tables/system";
-import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
 import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
-import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
 import { product, productVariant, businessEntityProduct, productPriceHistory, productInventory } from "./tables/products";
 import { businessEntity, businessEntityContact } from "./tables/businessEntity";
 
@@ -453,104 +451,51 @@ export const moduleAccessLogRelations = relations(moduleAccessLog, ({ one }) => 
   }),
 }));
 
-// ===== CUSTOMER RELATIONS =====
+// ===== BUSINESS ENTITY RELATIONS =====
 
-// Customer Relations
-export const customerRelations = relations(customer, ({ one, many }) => ({
+// Business Entity Relations (Unified Customer/Supplier)
+export const businessEntityRelations = relations(businessEntity, ({ one, many }) => ({
   workspace: one(workspace, {
-    fields: [customer.workspaceId],
+    fields: [businessEntity.workspaceId],
     references: [workspace.id],
   }),
   company: one(company, {
-    fields: [customer.companyId],
+    fields: [businessEntity.companyId],
     references: [company.id],
   }),
-  parentCustomer: one(customer, {
-    fields: [customer.parentCustomerId],
-    references: [customer.id],
-    relationName: "customerHierarchy",
+  parentEntity: one(businessEntity, {
+    fields: [businessEntity.parentEntityId],
+    references: [businessEntity.id],
+    relationName: "entityHierarchy",
   }),
-  childCustomers: many(customer, {
-    relationName: "customerHierarchy",
+  childEntities: many(businessEntity, {
+    relationName: "entityHierarchy",
   }),
-  addresses: many(customerAddress),
-  contacts: many(customerContact),
-  files: many(customerFile),
-  notes: many(customerNote),
+  contacts: many(businessEntityContact),
+  products: many(businessEntityProduct),
+  taleps: many(talep),
   createdByUser: one(user, {
-    fields: [customer.createdBy],
+    fields: [businessEntity.createdBy],
     references: [user.id],
   }),
   updatedByUser: one(user, {
-    fields: [customer.updatedBy],
+    fields: [businessEntity.updatedBy],
     references: [user.id],
   }),
 }));
 
-// Customer Address Relations
-export const customerAddressRelations = relations(customerAddress, ({ one }) => ({
-  customer: one(customer, {
-    fields: [customerAddress.customerId],
-    references: [customer.id],
+// Business Entity Contact Relations
+export const businessEntityContactRelations = relations(businessEntityContact, ({ one }) => ({
+  entity: one(businessEntity, {
+    fields: [businessEntityContact.entityId],
+    references: [businessEntity.id],
   }),
   createdByUser: one(user, {
-    fields: [customerAddress.createdBy],
+    fields: [businessEntityContact.createdBy],
     references: [user.id],
   }),
   updatedByUser: one(user, {
-    fields: [customerAddress.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Customer Contact Relations
-export const customerContactRelations = relations(customerContact, ({ one }) => ({
-  customer: one(customer, {
-    fields: [customerContact.customerId],
-    references: [customer.id],
-  }),
-  createdByUser: one(user, {
-    fields: [customerContact.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [customerContact.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Customer File Relations
-export const customerFileRelations = relations(customerFile, ({ one }) => ({
-  customer: one(customer, {
-    fields: [customerFile.customerId],
-    references: [customer.id],
-  }),
-  uploadedByUser: one(user, {
-    fields: [customerFile.uploadedBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [customerFile.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Customer Note Relations
-export const customerNoteRelations = relations(customerNote, ({ one }) => ({
-  customer: one(customer, {
-    fields: [customerNote.customerId],
-    references: [customer.id],
-  }),
-  relatedContact: one(customerContact, {
-    fields: [customerNote.relatedContactId],
-    references: [customerContact.id],
-  }),
-  createdByUser: one(user, {
-    fields: [customerNote.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [customerNote.updatedBy],
+    fields: [businessEntityContact.updatedBy],
     references: [user.id],
   }),
 }));
@@ -672,125 +617,7 @@ export const talepActionRelations = relations(talepAction, ({ one }) => ({
   }),
 }));
 
-// ===== SUPPLIER RELATIONS =====
-
-// Supplier Relations
-export const supplierRelations = relations(supplier, ({ one, many }) => ({
-  workspace: one(workspace, {
-    fields: [supplier.workspaceId],
-    references: [workspace.id],
-  }),
-  company: one(company, {
-    fields: [supplier.companyId],
-    references: [company.id],
-  }),
-  parentSupplier: one(supplier, {
-    fields: [supplier.parentSupplierId],
-    references: [supplier.id],
-    relationName: "supplierHierarchy",
-  }),
-  childSuppliers: many(supplier, {
-    relationName: "supplierHierarchy",
-  }),
-  addresses: many(supplierAddress),
-  contacts: many(supplierContact),
-  files: many(supplierFile),
-  notes: many(supplierNote),
-  performance: many(supplierPerformance),
-  // supplierProducts relation removed - should be handled through businessEntity
-  createdByUser: one(user, {
-    fields: [supplier.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [supplier.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Supplier Address Relations
-export const supplierAddressRelations = relations(supplierAddress, ({ one }) => ({
-  supplier: one(supplier, {
-    fields: [supplierAddress.supplierId],
-    references: [supplier.id],
-  }),
-  createdByUser: one(user, {
-    fields: [supplierAddress.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [supplierAddress.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Supplier Contact Relations
-export const supplierContactRelations = relations(supplierContact, ({ one }) => ({
-  supplier: one(supplier, {
-    fields: [supplierContact.supplierId],
-    references: [supplier.id],
-  }),
-  createdByUser: one(user, {
-    fields: [supplierContact.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [supplierContact.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Supplier File Relations
-export const supplierFileRelations = relations(supplierFile, ({ one }) => ({
-  supplier: one(supplier, {
-    fields: [supplierFile.supplierId],
-    references: [supplier.id],
-  }),
-  uploadedByUser: one(user, {
-    fields: [supplierFile.uploadedBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [supplierFile.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Supplier Note Relations
-export const supplierNoteRelations = relations(supplierNote, ({ one }) => ({
-  supplier: one(supplier, {
-    fields: [supplierNote.supplierId],
-    references: [supplier.id],
-  }),
-  relatedContact: one(supplierContact, {
-    fields: [supplierNote.relatedContactId],
-    references: [supplierContact.id],
-  }),
-  createdByUser: one(user, {
-    fields: [supplierNote.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [supplierNote.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Supplier Performance Relations
-export const supplierPerformanceRelations = relations(supplierPerformance, ({ one }) => ({
-  supplier: one(supplier, {
-    fields: [supplierPerformance.supplierId],
-    references: [supplier.id],
-  }),
-  createdByUser: one(user, {
-    fields: [supplierPerformance.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [supplierPerformance.updatedBy],
-    references: [user.id],
-  }),
-}));
+// ===== PRODUCT RELATIONS =====
 
 // Product Relations
 export const productRelations = relations(product, ({ one, many }) => ({
