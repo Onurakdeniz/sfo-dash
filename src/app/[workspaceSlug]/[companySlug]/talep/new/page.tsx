@@ -17,7 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { PageWrapper } from '@/components/page-wrapper';
-import { ArrowLeft, Save, User, Package, Plus } from 'lucide-react';
+import { ArrowLeft, Save, User, Package, Plus, Upload, FolderOpen } from 'lucide-react';
 
 interface Customer {
   id: string;
@@ -56,6 +56,8 @@ export default function NewTalepPage() {
   const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [filesToUpload, setFilesToUpload] = useState<Array<{ file: File; uploaded: boolean }>>([]);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -174,6 +176,76 @@ export default function NewTalepPage() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFiles(e.target.files);
+      const newFiles = Array.from(e.target.files).map(file => ({ file, uploaded: false }));
+      setFilesToUpload(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const uploadFiles = async (talepId: string) => {
+    if (filesToUpload.length === 0) return;
+    
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const { file, uploaded } = filesToUpload[i];
+      if (uploaded) continue;
+      
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('filename', file.name);
+        
+        const uploadResponse = await fetch(
+          `/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files/upload-url`,
+          {
+            method: 'POST',
+            body: form,
+            credentials: 'include',
+          }
+        );
+        
+        if (!uploadResponse.ok) {
+          throw new Error('Failed to get upload URL');
+        }
+        
+        const { url, key } = await uploadResponse.json();
+        
+        const metaResponse = await fetch(
+          `/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: file.name,
+              blobUrl: url,
+              blobPath: key,
+              contentType: file.type,
+              size: file.size
+            }),
+            credentials: 'include',
+          }
+        );
+        
+        if (!metaResponse.ok) {
+          throw new Error('Failed to create file record');
+        }
+        
+        // Mark as uploaded
+        setFilesToUpload(prev => 
+          prev.map((f, idx) => idx === i ? { ...f, uploaded: true } : f)
+        );
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        toast({
+          title: 'Dosya Yükleme Hatası',
+          description: `${file.name} yüklenemedi`,
+          variant: 'destructive',
+        });
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -208,6 +280,11 @@ export default function NewTalepPage() {
       }
 
       const result = await response.json();
+
+      // Upload files if any
+      if (filesToUpload.length > 0) {
+        await uploadFiles(result.talep.id);
+      }
 
       toast({
         title: 'Success',
@@ -588,6 +665,49 @@ export default function NewTalepPage() {
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* File Upload */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5" />
+              Dosya Ekleri
+            </CardTitle>
+            <CardDescription>
+              Talep ile ilgili belgeleri ekleyin
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Input
+                id="talep-file-input"
+                type="file"
+                multiple
+                onChange={handleFileChange}
+                className="flex-1"
+              />
+              <Badge variant="secondary">
+                {filesToUpload.filter(f => !f.uploaded).length} dosya seçili
+              </Badge>
+            </div>
+            
+            {filesToUpload.length > 0 && (
+              <div className="space-y-2">
+                <Label>Seçilen Dosyalar:</Label>
+                <div className="space-y-1">
+                  {filesToUpload.map((item, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm">
+                      <span className={item.uploaded ? 'text-muted-foreground line-through' : ''}>
+                        {item.file.name}
+                      </span>
+                      {item.uploaded && <Badge variant="outline" className="text-xs">Yüklendi</Badge>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

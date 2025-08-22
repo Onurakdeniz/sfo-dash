@@ -147,12 +147,15 @@ export default function TalepDetayPage() {
     actualHours: '',
     actualCost: '',
     billingStatus: '',
+    customerContactId: '',
   });
   const [files, setFiles] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [products, setProducts] = useState<TalepProduct[]>([]);
   const [recentActions, setRecentActions] = useState<TalepAction[]>([]);
+  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
 
   const fetchTalep = async () => {
     setLoading(true);
@@ -183,6 +186,7 @@ export default function TalepDetayPage() {
         actualHours: data.talep.actualHours?.toString() || '',
         actualCost: data.talep.actualCost?.toString() || '',
         billingStatus: data.talep.billingStatus || '',
+        customerContactId: data.talep.customerContactId || '',
       });
 
     } catch (error) {
@@ -199,7 +203,10 @@ export default function TalepDetayPage() {
 
   const fetchFiles = async () => {
     try {
-      const res = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files`, { cache: 'no-store' });
+      const res = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files`, { 
+        cache: 'no-store',
+        credentials: 'include',
+      });
       if (res.ok) {
         const rows = await res.json();
         setFiles(rows || []);
@@ -233,12 +240,53 @@ export default function TalepDetayPage() {
     }
   };
 
+  const fetchCustomerContacts = async (customerId: string) => {
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceSlug}/companies/${companySlug}/customers/${customerId}/contacts`,
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setCustomerContacts(data.contacts || []);
+      }
+    } catch (error) {
+      console.error('Error fetching customer contacts:', error);
+      setCustomerContacts([]);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const employeesRes = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/employees`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (employeesRes.ok) {
+        const employees = await employeesRes.json();
+        setUsers(
+          (employees || []).map((e: any) => ({ id: e.id, name: e.name, email: e.email }))
+        );
+      }
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
+
   useEffect(() => {
     fetchTalep();
     fetchFiles();
     fetchProducts();
     fetchRecentActions();
+    fetchUsers();
   }, [workspaceSlug, companySlug, talepId]);
+
+  // Fetch customer contacts when talep is loaded
+  useEffect(() => {
+    if (talep?.customerId) {
+      fetchCustomerContacts(talep.customerId);
+    }
+  }, [talep?.customerId]);
 
   const handleUpdate = async () => {
     if (!talep) return;
@@ -253,6 +301,7 @@ export default function TalepDetayPage() {
         actualHours: editData.actualHours ? parseFloat(editData.actualHours) : null,
         actualCost: editData.actualCost ? parseFloat(editData.actualCost) : null,
         billingStatus: editData.billingStatus || null,
+        customerContactId: editData.customerContactId || null,
       };
 
       const response = await fetch(
@@ -310,15 +359,23 @@ export default function TalepDetayPage() {
         const up = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files/upload-url`, {
           method: 'POST',
           body: form,
+          credentials: 'include',
         });
-        if (!up.ok) throw new Error('Yükleme linki alınamadı');
+        if (!up.ok) {
+          const error = await up.text();
+          throw new Error(`Yükleme linki alınamadı: ${error}`);
+        }
         const { url, key } = await up.json();
         const meta = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: file.name, blobUrl: url, blobPath: key, contentType: file.type, size: file.size })
+          body: JSON.stringify({ name: file.name, blobUrl: url, blobPath: key, contentType: file.type, size: file.size }),
+          credentials: 'include',
         });
-        if (!meta.ok) throw new Error('Kayıt oluşturulamadı');
+        if (!meta.ok) {
+          const error = await meta.text();
+          throw new Error(`Kayıt oluşturulamadı: ${error}`);
+        }
       }
       await fetchFiles();
       setSelectedFiles(null);
@@ -326,6 +383,7 @@ export default function TalepDetayPage() {
       if (input) input.value = '';
       toast({ title: 'Başarılı', description: 'Dosyalar yüklendi' });
     } catch (e) {
+      console.error('Upload error:', e);
       toast({ title: 'Hata', description: e instanceof Error ? e.message : 'Yükleme hatası', variant: 'destructive' });
     } finally {
       setUploading(false);
@@ -793,13 +851,46 @@ export default function TalepDetayPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Atanan Kişi</Label>
-                    <Input
+                    <Select
                       value={editData.assignedTo}
-                      onChange={(e) => setEditData(prev => ({ ...prev, assignedTo: e.target.value }))}
-                      placeholder="Kullanıcı ID"
-                    />
+                      onValueChange={(value) => setEditData(prev => ({ ...prev, assignedTo: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Kullanıcı seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Atanmamış</SelectItem>
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.name || user.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label>İletişim Kişisi</Label>
+                    <Select
+                      value={editData.customerContactId}
+                      onValueChange={(value) => setEditData(prev => ({ ...prev, customerContactId: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="İletişim kişisi seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customerContacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {[contact.firstName, contact.lastName].filter(Boolean).join(' ')}
+                            {contact.title && ` (${contact.title})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Fatura Durumu</Label>
                     <Input
@@ -858,6 +949,7 @@ export default function TalepDetayPage() {
                         actualHours: talep.actualHours?.toString() || '',
                         actualCost: talep.actualCost?.toString() || '',
                         billingStatus: talep.billingStatus || '',
+                        customerContactId: talep.customerContactId || '',
                       });
                     }}
                     disabled={updating}
@@ -890,51 +982,49 @@ export default function TalepDetayPage() {
                 Müşteri Bilgileri
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="font-medium">{talep.customer?.name}</p>
-                {talep.customer?.fullName && (
-                  <p className="text-sm text-muted-foreground">{talep.customer.fullName}</p>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <p className="font-medium">{talep.customer?.name}</p>
+                  {talep.customer?.fullName && (
+                    <p className="text-sm text-muted-foreground">{talep.customer.fullName}</p>
+                  )}
+                  <Badge variant="outline" className="mt-1">
+                    {talep.customer?.customerType === 'individual' ? 'Bireysel' : 'Kurumsal'}
+                  </Badge>
+                </div>
+
+                {talep.customer?.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm">{talep.customer.phone}</p>
+                  </div>
                 )}
-                <Badge variant="outline" className="mt-1">
-                  {talep.customer?.customerType === 'individual' ? 'Bireysel' : 'Kurumsal'}
-                </Badge>
+
+                {talep.customer?.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm">{talep.customer.email}</p>
+                  </div>
+                )}
               </div>
 
-              {talep.customer?.phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm">{talep.customer.phone}</p>
-                </div>
-              )}
+              <Separator />
 
-              {talep.customer?.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm">{talep.customer.email}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Contact Person Information */}
-          {(talep.customerContact || talep.contactName) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserCircle className="h-5 w-5" />
+              {/* Contact Person Section */}
+              <div className="space-y-3">
+                <h4 className="font-medium flex items-center gap-2">
+                  <UserCircle className="h-4 w-4" />
                   İletişim Kişisi
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                </h4>
                 {talep.customerContact ? (
                   <>
                     <div>
-                      <p className="font-medium">
+                      <p className="font-medium text-sm">
                         {[talep.customerContact.firstName, talep.customerContact.lastName].filter(Boolean).join(' ')}
                       </p>
                       {talep.customerContact.title && (
-                        <p className="text-sm text-muted-foreground">{talep.customerContact.title}</p>
+                        <p className="text-xs text-muted-foreground">{talep.customerContact.title}</p>
                       )}
                     </div>
 
@@ -959,14 +1049,11 @@ export default function TalepDetayPage() {
                       </div>
                     )}
                   </>
-                ) : (
+                ) : talep.contactName ? (
                   <>
-                    {talep.contactName && (
-                      <div>
-                        <p className="text-sm font-medium">İletişim Kişisi</p>
-                        <p className="text-sm text-muted-foreground">{talep.contactName}</p>
-                      </div>
-                    )}
+                    <div>
+                      <p className="text-sm font-medium">{talep.contactName}</p>
+                    </div>
 
                     {talep.contactPhone && (
                       <div className="flex items-center gap-2">
@@ -982,10 +1069,14 @@ export default function TalepDetayPage() {
                       </div>
                     )}
                   </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">İletişim kişisi atanmamış</p>
                 )}
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </CardContent>
+          </Card>
+
+
 
           {/* Assignment Information */}
           <Card>
