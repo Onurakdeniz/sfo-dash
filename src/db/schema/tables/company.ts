@@ -1,6 +1,5 @@
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, primaryKey } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { companyStatusEnum, companyTypeEnum } from "..";
 import { user } from "./user";
 
 // Main companies table - stores organization profiles with Turkish business identifiers and lifecycle data 
@@ -12,10 +11,10 @@ export const company = pgTable('companies', {
   name: varchar('name', { length: 255 }).notNull(),
   fullName: text('full_name'),
   companyLogoUrl: text('company_logo_url'),
-  companyType: companyTypeEnum('company_type'),
+  companyType: varchar('company_type', { length: 100 }),
 
   /* ERP status & categorisation */
-  status: companyStatusEnum('status').default('active').notNull(),
+  status: varchar('status', { length: 50 }).default('active').notNull(),
   industry: varchar('industry', { length: 100 }),
 
   /* Contact information */

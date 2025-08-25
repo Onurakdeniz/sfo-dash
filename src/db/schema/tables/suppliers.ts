@@ -1,6 +1,5 @@
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal, date } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { supplierStatusEnum, supplierTypeEnum, supplierCategoryEnum } from "../enums";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
@@ -23,11 +22,11 @@ export const supplier = pgTable('suppliers', {
   name: varchar('name', { length: 255 }).notNull(),
   fullName: text('full_name'),
   supplierLogoUrl: text('supplier_logo_url'),
-  supplierType: supplierTypeEnum('supplier_type').default('individual').notNull(),
-  supplierCategory: supplierCategoryEnum('supplier_category'),
+  supplierType: varchar('supplier_type', { length: 50 }).default('individual').notNull(),
+  supplierCategory: varchar('supplier_category', { length: 50 }),
 
   /* ERP status & categorisation */
-  status: supplierStatusEnum('status').default('active').notNull(),
+  status: varchar('status', { length: 50 }).default('active').notNull(),
   industry: varchar('industry', { length: 100 }),
   priority: varchar('priority', { length: 20 }).default('medium'), // high, medium, low
 
