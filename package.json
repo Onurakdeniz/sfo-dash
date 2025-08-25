@@ -10,7 +10,11 @@
     "clean": "rm -rf .next node_modules",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "migration:backup": "bash ./scripts/backup-database.sh",
+    "migration:run": "tsx ./scripts/run-migration.ts",
+    "migration:verify": "tsx ./scripts/verify-migration.ts",
+    "migration:full": "npm run migration:backup && npm run migration:run && npm run migration:verify"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

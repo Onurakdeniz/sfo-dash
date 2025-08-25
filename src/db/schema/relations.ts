@@ -13,7 +13,15 @@ import { customer, customerAddress, customerContact, customerFile, customerNote 
 import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
 import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
 import { product, productVariant, businessEntityProduct, productPriceHistory, productInventory } from "./tables/products";
-import { businessEntity, businessEntityContact } from "./tables/businessEntity";
+import { 
+  businessEntity, 
+  businessEntityAddress,
+  businessEntityContact,
+  businessEntityActivity,
+  businessEntityFile,
+  businessEntityNote,
+  businessEntityPerformance
+} from "./tables/businessEntity";
 
 export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
@@ -453,7 +461,146 @@ export const moduleAccessLogRelations = relations(moduleAccessLog, ({ one }) => 
   }),
 }));
 
-// ===== CUSTOMER RELATIONS =====
+// ===== BUSINESS ENTITY RELATIONS =====
+
+// Business Entity Relations
+export const businessEntityRelations = relations(businessEntity, ({ one, many }) => ({
+  workspace: one(workspace, {
+    fields: [businessEntity.workspaceId],
+    references: [workspace.id],
+  }),
+  company: one(company, {
+    fields: [businessEntity.companyId],
+    references: [company.id],
+  }),
+  parentEntity: one(businessEntity, {
+    fields: [businessEntity.parentEntityId],
+    references: [businessEntity.id],
+    relationName: "entityHierarchy",
+  }),
+  childEntities: many(businessEntity, {
+    relationName: "entityHierarchy",
+  }),
+  addresses: many(businessEntityAddress),
+  contacts: many(businessEntityContact),
+  activities: many(businessEntityActivity),
+  files: many(businessEntityFile),
+  notes: many(businessEntityNote),
+  performance: many(businessEntityPerformance),
+  products: many(businessEntityProduct),
+  createdByUser: one(user, {
+    fields: [businessEntity.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [businessEntity.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Business Entity Address Relations
+export const businessEntityAddressRelations = relations(businessEntityAddress, ({ one }) => ({
+  entity: one(businessEntity, {
+    fields: [businessEntityAddress.entityId],
+    references: [businessEntity.id],
+  }),
+  createdByUser: one(user, {
+    fields: [businessEntityAddress.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [businessEntityAddress.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Business Entity Contact Relations
+export const businessEntityContactRelations = relations(businessEntityContact, ({ one, many }) => ({
+  entity: one(businessEntity, {
+    fields: [businessEntityContact.entityId],
+    references: [businessEntity.id],
+  }),
+  notes: many(businessEntityNote),
+  createdByUser: one(user, {
+    fields: [businessEntityContact.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [businessEntityContact.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Business Entity Activity Relations
+export const businessEntityActivityRelations = relations(businessEntityActivity, ({ one }) => ({
+  entity: one(businessEntity, {
+    fields: [businessEntityActivity.entityId],
+    references: [businessEntity.id],
+  }),
+  contact: one(businessEntityContact, {
+    fields: [businessEntityActivity.contactId],
+    references: [businessEntityContact.id],
+  }),
+  performedByUser: one(user, {
+    fields: [businessEntityActivity.performedBy],
+    references: [user.id],
+  }),
+}));
+
+// Business Entity File Relations
+export const businessEntityFileRelations = relations(businessEntityFile, ({ one }) => ({
+  entity: one(businessEntity, {
+    fields: [businessEntityFile.entityId],
+    references: [businessEntity.id],
+  }),
+  uploadedByUser: one(user, {
+    fields: [businessEntityFile.uploadedBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [businessEntityFile.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Business Entity Note Relations
+export const businessEntityNoteRelations = relations(businessEntityNote, ({ one }) => ({
+  entity: one(businessEntity, {
+    fields: [businessEntityNote.entityId],
+    references: [businessEntity.id],
+  }),
+  relatedContact: one(businessEntityContact, {
+    fields: [businessEntityNote.relatedContactId],
+    references: [businessEntityContact.id],
+  }),
+  createdByUser: one(user, {
+    fields: [businessEntityNote.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [businessEntityNote.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// Business Entity Performance Relations
+export const businessEntityPerformanceRelations = relations(businessEntityPerformance, ({ one }) => ({
+  entity: one(businessEntity, {
+    fields: [businessEntityPerformance.entityId],
+    references: [businessEntity.id],
+  }),
+  createdByUser: one(user, {
+    fields: [businessEntityPerformance.createdBy],
+    references: [user.id],
+  }),
+  updatedByUser: one(user, {
+    fields: [businessEntityPerformance.updatedBy],
+    references: [user.id],
+  }),
+}));
+
+// ===== CUSTOMER RELATIONS (DEPRECATED) =====
+// @deprecated Use businessEntityRelations instead
 
 // Customer Relations
 export const customerRelations = relations(customer, ({ one, many }) => ({
@@ -672,7 +819,8 @@ export const talepActionRelations = relations(talepAction, ({ one }) => ({
   }),
 }));
 
-// ===== SUPPLIER RELATIONS =====
+// ===== SUPPLIER RELATIONS (DEPRECATED) =====
+// @deprecated Use businessEntityRelations instead
 
 // Supplier Relations
 export const supplierRelations = relations(supplier, ({ one, many }) => ({

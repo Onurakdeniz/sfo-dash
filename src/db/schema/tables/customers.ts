@@ -5,6 +5,11 @@ import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
 
+/**
+ * @deprecated Use businessEntity table instead with entityType='customer'
+ * This table is being phased out in favor of the unified businessEntity table
+ * which can handle both customers and suppliers
+ */
 // Customers table - stores customer profiles with Turkish business identifiers and lifecycle data
 export const customer = pgTable('customers', {
   /* Core identifier */
@@ -103,6 +108,9 @@ export const customer = pgTable('customers', {
   index('customers_industry_status_idx').on(table.industry, table.status),
 ]);
 
+/**
+ * @deprecated Use businessEntityAddress table instead
+ */
 // Customer addresses table - for multiple addresses per customer
 export const customerAddress = pgTable('customer_addresses', {
   id: text('id').primaryKey(),
@@ -153,6 +161,9 @@ export const customerAddress = pgTable('customer_addresses', {
   check('customer_addresses_postal_code_check', sql`postal_code IS NULL OR postal_code ~* '^[0-9]{5}$'`),
 ]);
 
+/**
+ * @deprecated Use businessEntityContact table instead
+ */
 // Customer contacts table - detailed contact person information
 export const customerContact = pgTable('customer_contacts', {
   id: text('id').primaryKey(),
@@ -202,6 +213,9 @@ export const customerContact = pgTable('customer_contacts', {
   check('customer_contacts_fax_check', sql`fax IS NULL OR fax ~* '^\\+?[1-9]\\d{1,14}$'`),
 ]);
 
+/**
+ * @deprecated Use businessEntityFile table instead
+ */
 // Customer files table - documents associated with customers
 export const customerFile = pgTable('customer_files', {
   id: text('id').primaryKey(),
@@ -233,6 +247,9 @@ export const customerFile = pgTable('customer_files', {
   index('customer_files_created_at_idx').on(table.createdAt),
 ]);
 
+/**
+ * @deprecated Use businessEntityNote table instead
+ */
 // Customer notes table - for tracking customer interactions and notes
 export const customerNote = pgTable('customer_notes', {
   id: text('id').primaryKey(),
