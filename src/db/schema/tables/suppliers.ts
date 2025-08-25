@@ -5,6 +5,11 @@ import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
 
+/**
+ * @deprecated Use businessEntity table instead with entityType='supplier'
+ * This table is being phased out in favor of the unified businessEntity table
+ * which can handle both customers and suppliers
+ */
 // Suppliers table - stores supplier profiles with Turkish business identifiers and lifecycle data
 export const supplier = pgTable('suppliers', {
   /* Core identifier */
@@ -115,6 +120,9 @@ export const supplier = pgTable('suppliers', {
   unique('suppliers_supplier_code_unique').on(table.workspaceId, table.companyId, table.supplierCode),
 ]);
 
+/**
+ * @deprecated Use businessEntityAddress table instead
+ */
 // Supplier addresses table - for multiple addresses per supplier
 export const supplierAddress = pgTable('supplier_addresses', {
   id: text('id').primaryKey(),
@@ -163,6 +171,9 @@ export const supplierAddress = pgTable('supplier_addresses', {
   check('supplier_addresses_postal_code_check', sql`postal_code IS NULL OR postal_code ~* '^[0-9]{5}$'`),
 ]);
 
+/**
+ * @deprecated Use businessEntityContact table instead
+ */
 // Supplier contacts table - detailed contact person information
 export const supplierContact = pgTable('supplier_contacts', {
   id: text('id').primaryKey(),
@@ -212,6 +223,9 @@ export const supplierContact = pgTable('supplier_contacts', {
   check('supplier_contacts_fax_check', sql`fax IS NULL OR fax ~* '^\\+?[1-9]\\d{1,14}$'`),
 ]);
 
+/**
+ * @deprecated Use businessEntityFile table instead
+ */
 // Supplier files table - documents associated with suppliers
 export const supplierFile = pgTable('supplier_files', {
   id: text('id').primaryKey(),
@@ -243,6 +257,9 @@ export const supplierFile = pgTable('supplier_files', {
   index('supplier_files_created_at_idx').on(table.createdAt),
 ]);
 
+/**
+ * @deprecated Use businessEntityNote table instead
+ */
 // Supplier notes table - for tracking supplier interactions and notes
 export const supplierNote = pgTable('supplier_notes', {
   id: text('id').primaryKey(),
@@ -275,6 +292,9 @@ export const supplierNote = pgTable('supplier_notes', {
   index('supplier_notes_created_at_idx').on(table.createdAt),
 ]);
 
+/**
+ * @deprecated Use businessEntityPerformance table instead
+ */
 // Supplier performance history table - tracks supplier performance over time
 export const supplierPerformance = pgTable('supplier_performance', {
   id: text('id').primaryKey(),
