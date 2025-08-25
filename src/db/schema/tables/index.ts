@@ -6,6 +6,7 @@ export * from "./hr";
 export * from "./invitation";
 export * from "./orders";
 export * from "./policies";
+export * from "./request";
 export * from "./session";
 export * from "./settings";
 export * from "./suppliers";

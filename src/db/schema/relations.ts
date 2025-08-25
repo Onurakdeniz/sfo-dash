@@ -11,6 +11,16 @@ import { workspaceSettings, companySettings, featureFlags } from "./tables/setti
 import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog, userRoles, userModulePermissions } from "./tables/system";
 import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
 import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
+import { 
+  request,
+  requestItem,
+  requestFile,
+  requestNote,
+  requestTeamMember,
+  requestActivity,
+  requestAction,
+  requestStageTransition
+} from "./tables/request";
 import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
 import { product, productVariant, businessEntityProduct, productPriceHistory, productInventory } from "./tables/products";
 import { 
@@ -1037,3 +1047,6 @@ export const productInventoryRelations = relations(productInventory, ({ one }) =
     references: [user.id],
   }),
 }));
+
+// Export request relations
+export * from "./relations/request";
