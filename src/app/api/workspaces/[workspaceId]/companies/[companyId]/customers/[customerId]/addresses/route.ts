@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { businessEntityAddress, businessEntity } from "@/db/schema";
+import { businessEntityAddress, businessEntity, workspace, workspaceCompany, company } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 
 // Validation schema for addresses
 const createAddressSchema = z.object({
@@ -42,7 +43,37 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { customerId, workspaceId, companyId } = await params;
+    const { customerId, workspaceId: workspaceSlug, companyId: companySlug } = await params;
+
+    // Resolve workspace slug to ID
+    const [workspaceData] = await db.select()
+      .from(workspace)
+      .where(eq(workspace.slug, workspaceSlug))
+      .limit(1);
+
+    if (!workspaceData) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Resolve company slug to ID
+    const companiesData = await db.select({
+      company: company,
+      workspaceCompany: workspaceCompany,
+    })
+    .from(company)
+    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+
+    const companyData = companiesData.find(c => 
+      slugifyCompanyFirstWord(c.company.name || '') === companySlug
+    );
+
+    if (!companyData) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const workspaceId = workspaceData.id;
+    const companyId = companyData.company.id;
 
     // First check if the customer (business entity) exists
     const entity = await db.select()
@@ -94,8 +125,38 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { customerId, workspaceId, companyId } = await params;
+    const { customerId, workspaceId: workspaceSlug, companyId: companySlug } = await params;
     const body = await request.json();
+
+    // Resolve workspace slug to ID
+    const [workspaceData] = await db.select()
+      .from(workspace)
+      .where(eq(workspace.slug, workspaceSlug))
+      .limit(1);
+
+    if (!workspaceData) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Resolve company slug to ID
+    const companiesData = await db.select({
+      company: company,
+      workspaceCompany: workspaceCompany,
+    })
+    .from(company)
+    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+
+    const companyData = companiesData.find(c => 
+      slugifyCompanyFirstWord(c.company.name || '') === companySlug
+    );
+
+    if (!companyData) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const workspaceId = workspaceData.id;
+    const companyId = companyData.company.id;
 
     // First check if the customer (business entity) exists
     const entity = await db.select()
