@@ -1,23 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { businessEntityAddress, businessEntity } from "@/db/schema";
+import { businessEntityAddress, businessEntity, workspace, workspaceCompany, company } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 
 const updateAddressSchema = z.object({
   addressType: z.string().optional(),
-  title: z.string().optional().nullable(),
+  title: z.string().optional().nullable().transform(val => val === '' ? null : val),
   address: z.string().optional(),
-  district: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  postalCode: z.string().optional().nullable(),
+  district: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  city: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  postalCode: z.string().optional().nullable().transform(val => val === '' ? null : val),
   country: z.string().optional(),
-  phone: z.string().optional().nullable(),
-  email: z.string().email("Invalid email").optional().nullable(),
-  contactName: z.string().optional().nullable(),
-  contactTitle: z.string().optional().nullable(),
+  phone: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  email: z.union([
+    z.string().email("Invalid email"),
+    z.literal(''),
+    z.null()
+  ]).optional().nullable().transform(val => (val === '' || val === null) ? null : val),
+  contactName: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  contactTitle: z.string().optional().nullable().transform(val => val === '' ? null : val),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
@@ -36,7 +41,37 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { addressId, customerId, workspaceId, companyId } = await params;
+    const { addressId, customerId, workspaceId: workspaceSlug, companyId: companySlug } = await params;
+
+    // Resolve workspace slug to ID
+    const [workspaceData] = await db.select()
+      .from(workspace)
+      .where(eq(workspace.slug, workspaceSlug))
+      .limit(1);
+
+    if (!workspaceData) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Resolve company slug to ID
+    const companiesData = await db.select({
+      company: company,
+      workspaceCompany: workspaceCompany,
+    })
+    .from(company)
+    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+
+    const companyData = companiesData.find(c => 
+      slugifyCompanyFirstWord(c.company.name || '') === companySlug
+    );
+
+    if (!companyData) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const workspaceId = workspaceData.id;
+    const companyId = companyData.company.id;
 
     // First check if the customer (business entity) exists
     const entity = await db.select()
@@ -86,9 +121,39 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { addressId, customerId, workspaceId, companyId } = await params;
+    const { addressId, customerId, workspaceId: workspaceSlug, companyId: companySlug } = await params;
     const body = await request.json();
     const data = updateAddressSchema.parse(body);
+
+    // Resolve workspace slug to ID
+    const [workspaceData] = await db.select()
+      .from(workspace)
+      .where(eq(workspace.slug, workspaceSlug))
+      .limit(1);
+
+    if (!workspaceData) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Resolve company slug to ID
+    const companiesData = await db.select({
+      company: company,
+      workspaceCompany: workspaceCompany,
+    })
+    .from(company)
+    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+
+    const companyData = companiesData.find(c => 
+      slugifyCompanyFirstWord(c.company.name || '') === companySlug
+    );
+
+    if (!companyData) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const workspaceId = workspaceData.id;
+    const companyId = companyData.company.id;
 
     // First check if the customer (business entity) exists
     const entity = await db.select()
@@ -155,7 +220,37 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { addressId, customerId, workspaceId, companyId } = await params;
+    const { addressId, customerId, workspaceId: workspaceSlug, companyId: companySlug } = await params;
+
+    // Resolve workspace slug to ID
+    const [workspaceData] = await db.select()
+      .from(workspace)
+      .where(eq(workspace.slug, workspaceSlug))
+      .limit(1);
+
+    if (!workspaceData) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Resolve company slug to ID
+    const companiesData = await db.select({
+      company: company,
+      workspaceCompany: workspaceCompany,
+    })
+    .from(company)
+    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+
+    const companyData = companiesData.find(c => 
+      slugifyCompanyFirstWord(c.company.name || '') === companySlug
+    );
+
+    if (!companyData) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const workspaceId = workspaceData.id;
+    const companyId = companyData.company.id;
 
     // First check if the customer (business entity) exists
     const entity = await db.select()

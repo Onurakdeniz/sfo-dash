@@ -2,24 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { businessEntityAddress, businessEntity } from "@/db/schema";
+import { businessEntityAddress, businessEntity, workspace, workspaceCompany, company } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { slugifyCompanyFirstWord } from "@/lib/slug";
 
 // Validation schema for addresses
 const createAddressSchema = z.object({
   addressType: z.string().min(1, "Address type is required"),
-  title: z.string().optional().nullable(),
+  title: z.string().optional().nullable().transform(val => val === '' ? null : val),
   address: z.string().min(1, "Address is required"),
-  district: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  postalCode: z.string().optional().nullable(),
+  district: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  city: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  postalCode: z.string().optional().nullable().transform(val => val === '' ? null : val),
   country: z.string().min(1, "Country is required"),
-  phone: z.string().optional().nullable(),
-  email: z.string().email("Invalid email").optional().nullable(),
-  contactName: z.string().optional().nullable(),
-  contactTitle: z.string().optional().nullable(),
+  phone: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  email: z.union([
+    z.string().email("Invalid email"),
+    z.literal(''),
+    z.null()
+  ]).optional().nullable().transform(val => (val === '' || val === null) ? null : val),
+  contactName: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  contactTitle: z.string().optional().nullable().transform(val => val === '' ? null : val),
   isDefault: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
@@ -38,7 +43,37 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { customerId, workspaceId, companyId } = await params;
+    const { customerId, workspaceId: workspaceSlug, companyId: companySlug } = await params;
+
+    // Resolve workspace slug to ID
+    const [workspaceData] = await db.select()
+      .from(workspace)
+      .where(eq(workspace.slug, workspaceSlug))
+      .limit(1);
+
+    if (!workspaceData) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Resolve company slug to ID
+    const companiesData = await db.select({
+      company: company,
+      workspaceCompany: workspaceCompany,
+    })
+    .from(company)
+    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+
+    const companyData = companiesData.find(c => 
+      slugifyCompanyFirstWord(c.company.name || '') === companySlug
+    );
+
+    if (!companyData) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const workspaceId = workspaceData.id;
+    const companyId = companyData.company.id;
 
     // First check if the customer (business entity) exists
     const entity = await db.select()
@@ -90,8 +125,38 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { customerId, workspaceId, companyId } = await params;
+    const { customerId, workspaceId: workspaceSlug, companyId: companySlug } = await params;
     const body = await request.json();
+
+    // Resolve workspace slug to ID
+    const [workspaceData] = await db.select()
+      .from(workspace)
+      .where(eq(workspace.slug, workspaceSlug))
+      .limit(1);
+
+    if (!workspaceData) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Resolve company slug to ID
+    const companiesData = await db.select({
+      company: company,
+      workspaceCompany: workspaceCompany,
+    })
+    .from(company)
+    .innerJoin(workspaceCompany, eq(company.id, workspaceCompany.companyId))
+    .where(eq(workspaceCompany.workspaceId, workspaceData.id));
+
+    const companyData = companiesData.find(c => 
+      slugifyCompanyFirstWord(c.company.name || '') === companySlug
+    );
+
+    if (!companyData) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    const workspaceId = workspaceData.id;
+    const companyId = companyData.company.id;
 
     // First check if the customer (business entity) exists
     const entity = await db.select()
