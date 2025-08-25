@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { talep, workspace, workspaceCompany, workspaceMember, company, customer, user, customerContact } from "@/db/schema";
+import { talep, workspace, workspaceCompany, workspaceMember, company, businessEntity, user, businessEntityContact } from "@/db/schema";
 import { eq, and, or, like, desc, asc, sql, isNull, inArray } from "drizzle-orm";
 import { DatabaseErrorHandler } from "@/lib/database-errors";
 import { z } from "zod";
@@ -70,8 +70,8 @@ const createTalepSchema = z.object({
   status: z.enum(["new", "in_progress", "waiting", "resolved", "closed", "cancelled"]).default("new"),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
 
-  // Customer and assignment
-  customerId: z.string().min(1, "Müşteri seçimi gerekli"),
+  // Business entity and assignment
+  customerId: z.string().min(1, "Müşteri seçimi gerekli"), // Keeping customerId for backward compatibility in API
   customerContactId: z.string().optional().nullable(),
   assignedTo: z.string().optional().nullable(),
   assignedBy: z.string().optional().nullable(),
@@ -259,7 +259,9 @@ export async function GET(
           like(talep.title, `%${search}%`),
           like(talep.description, `%${search}%`),
           like(talep.contactName, `%${search}%`),
-          like(talep.contactEmail, `%${search}%`)
+          like(talep.contactEmail, `%${search}%`),
+          like(businessEntity.name, `%${search}%`),
+          like(businessEntity.email, `%${search}%`)
         )
       );
     }
@@ -275,13 +277,13 @@ export async function GET(
       conditions.push(eq(talep.priority, priority as any));
     }
     if (customerId && customerId !== 'all') {
-      conditions.push(eq(talep.customerId, customerId));
+      conditions.push(eq(talep.entityId, customerId));
     }
     if (assignedTo && assignedTo !== 'all') {
       conditions.push(eq(talep.assignedTo, assignedTo));
     }
 
-    // Select fields with customer and user info
+    // Select fields with business entity and user info
     const selectFields = {
       code: talep.code,
       id: talep.id,
@@ -291,8 +293,8 @@ export async function GET(
       category: talep.category,
       status: talep.status,
       priority: talep.priority,
-      customerId: talep.customerId,
-      customerContactId: talep.customerContactId,
+      entityId: talep.entityId,
+      entityContactId: talep.entityContactId,
       assignedTo: talep.assignedTo,
       assignedBy: talep.assignedBy,
       contactName: talep.contactName,
@@ -309,21 +311,21 @@ export async function GET(
       tags: talep.tags,
       createdAt: talep.createdAt,
       updatedAt: talep.updatedAt,
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        fullName: customer.fullName,
-        email: customer.email,
-        phone: customer.phone,
+      businessEntity: {
+        id: businessEntity.id,
+        name: businessEntity.name,
+        fullName: businessEntity.fullName,
+        email: businessEntity.email,
+        phone: businessEntity.phone,
       },
-      customerContact: {
-        id: customerContact.id,
-        firstName: customerContact.firstName,
-        lastName: customerContact.lastName,
-        title: customerContact.title,
-        email: customerContact.email,
-        phone: customerContact.phone,
-        mobile: customerContact.mobile,
+      businessEntityContact: {
+        id: businessEntityContact.id,
+        firstName: businessEntityContact.firstName,
+        lastName: businessEntityContact.lastName,
+        title: businessEntityContact.title,
+        email: businessEntityContact.email,
+        phone: businessEntityContact.phone,
+        mobile: businessEntityContact.mobile,
       },
       assignedToUser: {
         id: user.id,
@@ -341,7 +343,7 @@ export async function GET(
         orderExpr = orderDirection(talep.title);
         break;
       case 'customer':
-        orderExpr = orderDirection(customer.name);
+        orderExpr = orderDirection(businessEntity.name);
         break;
       case 'priority':
         orderExpr = orderDirection(talep.priority);
@@ -358,8 +360,8 @@ export async function GET(
 
     const baseSelect = db.select(selectFields)
       .from(talep)
-      .leftJoin(customer, eq(talep.customerId, customer.id))
-      .leftJoin(customerContact, eq(talep.customerContactId, customerContact.id))
+      .leftJoin(businessEntity, eq(talep.entityId, businessEntity.id))
+      .leftJoin(businessEntityContact, eq(talep.entityContactId, businessEntityContact.id))
       .leftJoin(user, eq(talep.assignedTo, user.id));
 
     const query = (baseSelect as any)
@@ -520,21 +522,21 @@ export async function POST(
       }
     }
 
-    // Verify customer exists and belongs to the same workspace/company
-    const customerCheck = await db.select()
-      .from(customer)
+    // Verify business entity exists and belongs to the same workspace/company
+    const entityCheck = await db.select()
+      .from(businessEntity)
       .where(
         and(
-          eq(customer.id, validatedData.customerId),
-          eq(customer.workspaceId, resolvedWorkspace.id),
-          eq(customer.companyId, resolvedCompanyId)
+          eq(businessEntity.id, validatedData.customerId),
+          eq(businessEntity.workspaceId, resolvedWorkspace.id),
+          eq(businessEntity.companyId, resolvedCompanyId)
         )
       )
       .limit(1);
 
-    if (customerCheck.length === 0) {
+    if (entityCheck.length === 0) {
       return NextResponse.json(
-        { error: "Customer not found or access denied" },
+        { error: "Business entity not found or access denied" },
         { status: 404 }
       );
     }
@@ -556,10 +558,25 @@ export async function POST(
     const newTalep = await db.insert(talep).values({
       id: randomUUID(),
       code: tlpCode,
-      ...validatedData,
+      title: validatedData.title,
+      description: validatedData.description,
+      type: validatedData.type,
+      category: validatedData.category,
+      status: validatedData.status,
+      priority: validatedData.priority,
+      entityId: validatedData.customerId, // Map customerId to entityId for the database
+      entityContactId: validatedData.customerContactId,
+      assignedTo: validatedData.assignedTo,
+      assignedBy: validatedData.assignedBy,
+      contactName: validatedData.contactName,
+      contactPhone: validatedData.contactPhone,
+      contactEmail: validatedData.contactEmail,
+      tags: validatedData.tags,
+      metadata: validatedData.metadata,
       deadline: validatedData.deadline ? new Date(validatedData.deadline) : null,
-      estimatedHours: validatedData.estimatedHours === null || validatedData.estimatedHours === undefined ? null : String(validatedData.estimatedHours),
-      estimatedCost: validatedData.estimatedCost === null || validatedData.estimatedCost === undefined ? null : String(validatedData.estimatedCost),
+      estimatedHours: validatedData.estimatedHours === null || validatedData.estimatedHours === undefined ? null : validatedData.estimatedHours,
+      estimatedCost: validatedData.estimatedCost === null || validatedData.estimatedCost === undefined ? null : validatedData.estimatedCost,
+      billingStatus: validatedData.billingStatus,
       workspaceId: resolvedWorkspace.id,
       companyId: resolvedCompanyId,
       createdBy: session.user.id,

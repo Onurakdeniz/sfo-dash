@@ -8,7 +8,7 @@ import { company } from "./company";
 // Suppliers table - stores supplier profiles with Turkish business identifiers and lifecycle data
 export const supplier = pgTable('suppliers', {
   /* Core identifier */
-  id: text('id').primaryKey(),
+  id: text('id').primaryKey().default(sql`gen_random_uuid()`),
 
   /* Workspace and company association */
   workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }).notNull(),
