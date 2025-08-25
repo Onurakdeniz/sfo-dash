@@ -243,11 +243,11 @@ export class DatabaseErrorHandler {
   /**
    * Create a standardized API error response
    */
-  static createErrorResponse(error: any) {
+  static createErrorResponse(error: any): { success: false; error: DatabaseError } {
     const parsedError = this.parseError(error);
 
     return {
-      success: false,
+      success: false as const,
       error: parsedError || {
         code: 'UNKNOWN_ERROR',
         message: 'An unknown error occurred',

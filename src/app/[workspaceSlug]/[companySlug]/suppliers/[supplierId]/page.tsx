@@ -288,14 +288,7 @@ export default function SupplierDetailPage() {
                   <FileText className="h-6 w-6" />
                   <span className="text-sm">Dosyalar</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  className="h-20 flex-col gap-2"
-                  onClick={() => router.push(`/${workspaceSlug}/${companySlug}/suppliers/${supplierId}/orders`)}
-                >
-                  <Package className="h-6 w-6" />
-                  <span className="text-sm">Siparişler</span>
-                </Button>
+                {/* Orders module not implemented */}
               </div>
             </CardContent>
           </Card>

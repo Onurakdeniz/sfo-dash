@@ -10,7 +10,7 @@ import { policies, policyAssignments } from "./tables/policies";
 import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
 import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog, userRoles, userModulePermissions } from "./tables/system";
 import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
-import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
+// Removed talep imports - migrated to request system
 import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
 import { product, productVariant, businessEntityProduct, productPriceHistory, productInventory } from "./tables/products";
 import { 
@@ -702,122 +702,7 @@ export const customerNoteRelations = relations(customerNote, ({ one }) => ({
   }),
 }));
 
-// ===== TALEP RELATIONS =====
-
-// Talep Relations
-export const talepRelations = relations(talep, ({ one, many }) => ({
-  workspace: one(workspace, {
-    fields: [talep.workspaceId],
-    references: [workspace.id],
-  }),
-  company: one(company, {
-    fields: [talep.companyId],
-    references: [company.id],
-  }),
-  entity: one(businessEntity, {
-    fields: [talep.entityId],
-    references: [businessEntity.id],
-  }),
-  entityContact: one(businessEntityContact, {
-    fields: [talep.entityContactId],
-    references: [businessEntityContact.id],
-  }),
-  assignedToUser: one(user, {
-    fields: [talep.assignedTo],
-    references: [user.id],
-    relationName: "assignedTo",
-  }),
-  assignedByUser: one(user, {
-    fields: [talep.assignedBy],
-    references: [user.id],
-    relationName: "assignedBy",
-  }),
-  createdByUser: one(user, {
-    fields: [talep.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [talep.updatedBy],
-    references: [user.id],
-  }),
-  notes: many(talepNote),
-  files: many(talepFile),
-  activities: many(talepActivity),
-  products: many(talepProduct),
-  actions: many(talepAction),
-}));
-
-// Talep Note Relations
-export const talepNoteRelations = relations(talepNote, ({ one }) => ({
-  talep: one(talep, {
-    fields: [talepNote.talepId],
-    references: [talep.id],
-  }),
-  createdByUser: one(user, {
-    fields: [talepNote.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [talepNote.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Talep File Relations
-export const talepFileRelations = relations(talepFile, ({ one }) => ({
-  talep: one(talep, {
-    fields: [talepFile.talepId],
-    references: [talep.id],
-  }),
-  uploadedByUser: one(user, {
-    fields: [talepFile.uploadedBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [talepFile.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Talep Activity Relations
-export const talepActivityRelations = relations(talepActivity, ({ one }) => ({
-  talep: one(talep, {
-    fields: [talepActivity.talepId],
-    references: [talep.id],
-  }),
-  performedByUser: one(user, {
-    fields: [talepActivity.performedBy],
-    references: [user.id],
-  }),
-}));
-
-// Talep Product Relations
-export const talepProductRelations = relations(talepProduct, ({ one }) => ({
-  talep: one(talep, {
-    fields: [talepProduct.talepId],
-    references: [talep.id],
-  }),
-  createdByUser: one(user, {
-    fields: [talepProduct.createdBy],
-    references: [user.id],
-  }),
-  updatedByUser: one(user, {
-    fields: [talepProduct.updatedBy],
-    references: [user.id],
-  }),
-}));
-
-// Talep Action Relations
-export const talepActionRelations = relations(talepAction, ({ one }) => ({
-  talep: one(talep, {
-    fields: [talepAction.talepId],
-    references: [talep.id],
-  }),
-  performedByUser: one(user, {
-    fields: [talepAction.performedBy],
-    references: [user.id],
-  }),
-}));
+// Removed talep relations - migrated to request system
 
 // ===== SUPPLIER RELATIONS (DEPRECATED) =====
 // @deprecated Use businessEntityRelations instead

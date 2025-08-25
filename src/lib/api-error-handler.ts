@@ -46,7 +46,7 @@ export function handleApiResponse<T>(
     if (onSuccess && response.data) {
       onSuccess(response.data);
     }
-    return response.data;
+    return response.data ?? null;
   } else if (response.error) {
     showErrorToast(response.error);
     if (onError) {

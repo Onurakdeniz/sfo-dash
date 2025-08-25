@@ -309,12 +309,9 @@ export const supplierPerformance = pgTable('supplier_performance', {
   onTimeDeliveryRate: decimal('on_time_delivery_rate', { precision: 5, scale: 2 }), // Percentage 0-100
   qualityRating: decimal('quality_rating', { precision: 3, scale: 2 }), // Rating out of 5.00
   responseTimeHours: decimal('response_time_hours', { precision: 5, scale: 2 }), // Average response time
-  orderFulfillmentRate: decimal('order_fulfillment_rate', { precision: 5, scale: 2 }), // Percentage 0-100
+  // orderFulfillmentRate removed - orders module not implemented
 
-  // Financial metrics
-  totalOrders: integer('total_orders').default(0),
-  totalOrderValue: decimal('total_order_value', { precision: 15, scale: 2 }),
-  averageOrderValue: decimal('average_order_value', { precision: 15, scale: 2 }),
+  // Financial metrics (order-related fields removed - orders module not implemented)
 
   // Issues and complaints
   qualityIssues: integer('quality_issues').default(0),
