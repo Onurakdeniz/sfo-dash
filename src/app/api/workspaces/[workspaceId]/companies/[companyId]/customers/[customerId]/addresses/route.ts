@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth/server";
 import { headers } from "next/headers";
 import { db } from "@/db";
-import { customerAddress } from "@/db/schema";
+import { businessEntityAddress, businessEntity } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { randomUUID } from "crypto";
@@ -38,17 +38,33 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { customerId } = await params;
+    const { customerId, workspaceId, companyId } = await params;
 
-    const addresses = await db.select()
-      .from(customerAddress)
+    // First check if the customer (business entity) exists
+    const entity = await db.select()
+      .from(businessEntity)
       .where(
         and(
-          eq(customerAddress.customerId, customerId),
-          eq(customerAddress.isActive, true)
+          eq(businessEntity.id, customerId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId)
         )
       )
-      .orderBy(customerAddress.createdAt);
+      .limit(1);
+
+    if (!entity.length) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
+    const addresses = await db.select()
+      .from(businessEntityAddress)
+      .where(
+        and(
+          eq(businessEntityAddress.entityId, customerId),
+          eq(businessEntityAddress.isActive, true)
+        )
+      )
+      .orderBy(businessEntityAddress.createdAt);
 
     return NextResponse.json({ addresses });
   } catch (error) {
@@ -74,24 +90,40 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { customerId } = await params;
+    const { customerId, workspaceId, companyId } = await params;
     const body = await request.json();
+
+    // First check if the customer (business entity) exists
+    const entity = await db.select()
+      .from(businessEntity)
+      .where(
+        and(
+          eq(businessEntity.id, customerId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId)
+        )
+      )
+      .limit(1);
+
+    if (!entity.length) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
 
     // Validate input
     const validatedData = createAddressSchema.parse(body);
 
     // If setting as default, remove default from other addresses
     if (validatedData.isDefault) {
-      await db.update(customerAddress)
+      await db.update(businessEntityAddress)
         .set({ isDefault: false })
-        .where(eq(customerAddress.customerId, customerId));
+        .where(eq(businessEntityAddress.entityId, customerId));
     }
 
     // Create the address
-    const newAddress = await db.insert(customerAddress).values({
+    const newAddress = await db.insert(businessEntityAddress).values({
       id: randomUUID(),
       ...validatedData,
-      customerId,
+      entityId: customerId,
       createdBy: session.user.id,
       updatedBy: session.user.id,
     }).returning();

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { supplierAddress, supplier } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { businessEntityAddress, businessEntity } from '@/db/schema';
+import { eq, and, or, isNull } from 'drizzle-orm';
 import { getUserFromRequest } from '@/lib/auth/server';
 import { z } from 'zod';
 
@@ -36,13 +36,35 @@ export async function GET(
 
     const { workspaceId, companyId, supplierId, addressId } = params;
 
-    const addressData = await db
+    // Verify supplier (business entity) exists
+    const supplierData = await db
       .select()
-      .from(supplierAddress)
+      .from(businessEntity)
       .where(
         and(
-          eq(supplierAddress.id, addressId),
-          eq(supplierAddress.supplierId, supplierId)
+          eq(businessEntity.id, supplierId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId),
+          or(
+            eq(businessEntity.entityType, 'supplier'),
+            eq(businessEntity.entityType, 'both')
+          ),
+          isNull(businessEntity.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (supplierData.length === 0) {
+      return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
+    }
+
+    const addressData = await db
+      .select()
+      .from(businessEntityAddress)
+      .where(
+        and(
+          eq(businessEntityAddress.id, addressId),
+          eq(businessEntityAddress.entityId, supplierId)
         )
       )
       .limit(1);
@@ -77,14 +99,36 @@ export async function PUT(
 
     const validatedData = updateAddressSchema.parse(body);
 
+    // Verify supplier (business entity) exists
+    const supplierData = await db
+      .select()
+      .from(businessEntity)
+      .where(
+        and(
+          eq(businessEntity.id, supplierId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId),
+          or(
+            eq(businessEntity.entityType, 'supplier'),
+            eq(businessEntity.entityType, 'both')
+          ),
+          isNull(businessEntity.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (supplierData.length === 0) {
+      return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
+    }
+
     // Check if address exists and belongs to the supplier
     const existingAddress = await db
       .select()
-      .from(supplierAddress)
+      .from(businessEntityAddress)
       .where(
         and(
-          eq(supplierAddress.id, addressId),
-          eq(supplierAddress.supplierId, supplierId)
+          eq(businessEntityAddress.id, addressId),
+          eq(businessEntityAddress.entityId, supplierId)
         )
       )
       .limit(1);
@@ -96,13 +140,13 @@ export async function PUT(
     // If setting as default, unset other default addresses for this supplier
     if (validatedData.isDefault) {
       await db
-        .update(supplierAddress)
+        .update(businessEntityAddress)
         .set({ isDefault: false })
-        .where(eq(supplierAddress.supplierId, supplierId));
+        .where(eq(businessEntityAddress.entityId, supplierId));
     }
 
     const updatedAddress = await db
-      .update(supplierAddress)
+      .update(businessEntityAddress)
       .set({
         ...validatedData,
         updatedBy: user.id,
@@ -110,8 +154,8 @@ export async function PUT(
       })
       .where(
         and(
-          eq(supplierAddress.id, addressId),
-          eq(supplierAddress.supplierId, supplierId)
+          eq(businessEntityAddress.id, addressId),
+          eq(businessEntityAddress.entityId, supplierId)
         )
       )
       .returning();
@@ -146,14 +190,36 @@ export async function DELETE(
 
     const { workspaceId, companyId, supplierId, addressId } = params;
 
+    // Verify supplier (business entity) exists
+    const supplierData = await db
+      .select()
+      .from(businessEntity)
+      .where(
+        and(
+          eq(businessEntity.id, supplierId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId),
+          or(
+            eq(businessEntity.entityType, 'supplier'),
+            eq(businessEntity.entityType, 'both')
+          ),
+          isNull(businessEntity.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (supplierData.length === 0) {
+      return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
+    }
+
     // Check if address exists and belongs to the supplier
     const existingAddress = await db
       .select()
-      .from(supplierAddress)
+      .from(businessEntityAddress)
       .where(
         and(
-          eq(supplierAddress.id, addressId),
-          eq(supplierAddress.supplierId, supplierId)
+          eq(businessEntityAddress.id, addressId),
+          eq(businessEntityAddress.entityId, supplierId)
         )
       )
       .limit(1);
@@ -164,7 +230,7 @@ export async function DELETE(
 
     // Soft delete the address
     await db
-      .update(supplierAddress)
+      .update(businessEntityAddress)
       .set({
         deletedAt: new Date(),
         updatedBy: user.id,
@@ -172,8 +238,8 @@ export async function DELETE(
       })
       .where(
         and(
-          eq(supplierAddress.id, addressId),
-          eq(supplierAddress.supplierId, supplierId)
+          eq(businessEntityAddress.id, addressId),
+          eq(businessEntityAddress.entityId, supplierId)
         )
       );
 

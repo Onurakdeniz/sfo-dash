@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { supplierAddress, supplier, workspace, workspaceCompany, company } from '@/db/schema';
+import { businessEntityAddress, businessEntity, workspace, workspaceCompany, company } from '@/db/schema';
 import { eq, and, desc, isNull, or } from 'drizzle-orm';
 import { getUserFromRequest } from '@/lib/auth/server';
 import { z } from 'zod';
@@ -72,16 +72,20 @@ export async function GET(
       return NextResponse.json({ error: 'Company not found in this workspace' }, { status: 404 });
     }
 
-    // Verify supplier exists and belongs to the workspace/company
+    // Verify supplier (business entity) exists and belongs to the workspace/company
     const supplierData = await db
       .select()
-      .from(supplier)
+      .from(businessEntity)
       .where(
         and(
-          eq(supplier.id, supplierId),
-          eq(supplier.workspaceId, resolvedWorkspace.id),
-          eq(supplier.companyId, resolvedCompanyId),
-          isNull(supplier.deletedAt)
+          eq(businessEntity.id, supplierId),
+          eq(businessEntity.workspaceId, resolvedWorkspace.id),
+          eq(businessEntity.companyId, resolvedCompanyId),
+          or(
+            eq(businessEntity.entityType, 'supplier'),
+            eq(businessEntity.entityType, 'both')
+          ),
+          isNull(businessEntity.deletedAt)
         )
       )
       .limit(1);
@@ -92,9 +96,12 @@ export async function GET(
 
     const addresses = await db
       .select()
-      .from(supplierAddress)
-      .where(eq(supplierAddress.supplierId, supplierId))
-      .orderBy(desc(supplierAddress.createdAt));
+      .from(businessEntityAddress)
+      .where(and(
+        eq(businessEntityAddress.entityId, supplierId),
+        eq(businessEntityAddress.isActive, true)
+      ))
+      .orderBy(desc(businessEntityAddress.createdAt));
 
     return NextResponse.json({ addresses });
   } catch (error) {
@@ -156,16 +163,20 @@ export async function POST(
       return NextResponse.json({ error: 'Company not found in this workspace' }, { status: 404 });
     }
 
-    // Verify supplier exists and belongs to the workspace/company
+    // Verify supplier (business entity) exists and belongs to the workspace/company
     const supplierData = await db
       .select()
-      .from(supplier)
+      .from(businessEntity)
       .where(
         and(
-          eq(supplier.id, supplierId),
-          eq(supplier.workspaceId, resolvedWorkspace.id),
-          eq(supplier.companyId, resolvedCompanyId),
-          isNull(supplier.deletedAt)
+          eq(businessEntity.id, supplierId),
+          eq(businessEntity.workspaceId, resolvedWorkspace.id),
+          eq(businessEntity.companyId, resolvedCompanyId),
+          or(
+            eq(businessEntity.entityType, 'supplier'),
+            eq(businessEntity.entityType, 'both')
+          ),
+          isNull(businessEntity.deletedAt)
         )
       )
       .limit(1);
@@ -177,17 +188,18 @@ export async function POST(
     // If setting as default, unset other default addresses for this supplier
     if (validatedData.isDefault) {
       await db
-        .update(supplierAddress)
+        .update(businessEntityAddress)
         .set({ isDefault: false })
-        .where(eq(supplierAddress.supplierId, supplierId));
+        .where(eq(businessEntityAddress.entityId, supplierId));
     }
 
     const newAddress = await db
-      .insert(supplierAddress)
+      .insert(businessEntityAddress)
       .values({
         id: randomUUID(),
-        supplierId,
+        entityId: supplierId,
         ...validatedData,
+        isActive: true,
         createdBy: user.id,
         updatedBy: user.id,
       })
