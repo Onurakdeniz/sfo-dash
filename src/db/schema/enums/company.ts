@@ -1,14 +1,16 @@
-import { pgEnum } from "drizzle-orm/pg-core";
+import { z } from "zod";
 
-export const companyStatusEnum = pgEnum("company_status", [
+// Company status values
+export const COMPANY_STATUS = [
   "active", 
   "inactive", 
   "onboarding", 
   "suspended", 
   "lead"
-]);
+] as const;
 
-export const companyTypeEnum = pgEnum("company_type", [
+// Company type values
+export const COMPANY_TYPE = [
   "anonim_sirket", // A.Ş. - Anonim Şirket
   "limited_sirket", // Ltd. Şti. - Limited Şirket
   "kolektif_sirket", // Kolektif Şirket
@@ -19,4 +21,12 @@ export const companyTypeEnum = pgEnum("company_type", [
   "vakif", // Vakıf
   "sahis_isletmesi", // Şahıs İşletmesi
   "diger" // Diğer
-]);
+] as const;
+
+// Zod schemas
+export const companyStatusSchema = z.enum(COMPANY_STATUS);
+export const companyTypeSchema = z.enum(COMPANY_TYPE);
+
+// Type exports
+export type CompanyStatus = z.infer<typeof companyStatusSchema>;
+export type CompanyType = z.infer<typeof companyTypeSchema>;
