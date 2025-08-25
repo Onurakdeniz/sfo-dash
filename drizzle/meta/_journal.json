@@ -28,6 +28,13 @@
       "when": 1755865587154,
       "tag": "0003_dear_darkhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1756109910682,
+      "tag": "0004_nebulous_serpent_society",
+      "breakpoints": true
     }
   ]
 }

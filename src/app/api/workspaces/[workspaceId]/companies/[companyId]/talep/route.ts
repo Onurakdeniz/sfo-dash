@@ -581,7 +581,7 @@ export async function POST(
       companyId: resolvedCompanyId,
       createdBy: session.user.id,
       updatedBy: session.user.id,
-    }).returning();
+    } as any).returning();
 
     return NextResponse.json({
       talep: newTalep[0],
