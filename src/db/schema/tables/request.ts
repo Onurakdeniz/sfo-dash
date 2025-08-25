@@ -1,6 +1,5 @@
-import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal, uuid } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { requestStatusEnum, requestPriorityEnum, requestTypeEnum, requestCategoryEnum, requestItemStatusEnum } from "../enums";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
@@ -23,13 +22,13 @@ export const request = pgTable('request', {
   /* Request Metadata */
   title: varchar('title', { length: 500 }).notNull(),
   description: text('description'),
-  type: requestTypeEnum('type').default('general_inquiry').notNull(),
-  category: requestCategoryEnum('category'),
-  priority: requestPriorityEnum('priority').default('medium').notNull(),
+  type: varchar('type', { length: 50 }).default('general_inquiry').notNull(),
+  category: varchar('category', { length: 50 }),
+  priority: varchar('priority', { length: 20 }).default('medium').notNull(),
   
   /* Workflow Management */
-  status: requestStatusEnum('status').default('new').notNull(),
-  previousStatus: requestStatusEnum('previous_status'), // Track status transitions
+  status: varchar('status', { length: 50 }).default('new').notNull(),
+  previousStatus: varchar('previous_status', { length: 50 }), // Track status transitions
   statusChangedAt: timestamp('status_changed_at'),
   statusChangedBy: text('status_changed_by').references(() => user.id),
   
@@ -172,7 +171,7 @@ export const requestItem = pgTable('request_item', {
   endUseStatement: text('end_use_statement'),
   
   /* Item Status */
-  status: requestItemStatusEnum('status').default('pending'), // pending, quoted, approved, rejected, ordered
+  status: varchar('status', { length: 50 }).default('pending'), // pending, quoted, approved, rejected, ordered
   statusReason: text('status_reason'),
   
   /* Supplier Assignment */
@@ -309,7 +308,7 @@ export const requestNote = pgTable('request_note', {
   isPinned: boolean('is_pinned').default(false), // Important notes
   
   /* Related Context */
-  relatedToStatus: requestStatusEnum('related_to_status'), // Note related to specific status
+  relatedToStatus: varchar('related_to_status', { length: 50 }), // Note related to specific status
   mentionedUsers: jsonb('mentioned_users'), // Array of user IDs mentioned in note
   attachments: jsonb('attachments'), // Array of file IDs
   
@@ -450,7 +449,7 @@ export const requestAction = pgTable('request_action', {
   /* Action Classification */
   actionType: varchar('action_type', { length: 100 }).notNull(), // call, email, meeting, site_visit, quote_request, sample_sent
   actionCategory: varchar('action_category', { length: 50 }), // sales, technical, support, procurement
-  priority: requestPriorityEnum('priority').default('medium'),
+  priority: varchar('priority', { length: 20 }).default('medium'),
   
   /* Action Details */
   title: varchar('title', { length: 500 }).notNull(),
@@ -523,7 +522,7 @@ export const requestWorkflowStage = pgTable('request_workflow_stage', {
   requestId: text('request_id').references(() => request.id, { onDelete: 'cascade' }).notNull(),
   
   /* Stage Information */
-  stage: requestStatusEnum('stage').notNull(), // new, clarification, supplier_inquiry, pricing, offer, closed
+  stage: varchar('stage', { length: 50 }).notNull(), // new, clarification, supplier_inquiry, pricing, offer, closed
   enteredAt: timestamp('entered_at').defaultNow().notNull(),
   exitedAt: timestamp('exited_at'),
   duration: integer('duration'), // Duration in this stage (minutes)
