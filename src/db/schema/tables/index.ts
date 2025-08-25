@@ -11,7 +11,8 @@ export * from "./settings";
 export * from "./suppliers";
 export * from "./products";
 export * from "./system";
-export * from "./talep";
+export * from "./talep"; // Keeping old talep for backward compatibility
+export * from "./request"; // New improved request system
 export * from "./user";
 export * from "./verification";
 export * from "./workspace";
