@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { customerAddress } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { businessEntityAddress, businessEntity } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
+import { auth } from "@/lib/auth/server";
+import { headers } from "next/headers";
 
 const updateAddressSchema = z.object({
   addressType: z.string().optional(),
@@ -20,28 +22,107 @@ const updateAddressSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+// GET - Fetch a single address
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ workspaceId: string; companyId: string; customerId: string; addressId: string }> }
+) {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers()
+    });
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { addressId, customerId, workspaceId, companyId } = await params;
+
+    // First check if the customer (business entity) exists
+    const entity = await db.select()
+      .from(businessEntity)
+      .where(
+        and(
+          eq(businessEntity.id, customerId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId)
+        )
+      )
+      .limit(1);
+
+    if (!entity.length) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
+
+    const [address] = await db.select()
+      .from(businessEntityAddress)
+      .where(and(
+        eq(businessEntityAddress.id, addressId),
+        eq(businessEntityAddress.entityId, customerId)
+      ))
+      .limit(1);
+
+    if (!address) {
+      return NextResponse.json({ error: "Address not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ address });
+  } catch (error) {
+    console.error("Error fetching address:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ workspaceId: string; companyId: string; customerId: string; addressId: string }> }
 ) {
   try {
-    const { addressId, customerId } = await params;
+    const session = await auth.api.getSession({
+      headers: await headers()
+    });
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { addressId, customerId, workspaceId, companyId } = await params;
     const body = await request.json();
     const data = updateAddressSchema.parse(body);
 
-    // If setting as default, unset other defaults for this customer
-    if (data.isDefault === true) {
-      await db.update(customerAddress)
-        .set({ isDefault: false })
-        .where(eq(customerAddress.customerId, customerId));
+    // First check if the customer (business entity) exists
+    const entity = await db.select()
+      .from(businessEntity)
+      .where(
+        and(
+          eq(businessEntity.id, customerId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId)
+        )
+      )
+      .limit(1);
+
+    if (!entity.length) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    const [updated] = await db.update(customerAddress)
+    // If setting as default, unset other defaults for this customer
+    if (data.isDefault === true) {
+      await db.update(businessEntityAddress)
+        .set({ isDefault: false })
+        .where(eq(businessEntityAddress.entityId, customerId));
+    }
+
+    const [updated] = await db.update(businessEntityAddress)
       .set({
         ...data,
+        updatedBy: session.user.id,
         updatedAt: new Date(),
       })
-      .where(eq(customerAddress.id, addressId))
+      .where(and(
+        eq(businessEntityAddress.id, addressId),
+        eq(businessEntityAddress.entityId, customerId)
+      ))
       .returning();
 
     if (!updated) {
@@ -66,11 +147,38 @@ export async function DELETE(
   { params }: { params: Promise<{ workspaceId: string; companyId: string; customerId: string; addressId: string }> }
 ) {
   try {
-    const { addressId } = await params;
+    const session = await auth.api.getSession({
+      headers: await headers()
+    });
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { addressId, customerId, workspaceId, companyId } = await params;
+
+    // First check if the customer (business entity) exists
+    const entity = await db.select()
+      .from(businessEntity)
+      .where(
+        and(
+          eq(businessEntity.id, customerId),
+          eq(businessEntity.workspaceId, workspaceId),
+          eq(businessEntity.companyId, companyId)
+        )
+      )
+      .limit(1);
+
+    if (!entity.length) {
+      return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+    }
 
     const [deleted] = await db
-      .delete(customerAddress)
-      .where(eq(customerAddress.id, addressId))
+      .delete(businessEntityAddress)
+      .where(and(
+        eq(businessEntityAddress.id, addressId),
+        eq(businessEntityAddress.entityId, customerId)
+      ))
       .returning();
 
     if (!deleted) {
