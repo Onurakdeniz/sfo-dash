@@ -1,34 +1,27 @@
 import { z } from 'zod';
-import { pgEnum } from "drizzle-orm/pg-core";
 
 // ============================================
-// DATABASE ENUMS (for backward compatibility)
+// BUSINESS ENTITY TYPE
 // ============================================
 
-/**
- * @deprecated Database-level enum. Consider migrating to text/varchar columns with Zod validation.
- */
-export const businessEntityTypeEnum = pgEnum("business_entity_type", [
+// Business entity type values
+export const BUSINESS_ENTITY_TYPE = [
   "supplier",
   "customer",
   "both"
-]);
+] as const;
 
-/**
- * @deprecated Database-level enum. Consider migrating to text/varchar columns with Zod validation.
- */
-export const businessEntityStatusEnum = pgEnum("business_entity_status", [
+// Business entity status values
+export const BUSINESS_ENTITY_STATUS = [
   "active",
   "inactive",
   "pending",
   "suspended",
   "blocked"
-]);
+] as const;
 
-/**
- * @deprecated Database-level enum. Consider migrating to text/varchar columns with Zod validation.
- */
-export const businessEntityCategoryEnum = pgEnum("business_entity_category", [
+// Business entity category values
+export const BUSINESS_ENTITY_CATEGORY = [
   "manufacturer",
   "distributor",
   "reseller",
@@ -39,64 +32,34 @@ export const businessEntityCategoryEnum = pgEnum("business_entity_category", [
   "consultant",
   "logistics",
   "other"
-]);
+] as const;
 
 // ============================================
-// BUSINESS ENTITY TYPE SCHEMA
+// ZOD SCHEMAS
 // ============================================
 
 /**
  * Business entity type - determines if entity is supplier, customer, or both
- * Using Zod literal union for JSON-compatible enum values
  */
-export const BusinessEntityTypeSchema = z.union([
-  z.literal("supplier"),
-  z.literal("customer"),
-  z.literal("both") // Entity can act as both supplier and customer
-]);
-
-export type BusinessEntityType = z.infer<typeof BusinessEntityTypeSchema>;
-
-// ============================================
-// BUSINESS ENTITY STATUS SCHEMA
-// ============================================
+export const businessEntityTypeSchema = z.enum(BUSINESS_ENTITY_TYPE);
 
 /**
  * Business entity status
- * Using Zod literal union for JSON-compatible enum values
  */
-export const BusinessEntityStatusSchema = z.union([
-  z.literal("active"),
-  z.literal("inactive"),
-  z.literal("pending"),
-  z.literal("suspended"),
-  z.literal("blocked")
-]);
-
-export type BusinessEntityStatus = z.infer<typeof BusinessEntityStatusSchema>;
-
-// ============================================
-// BUSINESS ENTITY CATEGORY SCHEMA
-// ============================================
+export const businessEntityStatusSchema = z.enum(BUSINESS_ENTITY_STATUS);
 
 /**
  * Business entity category - for defense industry categorization
- * Using Zod literal union for JSON-compatible enum values
  */
-export const BusinessEntityCategorySchema = z.union([
-  z.literal("manufacturer"),
-  z.literal("distributor"),
-  z.literal("reseller"),
-  z.literal("service_provider"),
-  z.literal("government"),
-  z.literal("defense_contractor"),
-  z.literal("sub_contractor"),
-  z.literal("consultant"),
-  z.literal("logistics"),
-  z.literal("other")
-]);
+export const businessEntityCategorySchema = z.enum(BUSINESS_ENTITY_CATEGORY);
 
-export type BusinessEntityCategory = z.infer<typeof BusinessEntityCategorySchema>;
+// ============================================
+// TYPE EXPORTS
+// ============================================
+
+export type BusinessEntityType = z.infer<typeof businessEntityTypeSchema>;
+export type BusinessEntityStatus = z.infer<typeof businessEntityStatusSchema>;
+export type BusinessEntityCategory = z.infer<typeof businessEntityCategorySchema>;
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -105,65 +68,44 @@ export type BusinessEntityCategory = z.infer<typeof BusinessEntityCategorySchema
 /**
  * Get all possible business entity types
  */
-export const getBusinessEntityTypes = (): BusinessEntityType[] => [
-  "supplier",
-  "customer",
-  "both"
-];
+export const getBusinessEntityTypes = (): BusinessEntityType[] => [...BUSINESS_ENTITY_TYPE];
 
 /**
  * Get all possible business entity statuses
  */
-export const getBusinessEntityStatuses = (): BusinessEntityStatus[] => [
-  "active",
-  "inactive",
-  "pending",
-  "suspended",
-  "blocked"
-];
+export const getBusinessEntityStatuses = (): BusinessEntityStatus[] => [...BUSINESS_ENTITY_STATUS];
 
 /**
  * Get all possible business entity categories
  */
-export const getBusinessEntityCategories = (): BusinessEntityCategory[] => [
-  "manufacturer",
-  "distributor",
-  "reseller",
-  "service_provider",
-  "government",
-  "defense_contractor",
-  "sub_contractor",
-  "consultant",
-  "logistics",
-  "other"
-];
+export const getBusinessEntityCategories = (): BusinessEntityCategory[] => [...BUSINESS_ENTITY_CATEGORY];
 
 // ============================================
-// VALIDATION EXAMPLES
+// VALIDATION HELPERS
 // ============================================
 
 /**
- * Example: Validate business entity data using Zod schemas
+ * Validate business entity data using Zod schemas
  */
 export const validateBusinessEntityData = (data: unknown) => {
   const BusinessEntityDataSchema = z.object({
-    entityType: BusinessEntityTypeSchema,
-    status: BusinessEntityStatusSchema,
-    entityCategory: BusinessEntityCategorySchema.optional()
+    entityType: businessEntityTypeSchema,
+    status: businessEntityStatusSchema,
+    entityCategory: businessEntityCategorySchema.optional()
   });
 
   return BusinessEntityDataSchema.safeParse(data);
 };
 
 /**
- * Example: Serialize business entity data to JSON-compatible format
+ * Serialize business entity data to JSON-compatible format
  */
 export const serializeBusinessEntity = (entity: {
   entityType: BusinessEntityType;
   status: BusinessEntityStatus;
   entityCategory?: BusinessEntityCategory;
 }) => {
-  // Since we're using literal unions, the data is already JSON-compatible
+  // Since we're using enums, the data is already JSON-compatible
   return {
     entityType: entity.entityType,
     status: entity.status,

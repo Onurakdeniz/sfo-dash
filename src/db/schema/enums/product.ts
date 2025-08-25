@@ -89,3 +89,33 @@ export type ProductType = z.infer<typeof productTypeSchema>;
 export type ProductCategory = z.infer<typeof productCategorySchema>;
 export type ProductUnit = z.infer<typeof productUnitSchema>;
 export type PriceType = z.infer<typeof priceTypeSchema>;
+
+// Utility functions
+export const getProductStatuses = (): ProductStatus[] => [...PRODUCT_STATUS];
+export const getProductTypes = (): ProductType[] => [...PRODUCT_TYPE];
+export const getProductCategories = (): ProductCategory[] => [...PRODUCT_CATEGORY];
+export const getProductUnits = (): ProductUnit[] => [...PRODUCT_UNIT];
+export const getPriceTypes = (): PriceType[] => [...PRICE_TYPE];
+
+// Validation helper
+export const validateProductData = (data: unknown) => {
+  const ProductDataSchema = z.object({
+    status: productStatusSchema,
+    productType: productTypeSchema,
+    productCategory: productCategorySchema.optional(),
+    unit: productUnitSchema,
+    packagingUnit: productUnitSchema.optional()
+  });
+
+  return ProductDataSchema.safeParse(data);
+};
+
+export const validatePriceData = (data: unknown) => {
+  const PriceDataSchema = z.object({
+    priceType: priceTypeSchema,
+    price: z.number().positive(),
+    currency: z.string().length(3)
+  });
+
+  return PriceDataSchema.safeParse(data);
+};

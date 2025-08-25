@@ -1,6 +1,5 @@
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal, date } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { businessEntityTypeEnum, businessEntityStatusEnum, businessEntityCategoryEnum } from "../enums";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
@@ -15,17 +14,17 @@ export const businessEntity = pgTable('business_entities', {
   companyId: text('company_id').references(() => company.id, { onDelete: 'cascade' }).notNull(),
 
   /* Entity type - supplier, customer, or both */
-  entityType: businessEntityTypeEnum('entity_type').notNull(), // 'supplier', 'customer', 'both'
+  entityType: varchar('entity_type', { length: 50 }).notNull(), // 'supplier', 'customer', 'both'
 
   /* Basic information */
   name: varchar('name', { length: 255 }).notNull(),
   fullName: text('full_name'),
   logoUrl: text('logo_url'),
-  entityCategory: businessEntityCategoryEnum('entity_category'),
+  entityCategory: varchar('entity_category', { length: 50 }),
 
   /* Business classification */
   businessType: varchar('business_type', { length: 50 }).default('company').notNull(), // company, individual, government
-  status: businessEntityStatusEnum('status').default('active').notNull(),
+  status: varchar('status', { length: 50 }).default('active').notNull(),
   industry: varchar('industry', { length: 100 }),
   priority: varchar('priority', { length: 20 }).default('medium'), // high, medium, low
 
