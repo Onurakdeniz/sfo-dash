@@ -3,8 +3,7 @@ export * from "./company";
 export * from "./workspace";
 export * from "./invitation";
 export * from "./customer";
-export * from "./talep";
-export * from "./request"; // New improved request system enums
+// Removed talep and request enums - now using Zod schemas in src/lib/validations
 export * from "./supplier";
 export * from "./product";
 export * from "./businessEntity";

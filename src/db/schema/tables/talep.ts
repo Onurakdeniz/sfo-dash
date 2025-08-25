@@ -1,6 +1,21 @@
+/**
+ * Talep (Legacy Request) System - Database Schema
+ * 
+ * This schema uses VARCHAR fields for enum-like values.
+ * Validation is handled at the application level using Zod schemas.
+ * 
+ * @see src/lib/validations/talep.ts for validation schemas
+ * @see src/lib/validations/index.ts for validation utilities
+ * 
+ * Available Zod Schemas:
+ * - TalepStatusSchema (status values)
+ * - TalepPrioritySchema (priority levels)
+ * - TalepTypeSchema (request types)
+ * - TalepCategorySchema (categories)
+ */
+
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { talepStatusEnum, talepPriorityEnum, talepTypeEnum, talepCategoryEnum } from "../enums";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
@@ -19,10 +34,10 @@ export const talep = pgTable('talep', {
   /* Request details */
   title: varchar('title', { length: 255 }).notNull(),
   description: text('description').notNull(),
-  type: talepTypeEnum('type').default('general_inquiry').notNull(),
-  category: talepCategoryEnum('category'),
-  status: talepStatusEnum('status').default('new').notNull(),
-  priority: talepPriorityEnum('priority').default('medium').notNull(),
+  type: varchar('type', { length: 50 }).default('general_inquiry').notNull(),
+  category: varchar('category', { length: 50 }),
+  status: varchar('status', { length: 50 }).default('new').notNull(),
+  priority: varchar('priority', { length: 20 }).default('medium').notNull(),
 
   /* Business entity association (customer) */
   entityId: text('entity_id').references(() => businessEntity.id, { onDelete: 'cascade' }).notNull(),
@@ -107,7 +122,7 @@ export const talepNote = pgTable('talep_notes', {
   // Visibility and importance
   isInternal: boolean('is_internal').default(true).notNull(),
   isVisibleToEntity: boolean('is_visible_to_entity').default(false).notNull(),
-  priority: talepPriorityEnum('priority').default('medium'),
+  priority: varchar('priority', { length: 20 }).default('medium'),
 
   // Related entities
   relatedContactId: text('related_contact_id'),

@@ -1,3 +1,21 @@
+/**
+ * Request Management System - Database Schema
+ * 
+ * This schema uses VARCHAR fields for enum-like values.
+ * Validation is handled at the application level using Zod schemas.
+ * 
+ * @see src/lib/validations/request.ts for all validation schemas
+ * @see src/lib/validations/index.ts for validation utilities
+ * 
+ * Available Zod Schemas:
+ * - RequestStatusSchema (workflow states)
+ * - RequestPrioritySchema (priority levels)
+ * - RequestTypeSchema (request types)
+ * - RequestCategorySchema (categories)
+ * - RequestItemStatusSchema (item statuses)
+ * - And many more...
+ */
+
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { user } from "./user";
