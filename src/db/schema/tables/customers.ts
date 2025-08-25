@@ -1,6 +1,5 @@
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal, date } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { customerStatusEnum, customerTypeEnum, customerCategoryEnum } from "../enums";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
@@ -23,11 +22,11 @@ export const customer = pgTable('customers', {
   name: varchar('name', { length: 255 }).notNull(),
   fullName: text('full_name'),
   customerLogoUrl: text('customer_logo_url'),
-  customerType: customerTypeEnum('customer_type').default('individual').notNull(),
-  customerCategory: customerCategoryEnum('customer_category'),
+  customerType: varchar('customer_type', { length: 50 }).default('individual').notNull(),
+  customerCategory: varchar('customer_category', { length: 50 }),
 
   /* ERP status & categorisation */
-  status: customerStatusEnum('status').default('active').notNull(),
+  status: varchar('status', { length: 50 }).default('active').notNull(),
   industry: varchar('industry', { length: 100 }),
   priority: varchar('priority', { length: 20 }).default('medium'), // high, medium, low
 

@@ -1,24 +1,27 @@
-import { pgEnum } from "drizzle-orm/pg-core";
+import { z } from "zod";
 
-export const productStatusEnum = pgEnum("product_status", [
+// Product status values
+export const PRODUCT_STATUS = [
   "active",
   "inactive",
   "draft",
   "discontinued",
   "out_of_stock",
   "coming_soon"
-]);
+] as const;
 
-export const productTypeEnum = pgEnum("product_type", [
+// Product type values
+export const PRODUCT_TYPE = [
   "physical", // Physical product
   "service", // Service
   "digital", // Digital product
   "bundle", // Product bundle
   "raw_material", // Raw material
   "consumable" // Consumable item
-]);
+] as const;
 
-export const productCategoryEnum = pgEnum("product_category", [
+// Product category values
+export const PRODUCT_CATEGORY = [
   "electronics",
   "clothing",
   "food_beverage",
@@ -33,9 +36,10 @@ export const productCategoryEnum = pgEnum("product_category", [
   "automotive",
   "construction",
   "other"
-]);
+] as const;
 
-export const productUnitEnum = pgEnum("product_unit", [
+// Product unit values
+export const PRODUCT_UNIT = [
   "piece", // Adet
   "kg", // Kilogram
   "g", // Gram
@@ -60,13 +64,58 @@ export const productUnitEnum = pgEnum("product_unit", [
   "sheet", // Tabaka
   "barrel", // Varil
   "other" // Diğer
-]);
+] as const;
 
-export const priceTypeEnum = pgEnum("price_type", [
+// Price type values
+export const PRICE_TYPE = [
   "purchase", // Purchase price
   "selling", // Selling price
   "list", // List price
   "special", // Special price
   "contract", // Contract price
   "promotional" // Promotional price
-]);
+] as const;
+
+// Zod schemas
+export const productStatusSchema = z.enum(PRODUCT_STATUS);
+export const productTypeSchema = z.enum(PRODUCT_TYPE);
+export const productCategorySchema = z.enum(PRODUCT_CATEGORY);
+export const productUnitSchema = z.enum(PRODUCT_UNIT);
+export const priceTypeSchema = z.enum(PRICE_TYPE);
+
+// Type exports
+export type ProductStatus = z.infer<typeof productStatusSchema>;
+export type ProductType = z.infer<typeof productTypeSchema>;
+export type ProductCategory = z.infer<typeof productCategorySchema>;
+export type ProductUnit = z.infer<typeof productUnitSchema>;
+export type PriceType = z.infer<typeof priceTypeSchema>;
+
+// Utility functions
+export const getProductStatuses = (): ProductStatus[] => [...PRODUCT_STATUS];
+export const getProductTypes = (): ProductType[] => [...PRODUCT_TYPE];
+export const getProductCategories = (): ProductCategory[] => [...PRODUCT_CATEGORY];
+export const getProductUnits = (): ProductUnit[] => [...PRODUCT_UNIT];
+export const getPriceTypes = (): PriceType[] => [...PRICE_TYPE];
+
+// Validation helper
+export const validateProductData = (data: unknown) => {
+  const ProductDataSchema = z.object({
+    status: productStatusSchema,
+    productType: productTypeSchema,
+    productCategory: productCategorySchema.optional(),
+    unit: productUnitSchema,
+    packagingUnit: productUnitSchema.optional()
+  });
+
+  return ProductDataSchema.safeParse(data);
+};
+
+export const validatePriceData = (data: unknown) => {
+  const PriceDataSchema = z.object({
+    priceType: priceTypeSchema,
+    price: z.number().positive(),
+    currency: z.string().length(3)
+  });
+
+  return PriceDataSchema.safeParse(data);
+};

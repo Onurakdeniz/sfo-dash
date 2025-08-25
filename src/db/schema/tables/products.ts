@@ -1,6 +1,5 @@
 import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal, date } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import { productStatusEnum, productTypeEnum, productCategoryEnum, productUnitEnum, priceTypeEnum } from "../enums";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
@@ -25,9 +24,9 @@ export const product = pgTable('products', {
   qrCode: varchar('qr_code', { length: 255 }),
   
   /* Product classification */
-  productType: productTypeEnum('product_type').default('physical').notNull(),
-  productCategory: productCategoryEnum('product_category'),
-  status: productStatusEnum('status').default('active').notNull(),
+  productType: varchar('product_type', { length: 50 }).default('physical').notNull(),
+  productCategory: varchar('product_category', { length: 50 }),
+  status: varchar('status', { length: 50 }).default('active').notNull(),
   
   /* Product codes and identifiers */
   internalCode: varchar('internal_code', { length: 100 }), // Internal product code
@@ -36,7 +35,7 @@ export const product = pgTable('products', {
   customsCode: varchar('customs_code', { length: 50 }), // GTİP/HS Code
   
   /* Physical properties */
-  unit: productUnitEnum('unit').default('piece').notNull(),
+  unit: varchar('unit', { length: 50 }).default('piece').notNull(),
   weight: decimal('weight', { precision: 10, scale: 3 }), // Weight in kg
   width: decimal('width', { precision: 10, scale: 2 }), // Width in cm
   height: decimal('height', { precision: 10, scale: 2 }), // Height in cm
@@ -54,7 +53,7 @@ export const product = pgTable('products', {
   /* Pricing information */
   basePrice: decimal('base_price', { precision: 15, scale: 2 }),
   currency: varchar('currency', { length: 3 }).default('TRY').notNull(),
-  taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default(18), // KDV rate
+  taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default("18"), // KDV rate
   
   /* Manufacturing information */
   manufacturer: varchar('manufacturer', { length: 255 }),
@@ -79,7 +78,7 @@ export const product = pgTable('products', {
   tags: jsonb('tags').default([]), // Array of tags
   
   /* Packaging information */
-  packagingUnit: productUnitEnum('packaging_unit'),
+  packagingUnit: varchar('packaging_unit', { length: 50 }),
   unitsPerPackage: integer('units_per_package'),
   packagesPerPallet: integer('packages_per_pallet'),
   
@@ -211,7 +210,7 @@ export const businessEntityProduct = pgTable('business_entity_products', {
   leadTimeDays: integer('lead_time_days'),
   
   /* Packaging from entity */
-  packagingUnit: productUnitEnum('packaging_unit'),
+  packagingUnit: varchar('packaging_unit', { length: 50 }),
   unitsPerPackage: integer('units_per_package'),
   
   /* Status and priority */
@@ -257,7 +256,7 @@ export const productPriceHistory = pgTable('product_price_history', {
   variantId: text('variant_id').references(() => productVariant.id, { onDelete: 'cascade' }),
   
   /* Price information */
-  priceType: priceTypeEnum('price_type').notNull(),
+  priceType: varchar('price_type', { length: 50 }).notNull(),
   oldPrice: decimal('old_price', { precision: 15, scale: 2 }),
   newPrice: decimal('new_price', { precision: 15, scale: 2 }).notNull(),
   currency: varchar('currency', { length: 3 }).default('TRY').notNull(),
