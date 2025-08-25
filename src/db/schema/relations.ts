@@ -9,9 +9,9 @@ import { invitation, invitationTemplate } from "./tables/invitation";
 import { policies, policyAssignments } from "./tables/policies";
 import { workspaceSettings, companySettings, featureFlags } from "./tables/settings";
 import { roles, modules, moduleResources, modulePermissions, roleModulePermissions, moduleAccessLog, userRoles, userModulePermissions } from "./tables/system";
-import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers";
+// import { customer, customerAddress, customerContact, customerFile, customerNote } from "./tables/customers"; // Deprecated - use businessEntity
 import { talep, talepNote, talepFile, talepActivity, talepProduct, talepAction } from "./tables/talep";
-import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers";
+// import { supplier, supplierAddress, supplierContact, supplierFile, supplierNote, supplierPerformance } from "./tables/suppliers"; // Deprecated - use businessEntity
 import { product, productVariant, businessEntityProduct, productPriceHistory, productInventory } from "./tables/products";
 import { 
   businessEntity, 
@@ -603,6 +603,7 @@ export const businessEntityPerformanceRelations = relations(businessEntityPerfor
 // @deprecated Use businessEntityRelations instead
 
 // Customer Relations
+/* Commented out - use businessEntityRelations instead
 export const customerRelations = relations(customer, ({ one, many }) => ({
   workspace: one(workspace, {
     fields: [customer.workspaceId],
@@ -633,8 +634,10 @@ export const customerRelations = relations(customer, ({ one, many }) => ({
     references: [user.id],
   }),
 }));
+*/
 
 // Customer Address Relations
+/* Commented out - use businessEntityAddressRelations instead
 export const customerAddressRelations = relations(customerAddress, ({ one }) => ({
   customer: one(customer, {
     fields: [customerAddress.customerId],
@@ -649,8 +652,10 @@ export const customerAddressRelations = relations(customerAddress, ({ one }) => 
     references: [user.id],
   }),
 }));
+*/
 
 // Customer Contact Relations
+/* Commented out - use businessEntityContactRelations instead
 export const customerContactRelations = relations(customerContact, ({ one }) => ({
   customer: one(customer, {
     fields: [customerContact.customerId],
@@ -665,8 +670,10 @@ export const customerContactRelations = relations(customerContact, ({ one }) => 
     references: [user.id],
   }),
 }));
+*/
 
 // Customer File Relations
+/* Commented out - use businessEntityFileRelations instead
 export const customerFileRelations = relations(customerFile, ({ one }) => ({
   customer: one(customer, {
     fields: [customerFile.customerId],
@@ -681,8 +688,10 @@ export const customerFileRelations = relations(customerFile, ({ one }) => ({
     references: [user.id],
   }),
 }));
+*/
 
 // Customer Note Relations
+/* Commented out - use businessEntityNoteRelations instead
 export const customerNoteRelations = relations(customerNote, ({ one }) => ({
   customer: one(customer, {
     fields: [customerNote.customerId],
@@ -701,6 +710,7 @@ export const customerNoteRelations = relations(customerNote, ({ one }) => ({
     references: [user.id],
   }),
 }));
+*/
 
 // ===== TALEP RELATIONS =====
 
