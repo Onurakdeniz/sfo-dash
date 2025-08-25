@@ -122,16 +122,30 @@ export const AddressModal = forwardRef<AddressModalRef, AddressModalProps>(funct
         ? `/api/workspaces/${workspaceSlug}/companies/${companySlug}/customers/${customerId}/addresses/${editingAddress.id}`
         : `/api/workspaces/${workspaceSlug}/companies/${companySlug}/customers/${customerId}/addresses`;
 
+      // Clean up empty strings to null for optional fields
+      const cleanedData = {
+        ...formData,
+        title: formData.title || null,
+        district: formData.district || null,
+        city: formData.city || null,
+        postalCode: formData.postalCode || null,
+        phone: formData.phone || null,
+        email: formData.email || null,
+        contactName: formData.contactName || null,
+        contactTitle: formData.contactTitle || null,
+      };
+
       const response = await fetch(url, {
         method: editingAddress ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(cleanedData),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save address');
+        const errorData = await response.json().catch(() => ({ error: 'Failed to save address' }));
+        throw new Error(errorData.error || 'Failed to save address');
       }
 
       const result = await response.json();
@@ -159,7 +173,7 @@ export const AddressModal = forwardRef<AddressModalRef, AddressModalProps>(funct
       console.error('Error saving address:', error);
       toast({
         title: 'Hata',
-        description: 'Adres kaydedilirken bir hata oluştu',
+        description: error instanceof Error ? error.message : 'Adres kaydedilirken bir hata oluştu',
         variant: 'destructive',
       });
     }

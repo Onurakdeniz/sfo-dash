@@ -12,15 +12,19 @@ const createAddressSchema = z.object({
   addressType: z.enum(['billing', 'shipping', 'warehouse', 'headquarters', 'branch']).default('billing'),
   title: z.string().min(1, 'Address title is required'),
   address: z.string().min(1, 'Address is required'),
-  district: z.string().optional().or(z.literal('')),
-  city: z.string().optional().or(z.literal('')),
-  postalCode: z.string().optional().or(z.literal('')),
+  district: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  city: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  postalCode: z.string().optional().nullable().transform(val => val === '' ? null : val),
   country: z.string().default('Türkiye'),
-  phone: z.string().optional().or(z.literal('')),
-  email: z.string().email().optional().or(z.literal('')),
-  contactName: z.string().optional().or(z.literal('')),
-  contactTitle: z.string().optional().or(z.literal('')),
-  notes: z.string().optional().or(z.literal('')),
+  phone: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  email: z.union([
+    z.string().email("Invalid email"),
+    z.literal(''),
+    z.null()
+  ]).optional().nullable().transform(val => (val === '' || val === null) ? null : val),
+  contactName: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  contactTitle: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  notes: z.string().optional().nullable().transform(val => val === '' ? null : val),
   isDefault: z.boolean().default(false),
 });
 

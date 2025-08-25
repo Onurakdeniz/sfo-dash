@@ -10,16 +10,20 @@ import { randomUUID } from "crypto";
 // Validation schema for addresses
 const createAddressSchema = z.object({
   addressType: z.string().min(1, "Address type is required"),
-  title: z.string().optional().nullable(),
+  title: z.string().optional().nullable().transform(val => val === '' ? null : val),
   address: z.string().min(1, "Address is required"),
-  district: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  postalCode: z.string().optional().nullable(),
+  district: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  city: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  postalCode: z.string().optional().nullable().transform(val => val === '' ? null : val),
   country: z.string().min(1, "Country is required"),
-  phone: z.string().optional().nullable(),
-  email: z.string().email("Invalid email").optional().nullable(),
-  contactName: z.string().optional().nullable(),
-  contactTitle: z.string().optional().nullable(),
+  phone: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  email: z.union([
+    z.string().email("Invalid email"),
+    z.literal(''),
+    z.null()
+  ]).optional().nullable().transform(val => (val === '' || val === null) ? null : val),
+  contactName: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  contactTitle: z.string().optional().nullable().transform(val => val === '' ? null : val),
   isDefault: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });

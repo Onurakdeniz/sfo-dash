@@ -8,16 +8,20 @@ import { headers } from "next/headers";
 
 const updateAddressSchema = z.object({
   addressType: z.string().optional(),
-  title: z.string().optional().nullable(),
+  title: z.string().optional().nullable().transform(val => val === '' ? null : val),
   address: z.string().optional(),
-  district: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  postalCode: z.string().optional().nullable(),
+  district: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  city: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  postalCode: z.string().optional().nullable().transform(val => val === '' ? null : val),
   country: z.string().optional(),
-  phone: z.string().optional().nullable(),
-  email: z.string().email("Invalid email").optional().nullable(),
-  contactName: z.string().optional().nullable(),
-  contactTitle: z.string().optional().nullable(),
+  phone: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  email: z.union([
+    z.string().email("Invalid email"),
+    z.literal(''),
+    z.null()
+  ]).optional().nullable().transform(val => (val === '' || val === null) ? null : val),
+  contactName: z.string().optional().nullable().transform(val => val === '' ? null : val),
+  contactTitle: z.string().optional().nullable().transform(val => val === '' ? null : val),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
