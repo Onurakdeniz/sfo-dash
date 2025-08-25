@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,547 +21,663 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Filter, MoreHorizontal, Phone, Mail, User, Calendar, Clock } from 'lucide-react';
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  MoreHorizontal, 
+  FileText, 
+  Package, 
+  Calendar, 
+  ChevronLeft, 
+  ChevronRight,
+  ArrowUpDown,
+  Building2,
+  Clock,
+  AlertCircle
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { PageWrapper } from '@/components/page-wrapper';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { RequestService } from '@/actions/talep/request-service';
 
-interface Talep {
-  code?: string;
+// Status color mapping
+const statusColors = {
+  new: 'bg-blue-100 text-blue-800 border-blue-200',
+  clarification: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  supplier_inquiry: 'bg-purple-100 text-purple-800 border-purple-200',
+  pricing: 'bg-orange-100 text-orange-800 border-orange-200',
+  offer: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  negotiation: 'bg-pink-100 text-pink-800 border-pink-200',
+  closed: 'bg-gray-100 text-gray-800 border-gray-200',
+};
+
+// Status labels
+const statusLabels = {
+  new: 'New',
+  clarification: 'Clarification',
+  supplier_inquiry: 'Supplier Inquiry',
+  pricing: 'Pricing',
+  offer: 'Offer',
+  negotiation: 'Negotiation',
+  closed: 'Closed',
+};
+
+// Priority color mapping
+const priorityColors = {
+  low: 'bg-gray-100 text-gray-600',
+  medium: 'bg-blue-100 text-blue-600',
+  high: 'bg-orange-100 text-orange-600',
+  urgent: 'bg-red-100 text-red-600',
+};
+
+interface Request {
   id: string;
+  code?: string;
   title: string;
-  description: string;
-  type: 'rfq' | 'rfi' | 'rfp' | 'product_inquiry' | 'price_request' | 'quotation_request' | 'order_request' | 'sample_request' | 'certification_req' | 'compliance_inquiry' | 'export_license' | 'end_user_cert' | 'delivery_status' | 'return_request' | 'billing' | 'technical_support' | 'general_inquiry' | 'complaint' | 'feature_request' | 'bug_report' | 'installation' | 'training' | 'maintenance' | 'other';
-  category: 'weapon_systems' | 'ammunition' | 'avionics' | 'radar_systems' | 'communication' | 'electronic_warfare' | 'naval_systems' | 'land_systems' | 'air_systems' | 'cyber_security' | 'simulation' | 'c4isr' | 'hardware' | 'software' | 'network' | 'database' | 'security' | 'performance' | 'integration' | 'reporting' | 'user_access' | 'other' | null;
-  status: 'new' | 'in_progress' | 'waiting' | 'resolved' | 'closed' | 'cancelled';
+  description?: string;
+  status: keyof typeof statusLabels;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   customerId: string;
-  customerContactId?: string | null;
-  assignedTo: string | null;
-  deadline: string | null;
-  estimatedHours: number | null;
-  actualHours: number | null;
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
-  customer: {
+  customer?: {
     id: string;
     name: string;
-    fullName?: string | null;
-    email: string | null;
-    phone: string | null;
-  } | null;
-  customerContact: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    title?: string | null;
-    email: string | null;
-    phone: string | null;
-    mobile?: string | null;
-  } | null;
-  assignedToUser: {
-    id: string;
-    name: string | null;
-    email: string | null;
-  } | null;
+    email?: string;
+    phone?: string;
+  };
+  itemCount?: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-interface PaginationInfo {
-  page: number;
-  limit: number;
-  totalCount: number;
-  totalPages: number;
+interface KanbanColumn {
+  id: keyof typeof statusLabels;
+  title: string;
+  requests: Request[];
 }
 
-export default function TalepPage() {
+export default function RequestListPage() {
   const { workspaceSlug, companySlug } = useParams();
   const router = useRouter();
   const { toast } = useToast();
 
-  const [talepler, setTalepler] = useState<Talep[]>([]);
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    page: 1,
-    limit: 20,
-    totalCount: 0,
-    totalPages: 0,
-  });
+  const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  
+  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [customerFilter, setCustomerFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const [assignedToFilter, setAssignedToFilter] = useState<string>('all');
+  
+  // Sorting
+  const [sortBy, setSortBy] = useState<'createdAt' | 'updatedAt' | 'title' | 'status'>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [totalItems, setTotalItems] = useState(0);
 
-  const fetchTalepler = async (page = 1) => {
+  // Fetch requests
+  const fetchRequests = useCallback(async () => {
+    if (!workspaceSlug || !companySlug) return;
+    
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: pagination.limit.toString(),
+      // In a real implementation, these IDs would come from the session/context
+      const workspaceId = 'current-workspace-id'; // Replace with actual workspace ID
+      const companyId = 'current-company-id'; // Replace with actual company ID
+      
+      const result = await RequestService.getRequests({
+        workspaceId,
+        companyId,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        customerId: customerFilter !== 'all' ? customerFilter : undefined,
+        searchTerm: searchTerm || undefined,
+        sortBy,
+        sortOrder,
+        limit: itemsPerPage,
+        offset: (currentPage - 1) * itemsPerPage,
       });
-
-      if (searchTerm) params.append('search', searchTerm);
-      if (statusFilter) params.append('status', statusFilter);
-      if (typeFilter) params.append('type', typeFilter);
-      if (priorityFilter) params.append('priority', priorityFilter);
-      if (assignedToFilter) params.append('assignedTo', assignedToFilter);
-
-      const response = await fetch(
-        `/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep?${params}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          cache: 'no-store',
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch talepler');
-      }
-
-      const data = await response.json();
-      setTalepler(data.talepler);
-      setPagination(data.pagination);
+      
+      setRequests(result);
+      // In a real implementation, we'd also get total count from the API
+      setTotalItems(result.length); 
     } catch (error) {
-      console.error('Error fetching talepler:', error);
+      console.error('Error fetching requests:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch talepler. Please try again.',
+        description: 'Failed to load requests. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [workspaceSlug, companySlug, statusFilter, customerFilter, searchTerm, sortBy, sortOrder, currentPage, itemsPerPage, toast]);
 
   useEffect(() => {
-    fetchTalepler();
-  }, [workspaceSlug, companySlug]);
+    fetchRequests();
+  }, [fetchRequests]);
 
-  useEffect(() => {
-    const debounceTimer = setTimeout(() => {
-      fetchTalepler(1);
-    }, 500);
-
-    return () => clearTimeout(debounceTimer);
-  }, [searchTerm, statusFilter, typeFilter, priorityFilter, assignedToFilter]);
-
-  const handlePageChange = (newPage: number) => {
-    fetchTalepler(newPage);
-  };
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'new':
-        return 'secondary';
-      case 'in_progress':
-        return 'default';
-      case 'waiting':
-        return 'outline';
-      case 'resolved':
-        return 'default';
-      case 'closed':
-        return 'secondary';
-      case 'cancelled':
-        return 'destructive';
-      default:
-        return 'secondary';
+  // Handle status change
+  const handleStatusChange = async (requestId: string, newStatus: keyof typeof statusLabels) => {
+    try {
+      await RequestService.updateRequestStatus({
+        requestId,
+        newStatus,
+      });
+      
+      toast({
+        title: 'Success',
+        description: 'Request status updated successfully.',
+      });
+      
+      fetchRequests();
+    } catch (error) {
+      console.error('Error updating status:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update request status.',
+        variant: 'destructive',
+      });
     }
   };
 
-  const getPriorityBadgeVariant = (priority: string) => {
-    switch (priority) {
-      case 'urgent':
-        return 'destructive';
-      case 'high':
-        return 'destructive';
-      case 'medium':
-        return 'default';
-      case 'low':
-        return 'secondary';
-      default:
-        return 'secondary';
+  // Handle sorting
+  const handleSort = (column: typeof sortBy) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'new':
-        return 'Yeni';
-      case 'in_progress':
-        return 'İşlemde';
-      case 'waiting':
-        return 'Beklemede';
-      case 'resolved':
-        return 'Çözüldü';
-      case 'closed':
-        return 'Kapandı';
-      case 'cancelled':
-        return 'İptal Edildi';
-      default:
-        return status;
-    }
+  // Navigate to request detail
+  const handleRequestClick = (requestId: string) => {
+    router.push(`/${workspaceSlug}/${companySlug}/talep/${requestId}`);
   };
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'rfq':
-        return 'RFQ (Teklif Talebi)';
-      case 'rfi':
-        return 'RFI (Bilgi Talebi)';
-      case 'rfp':
-        return 'RFP (Teklif Çağrısı)';
-      case 'quotation_request':
-        return 'Teklif Talebi';
-      case 'price_request':
-        return 'Fiyat Talebi';
-      case 'product_inquiry':
-        return 'Ürün Sorgusu';
-      case 'order_request':
-        return 'Sipariş Talebi';
-      case 'sample_request':
-        return 'Numune Talebi';
-      case 'certification_req':
-        return 'Sertifika Talebi';
-      case 'compliance_inquiry':
-        return 'Uygunluk Sorgusu';
-      case 'export_license':
-        return 'İhracat Lisansı';
-      case 'end_user_cert':
-        return 'Son Kullanıcı Sertifikası';
-      case 'delivery_status':
-        return 'Teslimat Durumu';
-      case 'return_request':
-        return 'İade Talebi';
-      case 'technical_support':
-        return 'Teknik Destek';
-      case 'billing':
-        return 'Fatura';
-      case 'general_inquiry':
-        return 'Genel Soru';
-      case 'complaint':
-        return 'Şikayet';
-      case 'feature_request':
-        return 'Özellik Talebi';
-      case 'bug_report':
-        return 'Hata Bildirimi';
-      case 'installation':
-        return 'Kurulum';
-      case 'training':
-        return 'Eğitim';
-      case 'maintenance':
-        return 'Bakım';
-      case 'other':
-        return 'Diğer';
-      default:
-        return type;
-    }
+  // Navigate to new request form
+  const handleNewRequest = () => {
+    router.push(`/${workspaceSlug}/${companySlug}/talep/new`);
   };
 
-  const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case 'low':
-        return 'Düşük';
-      case 'medium':
-        return 'Orta';
-      case 'high':
-        return 'Yüksek';
-      case 'urgent':
-        return 'Acil';
-      default:
-        return priority;
-    }
-  };
+  // Get unique customers for filter
+  const uniqueCustomers = Array.from(
+    new Set(requests.map(r => r.customer?.id).filter(Boolean))
+  ).map(id => requests.find(r => r.customer?.id === id)?.customer).filter(Boolean);
+
+  // Prepare Kanban columns
+  const kanbanColumns: KanbanColumn[] = Object.entries(statusLabels).map(([id, title]) => ({
+    id: id as keyof typeof statusLabels,
+    title,
+    requests: requests.filter(r => r.status === id),
+  }));
+
+  // Calculate pagination
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startItem = (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
   return (
-    <PageWrapper
-      title="Talepler"
-      description="Müşteri taleplerini yönetin ve takip edin"
-      className="p-0"
-      actions={
-        <Button onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep/new`)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Yeni Talep
-        </Button>
-      }
-    >
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filtreler
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Talep ara (başlık, açıklama, müşteri adı)..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+    <PageWrapper>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Requests (Talep)</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage customer requests and track their lifecycle
+            </p>
+          </div>
+          <Button onClick={handleNewRequest} size="lg">
+            <Plus className="mr-2 h-5 w-5" />
+            New Request
+          </Button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Requests
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalItems}</div>
+              <p className="text-xs text-muted-foreground mt-1">All time</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                New Requests
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {requests.filter(r => r.status === 'new').length}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Awaiting action</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                In Progress
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {requests.filter(r => ['clarification', 'supplier_inquiry', 'pricing', 'offer', 'negotiation'].includes(r.status)).length}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Active requests</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Urgent Priority
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {requests.filter(r => r.priority === 'urgent').length}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Requires attention</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters and View Toggle */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Filters</CardTitle>
+              <div className="flex items-center gap-2">
+                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'table' | 'kanban')}>
+                  <TabsList>
+                    <TabsTrigger value="table">Table</TabsTrigger>
+                    <TabsTrigger value="kanban">Kanban</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Durum" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" key="all">Tümü</SelectItem>
-                <SelectItem value="new" key="new">Yeni</SelectItem>
-                <SelectItem value="in_progress" key="in_progress">İşlemde</SelectItem>
-                <SelectItem value="waiting" key="waiting">Beklemede</SelectItem>
-                <SelectItem value="resolved" key="resolved">Çözüldü</SelectItem>
-                <SelectItem value="closed" key="closed">Kapandı</SelectItem>
-                <SelectItem value="cancelled" key="cancelled">İptal Edildi</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Tip" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" key="all">Tümü</SelectItem>
-                <SelectItem value="rfq" key="rfq">RFQ (Teklif Talebi)</SelectItem>
-                <SelectItem value="rfi" key="rfi">RFI (Bilgi Talebi)</SelectItem>
-                <SelectItem value="rfp" key="rfp">RFP (Teklif Çağrısı)</SelectItem>
-                <SelectItem value="quotation_request" key="quotation_request">Teklif Talebi</SelectItem>
-                <SelectItem value="price_request" key="price_request">Fiyat Talebi</SelectItem>
-                <SelectItem value="product_inquiry" key="product_inquiry">Ürün Sorgusu</SelectItem>
-                <SelectItem value="order_request" key="order_request">Sipariş Talebi</SelectItem>
-                <SelectItem value="sample_request" key="sample_request">Numune Talebi</SelectItem>
-                <SelectItem value="certification_req" key="certification_req">Sertifika Talebi</SelectItem>
-                <SelectItem value="compliance_inquiry" key="compliance_inquiry">Uygunluk Sorgusu</SelectItem>
-                <SelectItem value="export_license" key="export_license">İhracat Lisansı</SelectItem>
-                <SelectItem value="end_user_cert" key="end_user_cert">Son Kullanıcı Sertifikası</SelectItem>
-                <SelectItem value="delivery_status" key="delivery_status">Teslimat Durumu</SelectItem>
-                <SelectItem value="return_request" key="return_request">İade Talebi</SelectItem>
-                <SelectItem value="technical_support" key="technical_support">Teknik Destek</SelectItem>
-                <SelectItem value="billing" key="billing">Fatura</SelectItem>
-                <SelectItem value="general_inquiry" key="general_inquiry">Genel Soru</SelectItem>
-                <SelectItem value="complaint" key="complaint">Şikayet</SelectItem>
-                <SelectItem value="feature_request" key="feature_request">Özellik Talebi</SelectItem>
-                <SelectItem value="bug_report" key="bug_report">Hata Bildirimi</SelectItem>
-                <SelectItem value="installation" key="installation">Kurulum</SelectItem>
-                <SelectItem value="training" key="training">Eğitim</SelectItem>
-                <SelectItem value="maintenance" key="maintenance">Bakım</SelectItem>
-                <SelectItem value="other" key="other">Diğer</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Öncelik" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" key="all">Tümü</SelectItem>
-                <SelectItem value="urgent" key="urgent">Acil</SelectItem>
-                <SelectItem value="high" key="high">Yüksek</SelectItem>
-                <SelectItem value="medium" key="medium">Orta</SelectItem>
-                <SelectItem value="low" key="low">Düşük</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Talep Listesi ({pagination.totalCount})</CardTitle>
-          <CardDescription>
-            Toplam {pagination.totalCount} talep bulundu
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : talepler.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Henüz talep bulunmuyor.</p>
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep/new`)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                İlk Talebi Ekle
-              </Button>
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Talep</TableHead>
-                    <TableHead>Müşteri</TableHead>
-                    <TableHead>İletişim</TableHead>
-                    <TableHead>Tip</TableHead>
-                    <TableHead>Durum</TableHead>
-                    <TableHead>Öncelik</TableHead>
-                    <TableHead>Atanan</TableHead>
-                    <TableHead>Son Tarih</TableHead>
-                    <TableHead>Oluşturulma</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {talepler.map((talep) => (
-                    <TableRow
-                      key={talep.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep/${talep.id}`)}
-                    >
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{talep.title} {talep.code ? <span className="text-xs text-muted-foreground">({talep.code})</span> : null}</div>
-                          <div className="text-sm text-muted-foreground line-clamp-1">
-                            {talep.description}
-                          </div>
-                          {talep.tags.length > 0 && (
-                            <div className="flex gap-1 mt-1">
-                              {talep.tags.slice(0, 2).map((tag, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                              {talep.tags.length > 2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{talep.tags.length - 2}
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{talep.customer?.name}</div>
-                          {talep.customer?.phone && (
-                            <div className="text-xs text-muted-foreground">
-                              {talep.customer.phone}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {talep.customerContact ? (
-                          <div>
-                            <div className="text-sm">{talep.customerContact.firstName} {talep.customerContact.lastName}</div>
-                            {talep.customerContact.title && (
-                              <div className="text-xs text-muted-foreground">{talep.customerContact.title}</div>
-                            )}
-                            {talep.customerContact.phone && (
-                              <div className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Phone className="h-3 w-3" />
-                                {talep.customerContact.phone}
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-sm text-muted-foreground">-</div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {getTypeLabel(talep.type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusBadgeVariant(talep.status)}>
-                          {getStatusLabel(talep.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getPriorityBadgeVariant(talep.priority)}>
-                          {getPriorityLabel(talep.priority)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {talep.assignedToUser?.name || 'Atanmamış'}
-                      </TableCell>
-                      <TableCell>
-                        {talep.deadline ? (
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(talep.deadline).toLocaleDateString('tr-TR')}
-                          </div>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(talep.createdAt).toLocaleDateString('tr-TR')}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/${workspaceSlug}/${companySlug}/talep/${talep.id}`);
-                              }}
-                            >
-                              Görüntüle
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/${workspaceSlug}/${companySlug}/talep/${talep.id}/edit`);
-                              }}
-                            >
-                              Düzenle
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search requests..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {Object.entries(statusLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
                   ))}
-                </TableBody>
-              </Table>
+                </SelectContent>
+              </Select>
+              
+              <Select value={customerFilter} onValueChange={setCustomerFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Customers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Customers</SelectItem>
+                  {uniqueCustomers.map((customer) => (
+                    <SelectItem key={customer!.id} value={customer!.id}>
+                      {customer!.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Priorities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
+        {/* Table View */}
+        {viewMode === 'table' && (
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[100px]">Request ID</TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="-ml-3 h-8 data-[state=open]:bg-accent"
+                          onClick={() => handleSort('title')}
+                        >
+                          Title
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="-ml-3 h-8 data-[state=open]:bg-accent"
+                          onClick={() => handleSort('status')}
+                        >
+                          Status
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Items</TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="-ml-3 h-8 data-[state=open]:bg-accent"
+                          onClick={() => handleSort('createdAt')}
+                        >
+                          Created
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          <div className="flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : requests.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          <div className="flex flex-col items-center justify-center">
+                            <FileText className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="text-gray-500">No requests found</p>
+                            <Button
+                              variant="link"
+                              onClick={handleNewRequest}
+                              className="mt-2"
+                            >
+                              Create your first request
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      requests.map((request) => (
+                        <TableRow
+                          key={request.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleRequestClick(request.id)}
+                        >
+                          <TableCell className="font-mono text-sm">
+                            {request.code || request.id.slice(0, 8)}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {request.title}
+                            {request.description && (
+                              <p className="text-sm text-muted-foreground truncate max-w-[300px]">
+                                {request.description}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">
+                                {request.customer?.name || 'Unknown'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={cn(statusColors[request.status])}
+                            >
+                              {statusLabels[request.status]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={cn(priorityColors[request.priority])}
+                            >
+                              {request.priority}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Package className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{request.itemCount || 0}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">
+                                {format(new Date(request.createdAt), 'MMM dd, yyyy')}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="sm">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRequestClick(request.id);
+                                  }}
+                                >
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/${workspaceSlug}/${companySlug}/talep/${request.id}/edit`);
+                                  }}
+                                >
+                                  Edit Request
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {Object.entries(statusLabels).map(([value, label]) => (
+                                  value !== request.status && (
+                                    <DropdownMenuItem
+                                      key={value}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusChange(request.id, value as keyof typeof statusLabels);
+                                      }}
+                                    >
+                                      Move to {label}
+                                    </DropdownMenuItem>
+                                  )
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              
               {/* Pagination */}
-              {pagination.totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePageChange(pagination.page - 1)}
-                    disabled={pagination.page <= 1}
-                  >
-                    Önceki
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Sayfa {pagination.page} / {pagination.totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    onClick={() => handlePageChange(pagination.page + 1)}
-                    disabled={pagination.page >= pagination.totalPages}
-                  >
-                    Sonraki
-                  </Button>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-6 py-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startItem} to {endItem} of {totalItems} requests
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        const pageNum = i + 1;
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setCurrentPage(pageNum)}
+                            className="w-8"
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                      {totalPages > 5 && <span className="px-2">...</span>}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Kanban View */}
+        {viewMode === 'kanban' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+            {kanbanColumns.map((column) => (
+              <Card key={column.id} className="h-fit">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium">
+                      {column.title}
+                    </CardTitle>
+                    <Badge variant="secondary" className="ml-2">
+                      {column.requests.length}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {column.requests.length === 0 ? (
+                    <div className="text-center py-4 text-sm text-muted-foreground">
+                      No requests
+                    </div>
+                  ) : (
+                    column.requests.map((request) => (
+                      <Card
+                        key={request.id}
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleRequestClick(request.id)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between">
+                              <p className="font-medium text-sm line-clamp-2">
+                                {request.title}
+                              </p>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  'ml-2 text-xs',
+                                  priorityColors[request.priority]
+                                )}
+                              >
+                                {request.priority[0].toUpperCase()}
+                              </Badge>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Building2 className="h-3 w-3" />
+                              <span className="truncate">
+                                {request.customer?.name || 'Unknown'}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-1">
+                                <Package className="h-3 w-3 text-muted-foreground" />
+                                <span>{request.itemCount || 0} items</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <span>
+                                  {format(new Date(request.createdAt), 'MMM dd')}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </PageWrapper>
   );
 }

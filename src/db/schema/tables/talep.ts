@@ -1,31 +1,35 @@
-import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, integer, index, unique, jsonb, check, boolean, decimal, uuid } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { talepStatusEnum, talepPriorityEnum, talepTypeEnum, talepCategoryEnum } from "../enums";
 import { user } from "./user";
 import { workspace } from "./workspace";
 import { company } from "./company";
 import { businessEntity, businessEntityContact } from "./businessEntity";
+import { products } from "./products";
 
-// Main talep (request) table - stores request information with Turkish business context
+// Main Request table - Top-level entity representing the entire customer request
+// Acts as a container for all information, files, and actions related to a specific customer need
 export const talep = pgTable('talep', {
   /* Core identifier */
-  id: text('id').primaryKey(),
+  id: uuid('id').defaultRandom().primaryKey(),
   code: varchar('code', { length: 20 }),
 
   /* Workspace and company association */
   workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }).notNull(),
   companyId: text('company_id').references(() => company.id, { onDelete: 'cascade' }).notNull(),
 
+  /* Customer association - The customer who made the request */
+  customerId: text('customer_id').references(() => businessEntity.id, { onDelete: 'cascade' }).notNull(),
+  
   /* Request details */
-  title: varchar('title', { length: 255 }).notNull(),
-  description: text('description').notNull(),
-  type: talepTypeEnum('type').default('general_inquiry').notNull(),
-  category: talepCategoryEnum('category'),
+  title: text('title').notNull(), // Short descriptive title (e.g., "Q3 Widget Order")
+  description: text('description'), // Additional context or notes
+  
+  /* Workflow State Management */
   status: talepStatusEnum('status').default('new').notNull(),
   priority: talepPriorityEnum('priority').default('medium').notNull(),
-
-  /* Business entity association (customer) */
-  entityId: text('entity_id').references(() => businessEntity.id, { onDelete: 'cascade' }).notNull(),
+  
+  /* Contact information for this specific request */
   entityContactId: text('entity_contact_id').references(() => businessEntityContact.id, { onDelete: 'set null' }),
 
   /* Assignment */
@@ -69,10 +73,8 @@ export const talep = pgTable('talep', {
   index('talep_workspace_company_idx').on(table.workspaceId, table.companyId),
   index('talep_title_idx').on(table.title),
   index('talep_status_idx').on(table.status),
-  index('talep_type_idx').on(table.type),
-  index('talep_category_idx').on(table.category),
   index('talep_priority_idx').on(table.priority),
-  index('talep_entity_idx').on(table.entityId),
+  index('talep_customer_idx').on(table.customerId),
   index('talep_entity_contact_idx').on(table.entityContactId),
   index('talep_assigned_to_idx').on(table.assignedTo),
   index('talep_assigned_by_idx').on(table.assignedBy),
@@ -83,11 +85,9 @@ export const talep = pgTable('talep', {
 
   // Composite indexes for common query patterns
   index('talep_status_created_idx').on(table.status, table.createdAt),
-  index('talep_type_status_idx').on(table.type, table.status),
   index('talep_priority_status_idx').on(table.priority, table.status),
-  index('talep_entity_status_idx').on(table.entityId, table.status),
+  index('talep_customer_status_idx').on(table.customerId, table.status),
   index('talep_assigned_deadline_idx').on(table.assignedTo, table.deadline),
-  index('talep_entity_type_idx').on(table.entityId, table.type),
 
   // Validation constraints
   check('talep_email_check', sql`contact_email IS NULL OR contact_email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'`),
@@ -96,8 +96,8 @@ export const talep = pgTable('talep', {
 
 // Talep notes table - for tracking request interactions and internal notes
 export const talepNote = pgTable('talep_notes', {
-  id: text('id').primaryKey(),
-  talepId: text('talep_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
+  id: uuid('id').defaultRandom().primaryKey(),
+  requestId: uuid('request_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
 
   // Note details
   title: varchar('title', { length: 255 }),
@@ -121,7 +121,7 @@ export const talepNote = pgTable('talep_notes', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
 }, (table) => [
-  index('talep_notes_talep_idx').on(table.talepId),
+  index('talep_notes_request_idx').on(table.requestId),
   index('talep_notes_type_idx').on(table.noteType),
   index('talep_notes_created_by_idx').on(table.createdBy),
   index('talep_notes_created_at_idx').on(table.createdAt),
@@ -131,8 +131,8 @@ export const talepNote = pgTable('talep_notes', {
 
 // Talep files table - documents associated with requests
 export const talepFile = pgTable('talep_files', {
-  id: text('id').primaryKey(),
-  talepId: text('talep_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
+  id: uuid('id').defaultRandom().primaryKey(),
+  requestId: uuid('request_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
 
   // File metadata
   name: varchar('name', { length: 255 }).notNull(),
@@ -156,16 +156,16 @@ export const talepFile = pgTable('talep_files', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'),
 }, (table) => [
-  index('talep_files_talep_idx').on(table.talepId),
+  index('talep_files_request_idx').on(table.requestId),
   index('talep_files_category_idx').on(table.category),
   index('talep_files_created_at_idx').on(table.createdAt),
   index('talep_files_visible_entity_idx').on(table.isVisibleToEntity),
 ]);
 
-// Talep activities table - audit log of all activities on a request
+// Talep activities table - audit log of all activities on a request (Workflow Action audit trail)
 export const talepActivity = pgTable('talep_activities', {
-  id: text('id').primaryKey(),
-  talepId: text('talep_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
+  id: uuid('id').defaultRandom().primaryKey(),
+  requestId: uuid('request_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
 
   // Activity details
   activityType: varchar('activity_type', { length: 100 }).notNull(), // status_change, assignment, note_added, file_uploaded, etc.
@@ -180,44 +180,53 @@ export const talepActivity = pgTable('talep_activities', {
   performedBy: text('performed_by').references(() => user.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
-  index('talep_activities_talep_idx').on(table.talepId),
+  index('talep_activities_request_idx').on(table.requestId),
   index('talep_activities_type_idx').on(table.activityType),
   index('talep_activities_performed_by_idx').on(table.performedBy),
   index('talep_activities_created_at_idx').on(table.createdAt),
 ]);
 
-// Talep products table - products requested in a talep
-export const talepProduct = pgTable('talep_products', {
-  id: text('id').primaryKey(),
-  talepId: text('talep_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
+// RequestItem table - Child entity representing a single product/service line item within a Request
+// A single Request can have multiple RequestItems
+export const requestItem = pgTable('request_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  requestId: uuid('request_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
 
-  // Product details
+  // Product association (optional - links to known product in catalog)
+  productId: text('product_id').references(() => products.id, { onDelete: 'set null' }),
+  
+  // Item specification
+  specification: text('specification').notNull(), // Detailed description if not in catalog, or additional specs
   productCode: varchar('product_code', { length: 100 }),
-  productName: varchar('product_name', { length: 255 }).notNull(),
-  productDescription: text('product_description'),
+  productName: varchar('product_name', { length: 255 }),
   manufacturer: varchar('manufacturer', { length: 255 }),
   model: varchar('model', { length: 255 }),
   partNumber: varchar('part_number', { length: 100 }),
 
-  // Specifications
-  specifications: jsonb('specifications'), // Technical specs as JSON
-  category: varchar('category', { length: 100 }), // Weapon systems, electronics, etc.
+  // Technical specifications
+  specifications: jsonb('specifications'), // Additional technical specs as JSON
+  category: varchar('category', { length: 100 }),
   subCategory: varchar('sub_category', { length: 100 }),
 
-  // Quantity and pricing
-  requestedQuantity: integer('requested_quantity').default(1).notNull(),
-  unitOfMeasure: varchar('unit_of_measure', { length: 50 }).default('piece'), // piece, set, kg, etc.
+  // Quantity and units
+  quantity: integer('quantity').default(1).notNull(), // Number of units requested
+  unitOfMeasure: varchar('unit_of_measure', { length: 50 }).default('piece'),
+  
+  // Revision tracking
+  revision: integer('revision').default(1).notNull(), // Version number, incremented on changes
+  
+  // Pricing information
   targetPrice: decimal('target_price', { precision: 15, scale: 2 }),
   currency: varchar('currency', { length: 3 }).default('USD'),
 
-  // Defense industry specific
+  // Defense industry specific fields
   exportControlled: boolean('export_controlled').default(false),
-  itar: boolean('itar').default(false), // International Traffic in Arms Regulations
+  itar: boolean('itar').default(false),
   endUseStatement: text('end_use_statement'),
-  certificationRequired: jsonb('certification_required'), // Array of required certifications
+  certificationRequired: jsonb('certification_required'),
 
   // Status and notes
-  status: varchar('status', { length: 50 }).default('requested'), // requested, quoted, approved, rejected
+  status: varchar('status', { length: 50 }).default('requested'),
   notes: text('notes'),
 
   // Audit fields
@@ -228,17 +237,22 @@ export const talepProduct = pgTable('talep_products', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
-  index('talep_products_talep_idx').on(table.talepId),
-  index('talep_products_code_idx').on(table.productCode),
-  index('talep_products_name_idx').on(table.productName),
-  index('talep_products_category_idx').on(table.category),
-  index('talep_products_status_idx').on(table.status),
+  index('request_items_request_idx').on(table.requestId),
+  index('request_items_product_idx').on(table.productId),
+  index('request_items_code_idx').on(table.productCode),
+  index('request_items_name_idx').on(table.productName),
+  index('request_items_category_idx').on(table.category),
+  index('request_items_status_idx').on(table.status),
+  index('request_items_revision_idx').on(table.revision),
 ]);
+
+// Keep the old name as an alias for backward compatibility
+export const talepProduct = requestItem;
 
 // Talep actions table - detailed actions taken for a talep
 export const talepAction = pgTable('talep_actions', {
-  id: text('id').primaryKey(),
-  talepId: text('talep_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
+  id: uuid('id').defaultRandom().primaryKey(),
+  requestId: uuid('request_id').references(() => talep.id, { onDelete: 'cascade' }).notNull(),
 
   // Action details
   actionType: varchar('action_type', { length: 100 }).notNull(), // email_sent, call_made, meeting_held, quote_requested, etc.
@@ -275,7 +289,7 @@ export const talepAction = pgTable('talep_actions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
-  index('talep_actions_talep_idx').on(table.talepId),
+  index('talep_actions_request_idx').on(table.requestId),
   index('talep_actions_type_idx').on(table.actionType),
   index('talep_actions_category_idx').on(table.actionCategory),
   index('talep_actions_outcome_idx').on(table.outcome),
@@ -286,8 +300,10 @@ export const talepAction = pgTable('talep_actions', {
 
 // Type exports
 export type TalepType = typeof talep.$inferSelect;
+export type RequestType = typeof talep.$inferSelect; // Alias for clarity
 export type TalepNoteType = typeof talepNote.$inferSelect;
 export type TalepFileType = typeof talepFile.$inferSelect;
 export type TalepActivityType = typeof talepActivity.$inferSelect;
-export type TalepProductType = typeof talepProduct.$inferSelect;
+export type RequestItemType = typeof requestItem.$inferSelect;
+export type TalepProductType = typeof requestItem.$inferSelect; // Backward compatibility
 export type TalepActionType = typeof talepAction.$inferSelect;
