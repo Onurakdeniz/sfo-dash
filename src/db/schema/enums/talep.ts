@@ -1,12 +1,13 @@
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const talepStatusEnum = pgEnum("talep_status", [
-  "new",           // Yeni talep
-  "in_progress",   // İşlemde
-  "waiting",       // Beklemede
-  "resolved",      // Çözüldü
-  "closed",        // Kapandı
-  "cancelled"      // İptal edildi
+  "new",              // Yeni talep - Initial state
+  "clarification",    // Müşteri ile detaylandırma aşaması
+  "supplier_inquiry", // Tedarikçi sorgulama aşaması
+  "pricing",          // Fiyatlandırma aşaması
+  "offer",            // Teklif hazırlama aşaması
+  "negotiation",      // Müzakere aşaması
+  "closed"            // Kapandı - Deal won or lost
 ]);
 
 export const talepPriorityEnum = pgEnum("talep_priority", [

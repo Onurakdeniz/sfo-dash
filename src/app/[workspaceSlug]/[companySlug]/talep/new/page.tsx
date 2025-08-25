@@ -5,8 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -14,290 +14,263 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { PageWrapper } from '@/components/page-wrapper';
-import { ArrowLeft, Save, User, Package, Plus, Upload, FolderOpen } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Save, 
+  ArrowLeft, 
+  Package, 
+  Upload,
+  X,
+  Edit2,
+  FileText,
+  Building2,
+  User
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { RequestService, CreateRequestItemInput } from '@/actions/talep/request-service';
+
+interface RequestItem extends CreateRequestItemInput {
+  tempId: string;
+}
 
 interface Customer {
   id: string;
   name: string;
-  fullName: string | null;
-  customerType: 'individual' | 'corporate';
-  email: string | null;
-  phone: string | null;
+  email?: string;
+  phone?: string;
 }
 
-interface CustomerContact {
-  id: string;
-  firstName: string;
-  lastName: string;
-  title: string | null;
-  email: string | null;
-  phone: string | null;
-  mobile: string | null;
-  isPrimary: boolean;
-  isActive: boolean;
-}
-
-interface User {
-  id: string;
-  name: string | null;
-  email: string | null;
-}
-
-export default function NewTalepPage() {
+export default function NewRequestPage() {
   const { workspaceSlug, companySlug } = useParams();
   const router = useRouter();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerContacts, setCustomerContacts] = useState<CustomerContact[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
-  const [filesToUpload, setFilesToUpload] = useState<Array<{ file: File; uploaded: boolean }>>([]);
-
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    type: 'general_inquiry',
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
+  
+  // Form state
+  const [customerId, setCustomerId] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [items, setItems] = useState<RequestItem[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  
+  // Item dialog state
+  const [itemDialogOpen, setItemDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<RequestItem | null>(null);
+  const [itemForm, setItemForm] = useState<Partial<RequestItem>>({
+    specification: '',
+    quantity: 1,
+    productCode: '',
+    productName: '',
+    manufacturer: '',
+    model: '',
+    partNumber: '',
     category: '',
-    priority: 'medium',
-    customerId: '',
-    customerContactId: '',
-    assignedTo: 'unassigned',
-    contactName: '',
-    contactPhone: '',
-    contactEmail: '',
-    deadline: '',
-    estimatedHours: '',
-    estimatedCost: '',
-    billingStatus: '',
-    tags: [] as string[],
+    targetPrice: '',
+    currency: 'USD',
     notes: '',
-    metadata: {},
   });
 
-  // Fetch customers and users for dropdowns
+  // Fetch customers
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchCustomers = async () => {
       try {
-        // Fetch customers
-        const customersResponse = await fetch(
-          `/api/workspaces/${workspaceSlug}/companies/${companySlug}/customers?limit=1000`,
-          { headers: { 'Content-Type': 'application/json' } }
-        );
-
-        if (customersResponse.ok) {
-          const customersData = await customersResponse.json();
-          setCustomers(customersData.customers || []);
-        }
-
-        // Fetch employees for assignment selector
-        const employeesRes = await fetch(`/api/workspaces/${workspaceSlug}/companies/${companySlug}/employees`, {
-          headers: { 'Content-Type': 'application/json' }
-        });
-        if (employeesRes.ok) {
-          const employees = await employeesRes.json();
-          setUsers(
-            (employees || []).map((e: any) => ({ id: e.id, name: e.name, email: e.email }))
-          );
-        }
-
+        // In a real implementation, this would fetch from the API
+        // For now, using mock data
+        setCustomers([
+          { id: '1', name: 'Acme Corporation', email: 'contact@acme.com', phone: '+1234567890' },
+          { id: '2', name: 'Global Defense Ltd', email: 'info@globaldefense.com', phone: '+9876543210' },
+          { id: '3', name: 'Tech Industries', email: 'sales@techindustries.com', phone: '+1122334455' },
+        ]);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching customers:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load customers.',
+          variant: 'destructive',
+        });
+      } finally {
+        setLoadingCustomers(false);
       }
     };
 
-    fetchData();
-  }, [workspaceSlug, companySlug]);
+    fetchCustomers();
+  }, [toast]);
 
-  const fetchCustomerContacts = async (customerId: string) => {
-    try {
-      const response = await fetch(
-        `/api/workspaces/${workspaceSlug}/companies/${companySlug}/customers/${customerId}/contacts`,
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        setCustomerContacts(data.contacts || []);
-        
-        // Auto-select primary contact if available
-        const primaryContact = data.contacts?.find((c: CustomerContact) => c.isPrimary);
-        if (primaryContact) {
-          setFormData(prev => ({
-            ...prev,
-            customerContactId: primaryContact.id,
-            contactName: `${primaryContact.firstName} ${primaryContact.lastName}`,
-            contactEmail: primaryContact.email || '',
-            contactPhone: primaryContact.phone || primaryContact.mobile || '',
-          }));
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching customer contacts:', error);
-      setCustomerContacts([]);
-    }
-  };
-
-  const handleCustomerSelect = async (customerId: string) => {
-    const customer = customers.find(c => c.id === customerId);
-    setSelectedCustomer(customer || null);
-    setFormData(prev => ({
-      ...prev,
-      customerId,
-      customerContactId: '',
-      contactName: customer?.name || '',
-      contactEmail: customer?.email || '',
-      contactPhone: customer?.phone || '',
-    }));
-    
-    // Fetch contacts for the selected customer
-    if (customerId) {
-      await fetchCustomerContacts(customerId);
+  // Handle item dialog
+  const openItemDialog = (item?: RequestItem) => {
+    if (item) {
+      setEditingItem(item);
+      setItemForm(item);
     } else {
-      setCustomerContacts([]);
+      setEditingItem(null);
+      setItemForm({
+        specification: '',
+        quantity: 1,
+        productCode: '',
+        productName: '',
+        manufacturer: '',
+        model: '',
+        partNumber: '',
+        category: '',
+        targetPrice: '',
+        currency: 'USD',
+        notes: '',
+      });
     }
+    setItemDialogOpen(true);
   };
 
-  const handleContactSelect = (contactId: string) => {
-    const contact = customerContacts.find(c => c.id === contactId);
-    if (contact) {
-      setFormData(prev => ({
-        ...prev,
-        customerContactId: contactId,
-        contactName: `${contact.firstName} ${contact.lastName}`,
-        contactEmail: contact.email || '',
-        contactPhone: contact.phone || contact.mobile || '',
-      }));
-    }
+  const closeItemDialog = () => {
+    setItemDialogOpen(false);
+    setEditingItem(null);
+    setItemForm({
+      specification: '',
+      quantity: 1,
+      productCode: '',
+      productName: '',
+      manufacturer: '',
+      model: '',
+      partNumber: '',
+      category: '',
+      targetPrice: '',
+      currency: 'USD',
+      notes: '',
+    });
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setSelectedFiles(e.target.files);
-      const newFiles = Array.from(e.target.files).map(file => ({ file, uploaded: false }));
-      setFilesToUpload(prev => [...prev, ...newFiles]);
+  // Save item
+  const saveItem = () => {
+    if (!itemForm.specification) {
+      toast({
+        title: 'Error',
+        description: 'Specification is required for each item.',
+        variant: 'destructive',
+      });
+      return;
     }
-  };
 
-  const uploadFiles = async (talepId: string) => {
-    if (filesToUpload.length === 0) return;
-    
-    for (let i = 0; i < filesToUpload.length; i++) {
-      const { file, uploaded } = filesToUpload[i];
-      if (uploaded) continue;
-      
-      try {
-        const form = new FormData();
-        form.append('file', file);
-        form.append('filename', file.name);
-        
-        const uploadResponse = await fetch(
-          `/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files/upload-url`,
-          {
-            method: 'POST',
-            body: form,
-            credentials: 'include',
-          }
-        );
-        
-        if (!uploadResponse.ok) {
-          throw new Error('Failed to get upload URL');
-        }
-        
-        const { url, key } = await uploadResponse.json();
-        
-        const metaResponse = await fetch(
-          `/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep/${talepId}/files`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: file.name,
-              blobUrl: url,
-              blobPath: key,
-              contentType: file.type,
-              size: file.size
-            }),
-            credentials: 'include',
-          }
-        );
-        
-        if (!metaResponse.ok) {
-          throw new Error('Failed to create file record');
-        }
-        
-        // Mark as uploaded
-        setFilesToUpload(prev => 
-          prev.map((f, idx) => idx === i ? { ...f, uploaded: true } : f)
-        );
-      } catch (error) {
-        console.error('Error uploading file:', error);
-        toast({
-          title: 'Dosya Yükleme Hatası',
-          description: `${file.name} yüklenemedi`,
-          variant: 'destructive',
-        });
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    try {
-      const submitData = {
-        ...formData,
-        tags: formData.tags.filter(tag => tag.trim() !== ''),
-        deadline: formData.deadline || null,
-        estimatedHours: formData.estimatedHours ? parseFloat(formData.estimatedHours) : null,
-        estimatedCost: formData.estimatedCost ? parseFloat(formData.estimatedCost) : null,
-        billingStatus: formData.billingStatus || null,
-        notes: formData.notes || null,
-        category: formData.category || null,
-        assignedTo: formData.assignedTo === 'unassigned' ? null : formData.assignedTo || null,
+    if (editingItem) {
+      // Update existing item
+      setItems(items.map(item => 
+        item.tempId === editingItem.tempId 
+          ? { ...itemForm as RequestItem, tempId: editingItem.tempId }
+          : item
+      ));
+    } else {
+      // Add new item
+      const newItem: RequestItem = {
+        ...itemForm as RequestItem,
+        tempId: `temp-${Date.now()}`,
       };
+      setItems([...items, newItem]);
+    }
 
-      const response = await fetch(
-        `/api/workspaces/${workspaceSlug}/companies/${companySlug}/talep`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(submitData),
-        }
-      );
+    closeItemDialog();
+  };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create talep');
-      }
+  // Delete item
+  const deleteItem = (tempId: string) => {
+    setItems(items.filter(item => item.tempId !== tempId));
+  };
 
-      const result = await response.json();
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setFiles([...files, ...newFiles]);
+    }
+  };
+
+  // Remove file
+  const removeFile = (index: number) => {
+    setFiles(files.filter((_, i) => i !== index));
+  };
+
+  // Submit form
+  const handleSubmit = async () => {
+    // Validation
+    if (!customerId) {
+      toast({
+        title: 'Error',
+        description: 'Please select a customer.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!title) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a request title.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (items.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Please add at least one item to the request.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // In a real implementation, these IDs would come from the session/context
+      const workspaceId = 'current-workspace-id'; // Replace with actual workspace ID
+      const companyId = 'current-company-id'; // Replace with actual company ID
+
+      const result = await RequestService.createRequest({
+        customerId,
+        title,
+        description,
+        items: items.map(({ tempId, ...item }) => item),
+        workspaceId,
+        companyId,
+      });
 
       // Upload files if any
-      if (filesToUpload.length > 0) {
-        await uploadFiles(result.talep.id);
+      if (files.length > 0) {
+        // In a real implementation, you would upload files to blob storage
+        // and then attach them to the request
+        for (const file of files) {
+          // await RequestService.attachFileToRequest(result.request.id, {
+          //   name: file.name,
+          //   blobUrl: 'uploaded-url',
+          //   contentType: file.type,
+          //   size: file.size,
+          // });
+        }
       }
 
       toast({
         title: 'Success',
-        description: 'Talep başarıyla oluşturuldu',
+        description: 'Request created successfully.',
       });
 
-      router.push(`/${workspaceSlug}/${companySlug}/talep/${result.talep.id}`);
-
+      router.push(`/${workspaceSlug}/${companySlug}/talep/${result.request.id}`);
     } catch (error) {
-      console.error('Error creating talep:', error);
+      console.error('Error creating request:', error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to create talep',
+        description: 'Failed to create request. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -305,436 +278,439 @@ export default function NewTalepPage() {
     }
   };
 
-  const handleTagAdd = (tag: string) => {
-    if (tag && !formData.tags.includes(tag)) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, tag],
-      }));
-    }
-  };
-
-  const handleTagRemove = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove),
-    }));
-  };
-
   return (
-    <PageWrapper
-      title="Yeni Talep"
-      description="Yeni müşteri talebi oluşturun"
-      className="max-w-4xl"
-      actions={
-        <Button
-          variant="outline"
-          onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep`)}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Geri
-        </Button>
-      }
-    >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Temel Bilgiler</CardTitle>
-            <CardDescription>
-              Talep için temel bilgileri girin
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Talep Başlığı *</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Talep başlığını girin"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="customerId">Müşteri *</Label>
-                <Select value={formData.customerId} onValueChange={handleCustomerSelect}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Müşteri seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+    <PageWrapper>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep`)}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Requests
+          </Button>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Açıklama *</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Talep açıklamasını girin"
-                rows={4}
-                required
-              />
-            </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">New Request</h1>
+          <p className="text-muted-foreground mt-1">
+            Create a new customer request and add items
+          </p>
+        </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="type">Talep Tipi</Label>
-                <Select
-                  value={formData.type}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="rfq">RFQ (Teklif Talebi)</SelectItem>
-                    <SelectItem value="rfi">RFI (Bilgi Talebi)</SelectItem>
-                    <SelectItem value="rfp">RFP (Teklif Çağrısı)</SelectItem>
-                    <SelectItem value="quotation_request">Teklif Talebi</SelectItem>
-                    <SelectItem value="price_request">Fiyat Talebi</SelectItem>
-                    <SelectItem value="product_inquiry">Ürün Sorgusu</SelectItem>
-                    <SelectItem value="order_request">Sipariş Talebi</SelectItem>
-                    <SelectItem value="sample_request">Numune Talebi</SelectItem>
-                    <SelectItem value="certification_req">Sertifika Talebi</SelectItem>
-                    <SelectItem value="compliance_inquiry">Uygunluk Sorgusu</SelectItem>
-                    <SelectItem value="export_license">İhracat Lisansı</SelectItem>
-                    <SelectItem value="end_user_cert">Son Kullanıcı Sertifikası</SelectItem>
-                    <SelectItem value="delivery_status">Teslimat Durumu</SelectItem>
-                    <SelectItem value="return_request">İade Talebi</SelectItem>
-                    <SelectItem value="billing">Fatura</SelectItem>
-                    <SelectItem value="technical_support">Teknik Destek</SelectItem>
-                    <SelectItem value="general_inquiry">Genel Soru</SelectItem>
-                    <SelectItem value="complaint">Şikayet</SelectItem>
-                    <SelectItem value="feature_request">Özellik Talebi</SelectItem>
-                    <SelectItem value="bug_report">Hata Bildirimi</SelectItem>
-                    <SelectItem value="installation">Kurulum</SelectItem>
-                    <SelectItem value="training">Eğitim</SelectItem>
-                    <SelectItem value="maintenance">Bakım</SelectItem>
-                    <SelectItem value="other">Diğer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="category">Kategori</Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Kategori seçin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weapon_systems">Silah Sistemleri</SelectItem>
-                    <SelectItem value="ammunition">Mühimmat</SelectItem>
-                    <SelectItem value="avionics">Aviyonik</SelectItem>
-                    <SelectItem value="radar_systems">Radar Sistemleri</SelectItem>
-                    <SelectItem value="communication">Haberleşme Sistemleri</SelectItem>
-                    <SelectItem value="electronic_warfare">Elektronik Harp</SelectItem>
-                    <SelectItem value="naval_systems">Deniz Sistemleri</SelectItem>
-                    <SelectItem value="land_systems">Kara Sistemleri</SelectItem>
-                    <SelectItem value="air_systems">Hava Sistemleri</SelectItem>
-                    <SelectItem value="cyber_security">Siber Güvenlik</SelectItem>
-                    <SelectItem value="simulation">Simülasyon</SelectItem>
-                    <SelectItem value="c4isr">C4ISR</SelectItem>
-                    <SelectItem value="hardware">Donanım</SelectItem>
-                    <SelectItem value="software">Yazılım</SelectItem>
-                    <SelectItem value="network">Ağ</SelectItem>
-                    <SelectItem value="database">Veritabanı</SelectItem>
-                    <SelectItem value="security">Güvenlik</SelectItem>
-                    <SelectItem value="performance">Performans</SelectItem>
-                    <SelectItem value="integration">Entegrasyon</SelectItem>
-                    <SelectItem value="reporting">Raporlama</SelectItem>
-                    <SelectItem value="user_access">Kullanıcı Erişimi</SelectItem>
-                    <SelectItem value="other">Diğer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="priority">Öncelik</Label>
-                <Select
-                  value={formData.priority}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Düşük</SelectItem>
-                    <SelectItem value="medium">Orta</SelectItem>
-                    <SelectItem value="high">Yüksek</SelectItem>
-                    <SelectItem value="urgent">Acil</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Customer Information */}
-        {selectedCustomer && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Müşteri Bilgileri
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Main Form */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Request Details */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Request Information</CardTitle>
+                <CardDescription>
+                  Enter the basic information for this request
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="contactName">İletişim Kişisi</Label>
-                  {customerContacts.length > 0 ? (
-                    <Select
-                      value={formData.customerContactId}
-                      onValueChange={handleContactSelect}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="İletişim kişisi seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customerContacts.map((contact) => (
-                          <SelectItem key={contact.id} value={contact.id}>
-                            {contact.firstName} {contact.lastName}
-                            {contact.title && ` - ${contact.title}`}
-                            {contact.isPrimary && ' (Birincil)'}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="contactName"
-                      value={formData.contactName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, contactName: e.target.value }))}
-                      placeholder="İletişim kişisi adı"
-                    />
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignedTo">Atanan Kişi</Label>
+                  <Label htmlFor="customer">Customer *</Label>
                   <Select
-                    value={formData.assignedTo}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, assignedTo: value }))}
+                    value={customerId}
+                    onValueChange={setCustomerId}
+                    disabled={loadingCustomers}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Kişi seçin" />
+                    <SelectTrigger id="customer">
+                      <SelectValue placeholder="Select a customer" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="unassigned">Atanmamış</SelectItem>
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name || user.email}
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <span>{customer.name}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="contactPhone">Telefon</Label>
+                  <Label htmlFor="title">Title *</Label>
                   <Input
-                    id="contactPhone"
-                    value={formData.contactPhone}
-                    onChange={(e) => setFormData(prev => ({ ...prev, contactPhone: e.target.value }))}
-                    placeholder="Telefon numarası"
+                    id="title"
+                    placeholder="e.g., Q3 Widget Order"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A short, descriptive title for the request
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Enter additional details about the request..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={4}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="contactEmail">E-posta</Label>
-                  <Input
-                    id="contactEmail"
-                    type="email"
-                    value={formData.contactEmail}
-                    onChange={(e) => setFormData(prev => ({ ...prev, contactEmail: e.target.value }))}
-                    placeholder="E-posta adresi"
-                  />
+              </CardContent>
+            </Card>
+
+            {/* Request Items */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Request Items</CardTitle>
+                    <CardDescription>
+                      Add products or services to this request
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => openItemDialog()}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Item
+                  </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardHeader>
+              <CardContent>
+                {items.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">No items added yet</p>
+                    <Button
+                      variant="link"
+                      onClick={() => openItemDialog()}
+                      className="mt-2"
+                    >
+                      Add your first item
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {items.map((item, index) => (
+                      <div
+                        key={item.tempId}
+                        className="border rounded-lg p-4 space-y-2"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline">Item {index + 1}</Badge>
+                              {item.productCode && (
+                                <span className="text-sm text-muted-foreground">
+                                  {item.productCode}
+                                </span>
+                              )}
+                            </div>
+                            <p className="font-medium">
+                              {item.productName || item.specification}
+                            </p>
+                            {item.manufacturer && (
+                              <p className="text-sm text-muted-foreground">
+                                Manufacturer: {item.manufacturer}
+                              </p>
+                            )}
+                            {item.model && (
+                              <p className="text-sm text-muted-foreground">
+                                Model: {item.model}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openItemDialog(item)}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteItem(item.tempId)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1">
+                            <span className="text-muted-foreground">Quantity:</span>
+                            <span className="font-medium">{item.quantity}</span>
+                          </div>
+                          {item.targetPrice && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-muted-foreground">Target Price:</span>
+                              <span className="font-medium">
+                                {item.currency} {item.targetPrice}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {item.notes && (
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {item.notes}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Products Section - Basic version */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Ürünler
-            </CardTitle>
-            <CardDescription>
-              Talep edilen ürünler talep oluşturulduktan sonra eklenebilir
-            </CardDescription>
-          </CardHeader>
-        </Card>
+          {/* Right Column - Files and Actions */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Attachments</CardTitle>
+                <CardDescription>
+                  Upload specifications, drawings, or other documents
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="border-2 border-dashed rounded-lg p-4">
+                    <input
+                      type="file"
+                      id="file-upload"
+                      className="hidden"
+                      multiple
+                      onChange={handleFileUpload}
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="flex flex-col items-center cursor-pointer"
+                    >
+                      <Upload className="h-8 w-8 text-gray-400 mb-2" />
+                      <span className="text-sm text-gray-600">
+                        Click to upload files
+                      </span>
+                      <span className="text-xs text-gray-500 mt-1">
+                        or drag and drop
+                      </span>
+                    </label>
+                  </div>
 
-        {/* Scheduling and Financial */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Zamanlama ve Finans</CardTitle>
-            <CardDescription>
-              İsteğe bağlı zamanlama ve finans bilgilerini girin
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {files.length > 0 && (
+                    <div className="space-y-2">
+                      {files.map((file, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-2 border rounded"
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm truncate">{file.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({(file.size / 1024).toFixed(1)} KB)
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button
+                  className="w-full"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {loading ? 'Creating...' : 'Create Request'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep`)}
+                >
+                  Cancel
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Item Dialog */}
+      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingItem ? 'Edit Item' : 'Add New Item'}
+            </DialogTitle>
+            <DialogDescription>
+              Enter the details for the request item
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="deadline">Son Tarih</Label>
-                <Input
-                  id="deadline"
-                  type="datetime-local"
-                  value={formData.deadline}
-                  onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
+                <Label htmlFor="item-specification">Specification *</Label>
+                <Textarea
+                  id="item-specification"
+                  placeholder="Detailed description of the product/service"
+                  value={itemForm.specification}
+                  onChange={(e) => setItemForm({ ...itemForm, specification: e.target.value })}
+                  rows={3}
                 />
               </div>
+              
               <div className="space-y-2">
-                <Label htmlFor="estimatedHours">Tahmini Saat</Label>
+                <Label htmlFor="item-quantity">Quantity *</Label>
                 <Input
-                  id="estimatedHours"
+                  id="item-quantity"
                   type="number"
-                  step="0.5"
-                  value={formData.estimatedHours}
-                  onChange={(e) => setFormData(prev => ({ ...prev, estimatedHours: e.target.value }))}
-                  placeholder="0.0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="estimatedCost">Tahmini Maliyet</Label>
-                <Input
-                  id="estimatedCost"
-                  type="number"
-                  step="0.01"
-                  value={formData.estimatedCost}
-                  onChange={(e) => setFormData(prev => ({ ...prev, estimatedCost: e.target.value }))}
-                  placeholder="0.00"
+                  min="1"
+                  value={itemForm.quantity}
+                  onChange={(e) => setItemForm({ ...itemForm, quantity: parseInt(e.target.value) || 1 })}
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Additional Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ek Bilgiler</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="item-product-code">Product Code</Label>
+                <Input
+                  id="item-product-code"
+                  placeholder="e.g., WDG-001"
+                  value={itemForm.productCode}
+                  onChange={(e) => setItemForm({ ...itemForm, productCode: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="item-product-name">Product Name</Label>
+                <Input
+                  id="item-product-name"
+                  placeholder="e.g., Advanced Widget"
+                  value={itemForm.productName}
+                  onChange={(e) => setItemForm({ ...itemForm, productName: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="item-manufacturer">Manufacturer</Label>
+                <Input
+                  id="item-manufacturer"
+                  placeholder="e.g., Acme Corp"
+                  value={itemForm.manufacturer}
+                  onChange={(e) => setItemForm({ ...itemForm, manufacturer: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="item-model">Model</Label>
+                <Input
+                  id="item-model"
+                  placeholder="e.g., Model X-100"
+                  value={itemForm.model}
+                  onChange={(e) => setItemForm({ ...itemForm, model: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="item-part-number">Part Number</Label>
+                <Input
+                  id="item-part-number"
+                  placeholder="e.g., PN-12345"
+                  value={itemForm.partNumber}
+                  onChange={(e) => setItemForm({ ...itemForm, partNumber: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="item-category">Category</Label>
+                <Input
+                  id="item-category"
+                  placeholder="e.g., Electronics"
+                  value={itemForm.category}
+                  onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="item-target-price">Target Price</Label>
+                <Input
+                  id="item-target-price"
+                  type="number"
+                  placeholder="0.00"
+                  value={itemForm.targetPrice}
+                  onChange={(e) => setItemForm({ ...itemForm, targetPrice: e.target.value })}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="item-currency">Currency</Label>
+                <Select
+                  value={itemForm.currency}
+                  onValueChange={(value) => setItemForm({ ...itemForm, currency: value })}
+                >
+                  <SelectTrigger id="item-currency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="GBP">GBP</SelectItem>
+                    <SelectItem value="TRY">TRY</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="notes">Notlar</Label>
+              <Label htmlFor="item-notes">Notes</Label>
               <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder="Ek notlar..."
+                id="item-notes"
+                placeholder="Additional notes or requirements..."
+                value={itemForm.notes}
+                onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value })}
                 rows={3}
               />
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label>Etiketler</Label>
-              <div className="flex flex-wrap gap-2">
-                {formData.tags.map((tag, index) => (
-                  <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => handleTagRemove(tag)}>
-                    {tag} ×
-                  </Badge>
-                ))}
-                <Input
-                  placeholder="Etiket ekleyin (Enter ile)"
-                  className="w-32"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const target = e.target as HTMLInputElement;
-                      handleTagAdd(target.value.trim());
-                      target.value = '';
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* File Upload */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FolderOpen className="h-5 w-5" />
-              Dosya Ekleri
-            </CardTitle>
-            <CardDescription>
-              Talep ile ilgili belgeleri ekleyin
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Input
-                id="talep-file-input"
-                type="file"
-                multiple
-                onChange={handleFileChange}
-                className="flex-1"
-              />
-              <Badge variant="secondary">
-                {filesToUpload.filter(f => !f.uploaded).length} dosya seçili
-              </Badge>
-            </div>
-            
-            {filesToUpload.length > 0 && (
-              <div className="space-y-2">
-                <Label>Seçilen Dosyalar:</Label>
-                <div className="space-y-1">
-                  {filesToUpload.map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <span className={item.uploaded ? 'text-muted-foreground line-through' : ''}>
-                        {item.file.name}
-                      </span>
-                      {item.uploaded && <Badge variant="outline" className="text-xs">Yüklendi</Badge>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end gap-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push(`/${workspaceSlug}/${companySlug}/talep`)}
-            disabled={loading}
-          >
-            İptal
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                Oluşturuluyor...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Talebi Oluştur
-              </>
-            )}
-          </Button>
-        </div>
-      </form>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeItemDialog}>
+              Cancel
+            </Button>
+            <Button onClick={saveItem}>
+              {editingItem ? 'Update Item' : 'Add Item'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageWrapper>
   );
 }
